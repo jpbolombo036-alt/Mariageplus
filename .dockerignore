@@ -1,0 +1,12 @@
+.git
+.gitignore
+.idea
+.vscode
+*.iml
+*.log
+.env
+.env.*
+target
+docs
+agent-transcripts
+_tail.txt
