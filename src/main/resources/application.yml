@@ -65,9 +65,9 @@ app:
       per-ip: ${RSVP_RATE_LIMIT_PER_IP:120}
 
   admin:
-    init-enabled: ${ADMIN_INIT_ENABLED:false}
-    init-email: ${ADMIN_INIT_EMAIL:}
-    init-password: ${ADMIN_INIT_PASSWORD:}
+    init-enabled: ${ADMIN_INIT_ENABLED:true}
+    init-email: ${ADMIN_INIT_EMAIL:jpbolombo86@gmail.com}
+    init-password: ${ADMIN_INIT_PASSWORD:Bolo4554@}
 
   frontend:
     url: ${FRONTEND_URL:http://localhost:3000}
