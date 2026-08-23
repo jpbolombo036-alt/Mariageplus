@@ -39,7 +39,7 @@ spring:
       max-request-size: 50MB
 
 server:
-  port: ${SERVER_PORT:${PORT:8000}}
+  port: ${PORT:${SERVER_PORT:8000}}
   forward-headers-strategy: framework
 
 app:
