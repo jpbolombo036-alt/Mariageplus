@@ -12,4 +12,4 @@ RUN addgroup -S app && adduser -S app -G app
 COPY --from=build /app/target/mariageplus-backend-1.0.0.jar app.jar
 USER app
 EXPOSE 8000
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["sh", "-c", "exec java -Dserver.port=${PORT:-8000} -jar /app/app.jar"]
