@@ -32,6 +32,23 @@ Puis http://localhost:8000/health
 
 En production, **ne pas** laisser le `JWT_SECRET` d'exemple. Copier `.env.example` vers `.env` et renseigner les valeurs.
 
+## Déployer sur Railway / PaaS (PostgreSQL)
+
+Le backend détecte automatiquement la base fournie par les plateformes PaaS via la
+variable **`DATABASE_URL`** (`postgres://user:pass@host:port/database` ou
+`postgresql://...`), sans avoir à recopier `SPRING_DATASOURCE_*`.
+
+En local / Docker (sans `DATABASE_URL`), le comportement est inchangé :
+`SPRING_DATASOURCE_URL` et ses variantes restent utilisées.
+
+Étapes Railway :
+1. Créer un service **PostgreSQL** et le **relier** au déploiement du backend
+   (cela injecte `DATABASE_URL`).
+2. Renseigner au minimum `JWT_SECRET` (clé HMAC ≥ 32 caractères, obligatoire hors
+   profil `local`).
+3. Optionnel : `CORS_ALLOWED_ORIGINS`, `FRONTEND_URL`, `MAX_LOGIN_ATTEMPTS`, SMTP.
+4. Redéployer. Le healthcheck se fait sur `GET /health`.
+
 ## Variables utiles
 
 Voir [`.env.example`](.env.example). Les plus importantes :

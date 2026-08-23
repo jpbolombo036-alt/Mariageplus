@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.authentication.InsufficientAuthenticationException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -27,6 +28,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider tokenProvider;
     private final UserPrincipalService userPrincipalService;
+    private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
@@ -47,6 +49,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 if (tokenProvider.getTokenVersionFromToken(jwt) != ((UserPrincipal) userDetails).getTokenVersion()) {
                     log.warn("Token révoqué (version mismatch) pour {}", request.getRequestURI());
                     SecurityContextHolder.clearContext();
+                    jwtAuthenticationEntryPoint.commence(request, response,
+                            new InsufficientAuthenticationException("Revoked token"));
                     return;
                 }
 

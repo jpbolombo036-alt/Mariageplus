@@ -1,5 +1,6 @@
 package com.mariageplus.controller;
 
+import com.mariageplus.dto.auth.LoginResponse;
 import com.mariageplus.dto.auth.RegisterRequest;
 import com.mariageplus.service.AuthService;
 import org.junit.jupiter.api.Test;
@@ -46,6 +47,22 @@ class SecurityIntegrationTest {
         String token = authService.register(req).getAccessToken() + "tampered"; // signature altérée
 
         mockMvc.perform(get("/api/weddings").header("Authorization", "Bearer " + token))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void protectedEndpoint_revokedJwt_401() throws Exception {
+        RegisterRequest req = new RegisterRequest();
+        req.setFirstName("Revoked");
+        req.setLastName("User");
+        req.setEmail("revoked-token@example.com");
+        req.setPassword("password123");
+        req.setOrganizationName("Organisation Token");
+        LoginResponse response = authService.register(req);
+
+        authService.logout(response.getUser().getId());
+
+        mockMvc.perform(get("/api/weddings").header("Authorization", "Bearer " + response.getAccessToken()))
                 .andExpect(status().isUnauthorized());
     }
 }
