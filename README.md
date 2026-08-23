@@ -5,6 +5,7 @@ API Java/Spring Boot pour gérer des mariages : organisations, invités, invitat
 - Java 17, Spring Boot 3.2, PostgreSQL (prod) / H2 (local)
 - Port : **8000**
 - Contrat Flutter : [docs/FRONTEND_FLUTTER.md](docs/FRONTEND_FLUTTER.md)
+- Limites & reste à faire : [docs/STATUS.md](docs/STATUS.md)
 
 ## Lancer en local (H2, sans PostgreSQL)
 
@@ -53,3 +54,9 @@ Voir [`.env.example`](.env.example). Les plus importantes :
 | `AGENT_ACCUEIL` | Scan QR et check-in le jour J |
 
 L'inscription (`POST /auth/register`) crée un organisateur et son organisation.
+
+## Limites & suite
+
+Le backend V1 (API) est en place. Ce dépôt **ne contient pas** l’app Flutter ni la page publique RSVP.
+
+Détail (ce qui marche, ce qui est limité, priorités P0–P3) : **[docs/STATUS.md](docs/STATUS.md)**.
