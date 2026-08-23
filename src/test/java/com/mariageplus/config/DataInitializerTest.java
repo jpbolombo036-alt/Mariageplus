@@ -60,20 +60,18 @@ class DataInitializerTest {
     }
 
     @Test
-    void enabled_missingEmail_failsWithoutSecret() {
+    void enabled_missingEmail_skipsWithoutCrash() {
         config(true, "  ", "S3cr3t!");
-        IllegalStateException ex = assertThrows(IllegalStateException.class, () -> dataInitializer.run());
-        assertTrue(ex.getMessage().contains("ADMIN_INIT_EMAIL"));
-        assertTrue(ex.getMessage().contains("ADMIN_INIT_PASSWORD"));
-        assertFalse(ex.getMessage().contains("S3cr3t!")); // aucun secret exposé
+        dataInitializer.run();
+        // Ne crashe pas le contexte : aucun SUPER_ADMIN créé, pas d'exception.
+        verify(userRepository, never()).save(any(User.class));
     }
 
     @Test
-    void enabled_missingPassword_failsWithoutSecret() {
+    void enabled_missingPassword_skipsWithoutCrash() {
         config(true, "admin@example.com", null);
-        IllegalStateException ex = assertThrows(IllegalStateException.class, () -> dataInitializer.run());
-        assertTrue(ex.getMessage().contains("ADMIN_INIT_EMAIL"));
-        assertFalse(ex.getMessage().contains("Admin@12345"));
+        dataInitializer.run();
+        verify(userRepository, never()).save(any(User.class));
     }
 
     @Test

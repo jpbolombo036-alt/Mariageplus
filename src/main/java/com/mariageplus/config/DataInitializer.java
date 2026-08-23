@@ -47,16 +47,18 @@ public class DataInitializer implements CommandLineRunner {
             log.debug("Initialisation SUPER_ADMIN désactivée (ADMIN_INIT_ENABLED)");
             return;
         }
-        validateInitCredentials();
+        if (!hasInitCredentials()) {
+            // JWT_SECRET / DB OK malgré une config admin incomplète : on ne fait PAS planter tout le contexte.
+            log.error("ADMIN_INIT_ENABLED=true mais ADMIN_INIT_EMAIL / ADMIN_INIT_PASSWORD absents -> "
+                    + "initialisation du SUPER_ADMIN ignorée, démarrage poursuivi.");
+            return;
+        }
         ensureSuperAdmin();
     }
 
-    /** Échec explicite et contrôlé si l'initialisation est activée sans identifiants (choix : aucun secret affiché). */
-    private void validateInitCredentials() {
-        if (!StringUtils.hasText(adminEmail) || !StringUtils.hasText(adminPassword)) {
-            throw new IllegalStateException(
-                    "ADMIN_INIT_EMAIL et ADMIN_INIT_PASSWORD sont obligatoires lorsque ADMIN_INIT_ENABLED=true");
-        }
+    /** True si l'email ET le mot de passe de l'init admin sont renseignés (jamais de secret dans le log). */
+    private boolean hasInitCredentials() {
+        return StringUtils.hasText(adminEmail) && StringUtils.hasText(adminPassword);
     }
 
     private void ensureSuperAdmin() {
