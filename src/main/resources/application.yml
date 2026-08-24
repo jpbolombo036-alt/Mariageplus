@@ -4,10 +4,6 @@ spring:
     driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS:org.postgresql.Driver}
     username: ${SPRING_DATASOURCE_USERNAME:${PGUSER:user}}
     password: ${SPRING_DATASOURCE_PASSWORD:${PGPASSWORD:password}}
-    hikari:
-      initialization-fail-timeout: 30000
-      connection-timeout: 30000
-      validation-timeout: 5000
 
   jpa:
     hibernate:
@@ -43,7 +39,7 @@ spring:
       max-request-size: 50MB
 
 server:
-   port: ${PORT:8080}
+  port: ${PORT:8000}
   forward-headers-strategy: framework
 
 app:
@@ -51,7 +47,7 @@ app:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:}
 
   jwt:
-    secret: ${JWT_SECRET:please-change-this-mariageplus-secret-key-32-bytes-min}
+    secret: ${JWT_SECRET}
     expiration: 900000
     refresh-expiration: 604800000
 
@@ -69,7 +65,7 @@ app:
       per-ip: ${RSVP_RATE_LIMIT_PER_IP:120}
 
   admin:
-    init-enabled: ${ADMIN_INIT_ENABLED:false}
+    init-enabled: ${ADMIN_INIT_ENABLED:}
     init-email: ${ADMIN_INIT_EMAIL:}
     init-password: ${ADMIN_INIT_PASSWORD:}
 

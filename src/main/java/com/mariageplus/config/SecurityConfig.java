@@ -83,10 +83,9 @@ public class SecurityConfig {
                         auth.requestMatchers("/h2-console/**").permitAll();
                         auth.requestMatchers("/debug/**").permitAll();
                     } else {
-                        // Production : Swagger UI accessible pour tester l'API,
-                        // mais les endpoints métier restent protégés par JWT.
+                        // Production : Swagger, h2-console et debug ne sont pas publics.
                         auth.requestMatchers("/swagger-ui/**", "/swagger-ui.html",
-                                "/swagger-resources/**", "/v3/api-docs/**", "/webjars/**").permitAll();
+                                "/swagger-resources/**", "/v3/api-docs/**", "/webjars/**").authenticated();
                         auth.requestMatchers("/debug/**").authenticated();
                         auth.requestMatchers("/h2-console/**").denyAll();
                     }

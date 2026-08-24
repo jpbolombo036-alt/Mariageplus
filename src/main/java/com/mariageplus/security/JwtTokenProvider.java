@@ -55,9 +55,6 @@ public class JwtTokenProvider {
         if (trimmed.getBytes(StandardCharsets.UTF_8).length < 32) {
             throw new IllegalStateException("JWT secret must be at least 256 bits (32 bytes).");
         }
-        if ("please-change-this-mariageplus-secret-key-32-bytes-min".equals(trimmed)) {
-            log.warn("JWT_SECRET is using the DEFAULT placeholder value. This is NOT secure for production. Set a proper JWT_SECRET environment variable.");
-        }
         jwtSecret = trimmed;
     }
 
