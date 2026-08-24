@@ -11,6 +11,6 @@ WORKDIR /app
 RUN addgroup -S app && adduser -S app -G app
 COPY --from=build /app/target/mariageplus-backend-1.0.0.jar app.jar
 USER app
-ENV PORT=8000
-EXPOSE 8000
+ENV PORT=8080
+EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "app.jar"]
