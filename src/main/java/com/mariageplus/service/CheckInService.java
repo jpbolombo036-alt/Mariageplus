@@ -56,6 +56,7 @@ public class CheckInService {
     public CheckInScanResponse scan(ScanCheckInRequest request) {
         securityUtils.assertPermission("CHECKIN_SCAN");
         Invitation invitation = resolveActiveInvitation(request.getQrToken());
+        assertSameWedding(invitation, request.getWeddingId());
         Wedding wedding = loadWedding(invitation);
         securityUtils.assertOrganizationAccess(wedding.getOrganizationId());
         Rsvp rsvp = loadRsvp(invitation);
@@ -78,6 +79,7 @@ public class CheckInService {
         Invitation invitation = invitationRepository.findByPublicTokenForUpdate(request.getQrToken())
                 .orElseThrow(() -> new ResourceNotFoundException("Invitation introuvable"));
         assertActive(invitation);
+        assertSameWedding(invitation, request.getWeddingId());
 
         Wedding wedding = loadWedding(invitation);
         securityUtils.assertOrganizationAccess(wedding.getOrganizationId());
@@ -157,6 +159,12 @@ public class CheckInService {
                 .orElseThrow(() -> new ResourceNotFoundException("Invitation introuvable"));
         assertActive(invitation);
         return invitation;
+    }
+
+    private void assertSameWedding(Invitation invitation, Long requestedWeddingId) {
+        if (requestedWeddingId == null || !invitation.getWeddingId().equals(requestedWeddingId)) {
+            throw new ResourceNotFoundException("Invitation introuvable");
+        }
     }
 
     private void assertActive(Invitation invitation) {

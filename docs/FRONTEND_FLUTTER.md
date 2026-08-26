@@ -193,9 +193,11 @@ Colonnes : `firstName,lastName,email,phone,address,allowedCompanions,categoryNam
 Réponse : `{ "imported": 2, "skipped": 1, "errors": [{ "line": 3, "message": "..." }] }`
 
 ### 5.8 Check-in
-- Scan : `POST /api/checkins/scan` `{ "qrToken": "<publicToken>" }`
-- Entrée : `POST /api/checkins` `{ "qrToken": "...", "numberOfAttendees": 1 }` → contient `checkInId`
+- Scan : `POST /api/checkins/scan` `{ "qrToken": "<publicToken>", "weddingId": <wid> }`
+- Entrée : `POST /api/checkins` `{ "qrToken": "...", "weddingId": <wid>, "numberOfAttendees": 1 }` → contient `checkInId`
 - Annulation : `DELETE /api/checkins/{checkInId}` → **204** (places recréditées)
+
+`weddingId` = mariage actif de l'appli (étanchéité jour J au sein d'une organisation). Un QR d'un autre mariage renvoie **404** (même message qu'inconnu, aucune fuite).
 
 ### 5.9 Tables
 `id, name, description?, capacity, assignedCount, remainingCapacity`  
@@ -203,6 +205,8 @@ Affectation : `assignmentId, guestId, guestName, tableId, tableName, assignedAt`
 
 ### 5.10 QR
 `{ "qrDataUri": "data:image/png;base64,...." }` — le token brut n’est pas renvoyé.
+Récupération : `GET /api/weddings/{wid}/invitations/{id}/qr` (`INVITATION_VIEW`).
+Rotation (fuite/erreur) : `POST /api/weddings/{wid}/invitations/{id}/qr/rotate` (`INVITATION_UPDATE`) → renvoie le **nouveau** QR et invalide l'ancien. Après rotation, renvoyer l'invitation (le lien RSVP public change aussi).
 
 ### 5.11 Dashboard
 `GET /api/weddings/{wid}/dashboard` — `guests`, `invitations`, `attendance`, `tables`, `categories`.  
@@ -260,6 +264,7 @@ Types : `CIVIL_CEREMONY`, `RELIGIOUS_CEREMONY`, `RECEPTION`, `AFTER_PARTY`, `OTH
 | `GET/POST` | `/api/weddings/{wid}/invitations` | `VIEW` / `CREATE` |
 | `GET/PUT/DELETE` | `.../invitations/{id}` | `VIEW` / `UPDATE` / `DELETE` |
 | `GET` | `.../invitations/{id}/qr` | `INVITATION_VIEW` |
+| `POST` | `.../invitations/{id}/qr/rotate` | `INVITATION_UPDATE` |
 | `POST` | `.../invitations/{id}/send` | `INVITATION_SEND` |
 | `POST` | `.../invitations/{id}/resend` | `INVITATION_RESEND` |
 | `POST` | `.../invitations/{id}/cancel` | `INVITATION_CANCEL` |

@@ -14,7 +14,7 @@ Contrat Flutter : [FRONTEND_FLUTTER.md](FRONTEND_FLUTTER.md)
 | Auth JWT + refresh + logout + lockout login | OK |
 | Multi-tenant (organisation) + RBAC | OK |
 | Mariages, événements, catégories, invités | OK |
-| Invitations (création, QR, send / resend / cancel) | OK |
+| Invitations (création, QR, send / resend / cancel, **rotation du QR**) | OK |
 | RSVP public par `publicToken` + rate-limit | OK |
 | Check-in (scan, entrée, annulation) | OK |
 | Tables + affectations | OK |

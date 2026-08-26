@@ -79,6 +79,7 @@ class CheckInServiceTest {
     private CheckInRequest checkInRequest(int attendees) {
         CheckInRequest req = new CheckInRequest();
         req.setQrToken("tok");
+        req.setWeddingId(1L);
         req.setNumberOfAttendees(attendees);
         return req;
     }
@@ -86,6 +87,7 @@ class CheckInServiceTest {
     private ScanCheckInRequest scanRequest() {
         ScanCheckInRequest req = new ScanCheckInRequest();
         req.setQrToken("tok");
+        req.setWeddingId(1L);
         return req;
     }
 
@@ -141,6 +143,15 @@ class CheckInServiceTest {
         invitation.setStatus(InvitationStatus.CANCELLED);
         when(invitationRepository.findByPublicToken("tok")).thenReturn(Optional.of(invitation));
         assertThrows(ResourceNotFoundException.class, () -> checkInService.scan(scanRequest()));
+    }
+
+    @Test
+    void scan_wrongWedding_404() {
+        // Même organisation, mariage différent : on révèle rien (404 identique).
+        when(invitationRepository.findByPublicToken("tok")).thenReturn(Optional.of(invitation));
+        ScanCheckInRequest req = scanRequest();
+        req.setWeddingId(2L);
+        assertThrows(ResourceNotFoundException.class, () -> checkInService.scan(req));
     }
 
     @Test
@@ -229,6 +240,17 @@ class CheckInServiceTest {
         doThrow(new SecurityException("hors périmètre")).when(securityUtils).assertOrganizationAccess(100L);
 
         assertThrows(SecurityException.class, () -> checkInService.checkIn(checkInRequest(1)));
+        verify(checkInRepository, never()).save(any(CheckIn.class));
+    }
+
+    @Test
+    void checkIn_rejects_wrongWedding_404() {
+        // Même organisation, mariage différent : on révèle rien (404 identique).
+        when(invitationRepository.findByPublicTokenForUpdate("tok")).thenReturn(Optional.of(invitation));
+        CheckInRequest req = checkInRequest(1);
+        req.setWeddingId(2L);
+
+        assertThrows(ResourceNotFoundException.class, () -> checkInService.checkIn(req));
         verify(checkInRepository, never()).save(any(CheckIn.class));
     }
 

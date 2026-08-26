@@ -133,11 +133,19 @@ class CheckInIntegrationTest {
     }
 
     private String scanBody(String qr) {
-        return "{\"qrToken\":\"" + qr + "\"}";
+        return scanBody(qr, weddingAId);
+    }
+
+    private String scanBody(String qr, Long weddingId) {
+        return "{\"weddingId\":" + weddingId + ",\"qrToken\":\"" + qr + "\"}";
     }
 
     private String checkInBody(String qr, Integer attendees) {
-        return "{\"qrToken\":\"" + qr + "\",\"numberOfAttendees\":" + attendees + "}";
+        return checkInBody(qr, weddingAId, attendees);
+    }
+
+    private String checkInBody(String qr, Long weddingId, Integer attendees) {
+        return "{\"weddingId\":" + weddingId + ",\"qrToken\":\"" + qr + "\",\"numberOfAttendees\":" + attendees + "}";
     }
 
     // ---------- Scan ----------
@@ -210,6 +218,16 @@ class CheckInIntegrationTest {
         mockMvc.perform(post("/api/checkins/scan").header("Authorization", auth(otherOrgToken))
                         .contentType(MediaType.APPLICATION_JSON).content(scanBody(qr)))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void scan_wrongWedding_404() throws Exception {
+        // Même organisation, mariage différent : on révèle rien (404 identique).
+        Long weddingBId = createWedding(tokenA);
+        String qr = mintInvitation("ACCEPTED", "2");
+        mockMvc.perform(post("/api/checkins/scan").header("Authorization", auth(tokenA))
+                        .contentType(MediaType.APPLICATION_JSON).content(scanBody(qr, weddingBId)))
+                .andExpect(status().isNotFound());
     }
 
     // ---------- Check-in ----------
@@ -323,6 +341,16 @@ class CheckInIntegrationTest {
         mockMvc.perform(post("/api/checkins").header("Authorization", auth(otherOrgToken))
                         .contentType(MediaType.APPLICATION_JSON).content(checkInBody(qr, 1)))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void checkIn_wrongWedding_404() throws Exception {
+        // Même organisation, mariage différent : on révèle rien (404 identique).
+        Long weddingBId = createWedding(tokenA);
+        String qr = mintInvitation("ACCEPTED", "2");
+        mockMvc.perform(post("/api/checkins").header("Authorization", auth(tokenA))
+                        .contentType(MediaType.APPLICATION_JSON).content(checkInBody(qr, weddingBId, 1)))
+                .andExpect(status().isNotFound());
     }
 
     @Test

@@ -23,5 +23,6 @@ public class UserResponse {
     private boolean emailVerified;
     private LocalDateTime lastLoginAt;
     private List<String> roles;
+    private List<String> permissions;
     private Long organizationId;
 }

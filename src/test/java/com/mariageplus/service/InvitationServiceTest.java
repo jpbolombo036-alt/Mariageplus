@@ -1,5 +1,6 @@
 package com.mariageplus.service;
 
+import com.mariageplus.dto.checkin.QrCodeResponse;
 import com.mariageplus.dto.invitation.CreateInvitationRequest;
 import com.mariageplus.dto.invitation.InvitationResponse;
 import com.mariageplus.dto.invitation.PublicInvitationResponse;
@@ -252,5 +253,65 @@ class InvitationServiceTest {
         when(invitationRepository.findByIdAndWeddingId(5L, 1L)).thenReturn(Optional.of(invitation));
 
         assertThrows(ConflictException.class, () -> invitationService.cancel(1L, 5L));
+    }
+
+    @Test
+    void rotateQrToken_requiresUpdatePermission() {
+        doThrow(new SecurityException("denied")).when(securityUtils).assertPermission("INVITATION_UPDATE");
+        assertThrows(SecurityException.class, () -> invitationService.rotateQrToken(1L, 5L));
+    }
+
+    @Test
+    void rotateQrToken_changesToken_keepsInvitation_returnsNewQr() {
+        Invitation invitation = Invitation.builder()
+                .weddingId(1L).guestId(7L).publicToken("old-token").status(InvitationStatus.GENERATED).build();
+        invitation.setId(5L);
+        when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
+        when(invitationRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(invitation));
+        when(invitationRepository.save(any(Invitation.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(qrCodeService.generateQrDataUri(anyString()))
+                .thenAnswer(a -> "data:image/png;base64," + a.getArgument(0));
+
+        QrCodeResponse response = invitationService.rotateQrToken(1L, 5L);
+
+        ArgumentCaptor<Invitation> captor = ArgumentCaptor.forClass(Invitation.class);
+        verify(invitationRepository).save(captor.capture());
+        String newToken = captor.getValue().getPublicToken();
+        assertNotEquals("old-token", newToken);
+        assertEquals(32, newToken.length());
+        assertTrue(response.getQrDataUri().contains(newToken));
+        assertEquals(InvitationStatus.GENERATED, captor.getValue().getStatus());
+        verify(auditService).record(eq("INVITATION_QR_ROTATE"), eq(5L), eq("Invitation"),
+                any(), eq(100L), anyString());
+    }
+
+    @Test
+    void rotateQrToken_unknown_404() {
+        when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
+        when(invitationRepository.findByIdForUpdate(99L)).thenReturn(Optional.empty());
+        assertThrows(ResourceNotFoundException.class, () -> invitationService.rotateQrToken(1L, 99L));
+        verify(invitationRepository, never()).save(any(Invitation.class));
+    }
+
+    @Test
+    void rotateQrToken_wrongWedding_404() {
+        Invitation invitation = Invitation.builder()
+                .weddingId(2L).guestId(7L).publicToken("old-token").status(InvitationStatus.GENERATED).build();
+        invitation.setId(5L);
+        when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
+        when(invitationRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(invitation));
+        assertThrows(ResourceNotFoundException.class, () -> invitationService.rotateQrToken(1L, 5L));
+        verify(invitationRepository, never()).save(any(Invitation.class));
+    }
+
+    @Test
+    void rotateQrToken_cancelled_404() {
+        Invitation invitation = Invitation.builder()
+                .weddingId(1L).guestId(7L).publicToken("old-token").status(InvitationStatus.CANCELLED).build();
+        invitation.setId(5L);
+        when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
+        when(invitationRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(invitation));
+        assertThrows(ResourceNotFoundException.class, () -> invitationService.rotateQrToken(1L, 5L));
+        verify(invitationRepository, never()).save(any(Invitation.class));
     }
 }

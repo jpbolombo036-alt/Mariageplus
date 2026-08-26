@@ -13,6 +13,8 @@ import com.mariageplus.repository.InvitationRepository;
 import com.mariageplus.service.AuthService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -293,6 +295,40 @@ class InvitationControllerIntegrationTest {
                 .andExpect(jsonPath("$.status").value("CANCELLED"));
         mockMvc.perform(get("/api/public/invitations/{publicToken}", token))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void rotateQr_returnsNewQr_andOldTokenBecomes404() throws Exception {
+        Long g = createGuestWithEmail(tokenA, weddingAId, "Rosa", "rosa.rotate@example.com");
+        InvitationResponse invitation = createInvitation(tokenA, weddingAId, g);
+        String oldToken = publicTokenOf(invitation.getId());
+
+        mockMvc.perform(post("/api/weddings/{weddingId}/invitations/{invitationId}/qr/rotate",
+                        weddingAId, invitation.getId())
+                        .header("Authorization", auth(tokenA)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.qrDataUri").exists());
+
+        // Le nouveau token (lu en base) diffère de l'ancien et résout l'invitation.
+        String newToken = publicTokenOf(invitation.getId());
+        assertNotEquals(oldToken, newToken);
+
+        // L'ancien token est immédiatement invalide (fuite neutralisée).
+        mockMvc.perform(get("/api/public/invitations/{publicToken}", oldToken))
+                .andExpect(status().isNotFound());
+        // Le nouveau token résout l'invitation.
+        mockMvc.perform(get("/api/public/invitations/{publicToken}", newToken))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void rotateQr_organizerA_cannotRotate_forWeddingB() throws Exception {
+        Long g = createGuest(tokenB, weddingBId, "R1");
+        InvitationResponse invitation = createInvitation(tokenB, weddingBId, g);
+        mockMvc.perform(post("/api/weddings/{weddingId}/invitations/{invitationId}/qr/rotate",
+                        weddingBId, invitation.getId())
+                        .header("Authorization", auth(tokenA)))
+                .andExpect(status().isForbidden());
     }
 
     @Test

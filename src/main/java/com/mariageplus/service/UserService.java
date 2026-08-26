@@ -12,6 +12,7 @@ import com.mariageplus.repository.RoleRepository;
 import com.mariageplus.repository.UserRepository;
 import com.mariageplus.repository.UserRoleRepository;
 import com.mariageplus.repository.OrganizationMemberRepository;
+import com.mariageplus.repository.RolePermissionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -33,6 +34,7 @@ public class UserService {
     private final RoleRepository roleRepository;
     private final UserRoleRepository userRoleRepository;
     private final OrganizationMemberRepository organizationMemberRepository;
+    private final RolePermissionRepository rolePermissionRepository;
     private final PasswordEncoder passwordEncoder;
 
     public PageResponse<UserResponse> getAll(int page, int size, String sortBy, String sortDir) {
@@ -160,6 +162,10 @@ public class UserService {
 
     public UserResponse buildResponse(User user) {
         List<String> roles = userRoleRepository.findRoleCodesByUserId(user.getId());
+        List<Long> roleIds = userRoleRepository.findRoleIdsByUserId(user.getId());
+        List<String> permissions = roleIds.isEmpty()
+                ? new ArrayList<>()
+                : new ArrayList<>(rolePermissionRepository.findCodesByRoleIds(roleIds));
         Long orgId = organizationMemberRepository.findByUser_IdAndActiveTrue(user.getId())
                 .map(m -> m.getOrganization().getId())
                 .orElse(null);
@@ -173,6 +179,7 @@ public class UserService {
                 .emailVerified(user.isEmailVerified())
                 .lastLoginAt(user.getLastLoginAt())
                 .roles(new ArrayList<>(roles))
+                .permissions(permissions)
                 .organizationId(orgId)
                 .build();
     }

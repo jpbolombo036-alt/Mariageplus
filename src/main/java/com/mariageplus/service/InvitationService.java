@@ -240,6 +240,40 @@ public class InvitationService {
         return new QrCodeResponse(qrCodeService.generateQrDataUri(invitation.getPublicToken()));
     }
 
+    /**
+     * Rotation du QR : remplace le {@code publicToken} par un nouveau jeton
+     * aléatoire, ce qui invalide immédiatement tous les QR/liens publics déjà
+     * émis (fuite, erreur d'envoi). L'invitation, son RSVP et ses affectations de
+     * table sont conservés. Le nouveau QR (data URI PNG) est renvoyé pour
+     * réimpression/renvoi direct. L'invitation est verrouillée (PESSIMISTIC_WRITE)
+     * pour sérialiser d'éventuelles rotations concurrentes.
+     */
+    @Transactional
+    public QrCodeResponse rotateQrToken(Long weddingId, Long invitationId) {
+        securityUtils.assertPermission("INVITATION_UPDATE");
+        Wedding wedding = weddingService.loadInOrgScope(weddingId);
+        Invitation invitation = invitationRepository.findByIdForUpdate(invitationId)
+                .orElseThrow(() -> notFound(invitationId, weddingId));
+        if (invitation.isDeleted() || !invitation.getWeddingId().equals(weddingId)) {
+            throw notFound(invitationId, weddingId);
+        }
+        if (invitation.getStatus() == InvitationStatus.CANCELLED
+                || invitation.getStatus() == InvitationStatus.EXPIRED) {
+            throw notFound(invitationId, weddingId);
+        }
+        invitation.setPublicToken(uniqueToken());
+        Invitation saved = invitationRepository.save(invitation);
+        auditService.record("INVITATION_QR_ROTATE", saved.getId(), "Invitation",
+                securityUtils.getCurrentUserId(), wedding.getOrganizationId(),
+                "Rotation du QR : ancien token révoqué");
+        return new QrCodeResponse(qrCodeService.generateQrDataUri(saved.getPublicToken()));
+    }
+
+    private static ResourceNotFoundException notFound(Long invitationId, Long weddingId) {
+        return new ResourceNotFoundException(
+                "Invitation non trouvée avec l'ID: " + invitationId + " pour le mariage " + weddingId);
+    }
+
     private Invitation loadInvitation(Long weddingId, Long invitationId) {
         Invitation invitation = invitationRepository.findByIdAndWeddingId(invitationId, weddingId)
                 .orElseThrow(() -> new ResourceNotFoundException(

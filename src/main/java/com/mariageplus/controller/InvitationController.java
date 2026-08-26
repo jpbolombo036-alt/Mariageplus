@@ -70,6 +70,13 @@ public class InvitationController {
         return ResponseEntity.ok(invitationService.getQrData(weddingId, invitationId));
     }
 
+    @PostMapping("/{invitationId}/qr/rotate")
+    @Operation(summary = "Régénérer le QR (rotation du publicToken) : invalide l'ancien QR et renvoie le nouveau")
+    public ResponseEntity<QrCodeResponse> rotateQr(@PathVariable Long weddingId,
+                                                   @PathVariable Long invitationId) {
+        return ResponseEntity.ok(invitationService.rotateQrToken(weddingId, invitationId));
+    }
+
     @PostMapping("/{invitationId}/send")
     @Operation(summary = "Envoyer l'invitation (email si SMTP configuré, sinon lien à partager)")
     public ResponseEntity<SendInvitationResponse> send(@PathVariable Long weddingId,
