@@ -99,18 +99,33 @@ public class RsvpService {
     }
 
     /**
-     * Lecture publique : retourne les infos minimales + le RSVP courant éventuel.
+     * Lecture publique (JSON) : retourne les infos minimales + le RSVP courant + les
+     * éléments visuels / date-lieu / message / capacité. Ne marque PAS l'ouverture
+     * (goal : idempotent, utilisé par l'app Flutter invitée).
      */
     public PublicInvitationResponse getPublicInvitation(String publicToken) {
         Invitation invitation = invitationService.resolvePublicInvitation(publicToken);
         Guest guest = guestRepository.findById(invitation.getGuestId()).orElse(null);
         Wedding wedding = weddingRepository.findById(invitation.getWeddingId()).orElse(null);
         Rsvp rsvp = rsvpRepository.findByInvitationId(invitation.getId()).orElse(null);
+        WeddingEvent event = weddingEventRepository
+                .findFirstByWeddingIdOrderByEventDateAscIdAsc(invitation.getWeddingId()).orElse(null);
 
         return PublicInvitationResponse.builder()
                 .guestFirstName(guest != null ? guest.getFirstName() : null)
                 .guestLastName(guest != null ? guest.getLastName() : null)
                 .weddingDisplayName(wedding != null ? wedding.getDisplayName() : null)
+                .couplePhotoUrl(wedding != null ? wedding.getCouplePhotoUrl() : null)
+                .groomPhotoUrl(wedding != null ? wedding.getGroomPhotoUrl() : null)
+                .bridePhotoUrl(wedding != null ? wedding.getBridePhotoUrl() : null)
+                .message(wedding != null ? wedding.getMessage() : null)
+                .eventName(event != null ? event.getName() : null)
+                .eventDate(event != null && event.getEventDate() != null
+                        ? DATE_FR.format(event.getEventDate()) : null)
+                .eventStartTime(event != null && event.getStartTime() != null
+                        ? TIME_FR.format(event.getStartTime()) : null)
+                .eventVenue(event != null ? venueText(event) : null)
+                .maxAccepted(guest != null ? maximumAllowed(guest) : 1)
                 .status(invitation.getStatus().name())
                 .rsvpStatus(rsvp != null ? rsvp.getStatus().name() : null)
                 .rsvpNumberOfAttendees(rsvp != null ? rsvp.getNumberOfAttendees() : null)

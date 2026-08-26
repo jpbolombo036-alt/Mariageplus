@@ -21,6 +21,21 @@ public class PublicInvitationResponse {
     /** Nom du couple affiché (« Groom & Bride ») — infos mariage minimales pour l'invité. */
     private String weddingDisplayName;
 
+    // Visuel & message (depuis Wedding)
+    private String couplePhotoUrl;
+    private String groomPhotoUrl;
+    private String bridePhotoUrl;
+    private String message;
+
+    // Événement principal (date / heure / lieu formatés en français)
+    private String eventName;
+    private String eventDate;
+    private String eventStartTime;
+    private String eventVenue;
+
+    /** Maximum de participants accepté : 1 + allowedCompanions (résolu côté backend). */
+    private Integer maxAccepted;
+
     private String status;
     private String rsvpStatus;
     private Integer rsvpNumberOfAttendees;
