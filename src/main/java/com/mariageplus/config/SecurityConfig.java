@@ -77,15 +77,15 @@ public class SecurityConfig {
                     auth.requestMatchers("/auth/**").permitAll();
                     auth.requestMatchers("/api/public/**").permitAll();
                     auth.requestMatchers("/health").permitAll();
+                    // Swagger est public dans tous les environnements (documentation seule ;
+                    // les endpoints restent protégés).
+                    auth.requestMatchers("/swagger-ui/**", "/swagger-ui.html",
+                            "/swagger-resources/**", "/v3/api-docs/**", "/webjars/**").permitAll();
                     if (localProfile) {
-                        auth.requestMatchers("/swagger-ui/**", "/swagger-ui.html",
-                                "/swagger-resources/**", "/v3/api-docs/**", "/webjars/**").permitAll();
                         auth.requestMatchers("/h2-console/**").permitAll();
                         auth.requestMatchers("/debug/**").permitAll();
                     } else {
-                        // Production : Swagger, h2-console et debug ne sont pas publics.
-                        auth.requestMatchers("/swagger-ui/**", "/swagger-ui.html",
-                                "/swagger-resources/**", "/v3/api-docs/**", "/webjars/**").authenticated();
+                        // Production : h2-console et debug ne sont pas publics.
                         auth.requestMatchers("/debug/**").authenticated();
                         auth.requestMatchers("/h2-console/**").denyAll();
                     }
