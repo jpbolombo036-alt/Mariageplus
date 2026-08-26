@@ -7,6 +7,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -45,4 +47,11 @@ public interface RsvpRepository extends JpaRepository<Rsvp, Long> {
             "and r.status = com.mariageplus.entity.RsvpStatus.ACCEPTED")
     int sumAcceptedAttendeesByCategory(@Param("weddingId") Long weddingId,
                                        @Param("categoryId") Long categoryId);
+
+    /** ADDITIF (GESTIONNAIRE_INVITES) : réponses RSVP des invitations actives d'un mariage. */
+    @Query("select r from Rsvp r where r.invitationId in "
+            + "(select i.id from Invitation i where i.weddingId = :weddingId and i.deletedAt is null)")
+    List<Rsvp> findActiveByWeddingId(@Param("weddingId") Long weddingId);
+
+    List<Rsvp> findByInvitationIdIn(Collection<Long> invitationIds);
 }

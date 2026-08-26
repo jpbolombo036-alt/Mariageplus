@@ -39,7 +39,7 @@ spring:
       max-request-size: 50MB
 
 server:
-  port: ${PORT:8000}
+  port: ${PORT:${SERVER_PORT:8000}}
   forward-headers-strategy: framework
 
 app:
@@ -65,7 +65,7 @@ app:
       per-ip: ${RSVP_RATE_LIMIT_PER_IP:120}
 
   admin:
-    init-enabled: ${ADMIN_INIT_ENABLED:}
+    init-enabled: ${ADMIN_INIT_ENABLED:false}
     init-email: ${ADMIN_INIT_EMAIL:}
     init-password: ${ADMIN_INIT_PASSWORD:}
 
@@ -73,8 +73,8 @@ app:
     url: ${FRONTEND_URL:}
 
   upload:
-    dir: ${UPLOAD_DIR:/tmp/uploads}
-    max-file-size: ${MAX_FILE_SIZE:50MB}
+    dir: ${UPLOAD_DIR:}
+    max-file-size: ${MAX_FILE_SIZE:}
 
 logging:
   level:
