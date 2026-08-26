@@ -91,6 +91,30 @@ public class SecurityUtils {
         }
     }
 
+    /**
+     * Vérifie que l'utilisateur connecté a le droit d'agir sur le mariage ciblé.
+     * - SUPER_ADMIN / ORGANISATEUR : accès org-wide (l'organisation est déjà
+     *   vérifiée par loadInOrgScope) → toujours OK.
+     * - Agents (GESTIONNAIRE_INVITES / AGENT_ACCUEIL) : OK uniquement si
+     *   {@code weddingId} figure dans leurs mariages assignés ({@code weddingIds}).
+     * Lève une {@link SecurityException} (→ 403) sinon.
+     */
+    public void assertWeddingAccess(Long weddingId) {
+        if (isSuperAdmin() || !isAgent()) {
+            return;
+        }
+        UserPrincipal principal = currentPrincipal();
+        if (weddingId == null || principal == null || principal.getWeddingIds() == null
+                || !principal.getWeddingIds().contains(weddingId)) {
+            throw new SecurityException("Accès refusé : mariage hors de votre périmètre");
+        }
+    }
+
+    private boolean isAgent() {
+        return getCurrentRoles().stream().anyMatch(r ->
+                r.equals("GESTIONNAIRE_INVITES") || r.equals("AGENT_ACCUEIL"));
+    }
+
     private UserPrincipal currentPrincipal() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()) {

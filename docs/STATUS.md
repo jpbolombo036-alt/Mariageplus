@@ -48,7 +48,8 @@ Santé : `GET /health` · Swagger (profil `local`) : `/swagger-ui.html`
 - **`ddl-auto: update`** encore actif en local (Flyway gère déjà le schéma) — risque de divergence H2 / Postgres.
 - **Docker Compose** : secrets d’exemple (`JWT_SECRET`) — à changer avant toute mise en prod.
 - **Railway** (`railway.json`) : startCommand sur un JAR déjà buildé ; le Dockerfile multi-stage est la voie Docker recommandée.
-- **Refresh token** : corps de `POST /auth/refresh` = **chaîne brute** (pas `{ "refreshToken": "..." }`) — piège fréquent côté client.
+- **Agents scopés par mariage** : `GESTIONNAIRE_INVITES` / `AGENT_ACCUEIL` sont limités à leur(s) mariage(s) assigné(s) (`organization_members.wedding_id`). `DELETE` et `PUT /members/{id}` permettent le retrait / re-affectation. Le dédoublonnage org-wide est assuré au niveau application (l'index partiel Postgres n'est pas créé pour rester compatible H2).
+- **Refresh token** : corps de `POST /auth/refresh` = **chaîne brute** recommandée, mais le backend accepte désormais aussi `{ "refreshToken": "..." }` et les guillemets de recopie (piège fréquent côté client neutralisé).
 - **Permissions JWT** : le token embarque des permissions, mais le serveur **recharge** le principal depuis la base à chaque requête (source de vérité = DB).
 
 ### Sécurité / conformité

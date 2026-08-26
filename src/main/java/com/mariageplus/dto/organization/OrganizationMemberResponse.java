@@ -18,5 +18,6 @@ public class OrganizationMemberResponse {
     private String email;
     private String phone;
     private String roleCode;
+    private Long weddingId;
     private boolean active;
 }

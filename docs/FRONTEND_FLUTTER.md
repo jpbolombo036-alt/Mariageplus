@@ -73,7 +73,7 @@ Réponse `LoginResponse` :
 `expiresIn` est en **secondes**. Défaut backend : **900** (15 min), pas 24 h. Le refresh dure 7 jours.
 
 ### 2.3 Rafraîchir : `POST /auth/refresh` (public)
-Corps = le **refresh token en texte brut** (pas un objet JSON `{ "refreshToken": "..." }`).
+Corps = le **refresh token en texte brut** (pas un objet JSON obligatoire). Le backend accepte **les deux** : la chaîne brute, **ou** `{ "refreshToken": "..." }` (et ignore les guillemets de recopie). Le format brut reste recommandé.
 Réponse : nouveau `LoginResponse` (rotation : l’ancien refresh est invalidé).
 
 ### 2.4 Déconnexion : `POST /auth/logout` (JWT requis) → **204**
@@ -133,6 +133,14 @@ dio.interceptors.add(InterceptorsWrapper(
 | `AGENT_ACCUEIL` | Scan QR et check-in |
 
 Une permission absente → **403** `{ "error": "..." }`. Cross-organisation → **403**.
+
+### 4.1 Scoping par mariage (agents)
+`GESTIONNAIRE_INVITES` et `AGENT_ACCUEIL` sont scopés à **un ou plusieurs mariages** précis via `organization_members.wedding_id`. Un accès à un mariage non assigné renvoie **403**. `SUPER_ADMIN` et `ORGANISATEUR` restent org-wide (le `wedding_id` est ignoré pour eux).
+
+- `POST /api/organizations/{id}/members` : le champ `weddingId` est **requis** pour les 2 rôles agent (400 sinon), optionnel sinon.
+- `addMember` **réutilise un compte existant** si l'email est déjà présent (plus de 409).
+- `PUT /api/organizations/{id}/members/{memberId}` `{ "weddingId": <id> }` → change le mariage assigné.
+- `DELETE /api/organizations/{id}/members/{memberId}` → retire l'affectation (soft-delete).
 
 ---
 

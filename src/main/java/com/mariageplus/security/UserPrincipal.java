@@ -26,20 +26,23 @@ public class UserPrincipal implements UserDetails {
     private List<String> roles;
     private List<String> permissions;
     private Long organizationId;
+    private List<Long> weddingIds;
     private long tokenVersion;
     private boolean active;
     private Collection<? extends GrantedAuthority> authorities;
 
     public static UserPrincipal create(Long id, String email, String password,
                                         List<String> roleCodes, List<String> permissions,
-                                        Long organizationId, long tokenVersion, boolean active) {
+                                        Long organizationId, List<Long> weddingIds,
+                                        long tokenVersion, boolean active) {
         List<GrantedAuthority> authorities = roleCodes.stream()
                 .map(code -> (GrantedAuthority) new SimpleGrantedAuthority("ROLE_" + code))
                 .collect(Collectors.toList());
         if (authorities.isEmpty()) {
             authorities.add(new SimpleGrantedAuthority("ROLE_USER"));
         }
-        return new UserPrincipal(id, email, password, roleCodes, permissions, organizationId, tokenVersion, active, authorities);
+        return new UserPrincipal(id, email, password, roleCodes, permissions, organizationId, weddingIds,
+                tokenVersion, active, authorities);
     }
 
     @Override

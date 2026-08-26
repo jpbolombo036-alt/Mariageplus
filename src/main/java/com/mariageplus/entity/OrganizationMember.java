@@ -10,9 +10,7 @@ import lombok.*;
  * données de l'organisation pour laquelle il est membre.
  */
 @Entity
-@Table(name = "organization_members", uniqueConstraints = {
-        @UniqueConstraint(columnNames = {"user_id", "organization_id", "role_id"})
-})
+@Table(name = "organization_members")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -31,6 +29,14 @@ public class OrganizationMember extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "role_id", nullable = false)
     private Role role;
+
+    /**
+     * Périmètre du membre. {@code null} = rôle org-wide (SUPER_ADMIN /
+     * ORGANISATEUR / legacy). Non null pour les agents (GESTIONNAIRE_INVITES /
+     * AGENT_ACCUEIL), qui sont scopés à un mariage précis.
+     */
+    @Column(name = "wedding_id")
+    private Long weddingId;
 
     @Builder.Default
     @Column(nullable = false)

@@ -110,7 +110,7 @@ class WeddingDashboardIntegrationTest {
     private void checkIn(String qrToken, int attendees) throws Exception {
         mockMvc.perform(post("/api/checkins").header("Authorization", auth(tokenA))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"qrToken\":\"" + qrToken + "\",\"numberOfAttendees\":" + attendees + "}"))
+                        .content("{\"qrToken\":\"" + qrToken + "\",\"weddingId\":" + weddingAId + ",\"numberOfAttendees\":" + attendees + "}"))
                 .andExpect(status().isCreated());
     }
 

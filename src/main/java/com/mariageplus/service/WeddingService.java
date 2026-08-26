@@ -169,6 +169,8 @@ public class WeddingService {
     public Wedding loadInOrgScope(Long id) {
         Wedding wedding = weddingRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Mariage non trouvé avec l'ID: " + id));
+        // Scoping wedding (agents scopés à un ou plusieurs mariages précis).
+        securityUtils.assertWeddingAccess(id);
         securityUtils.assertOrganizationAccess(wedding.getOrganizationId());
         return wedding;
     }

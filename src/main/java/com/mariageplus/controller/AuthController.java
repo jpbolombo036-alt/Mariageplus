@@ -1,5 +1,7 @@
 package com.mariageplus.controller;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mariageplus.dto.auth.LoginRequest;
 import com.mariageplus.dto.auth.LoginResponse;
 import com.mariageplus.dto.auth.RegisterRequest;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final AuthService authService;
+    private final ObjectMapper objectMapper;
 
     @PostMapping("/register")
     @Operation(summary = "Inscription d'un organisateur (avec création de son organisation)")
@@ -36,8 +39,41 @@ public class AuthController {
 
     @PostMapping("/refresh")
     @Operation(summary = "Renouvellement du token d'accès via refresh token")
-    public ResponseEntity<LoginResponse> refresh(@RequestBody String refreshToken) {
-        return ResponseEntity.ok(authService.refreshToken(refreshToken));
+    public ResponseEntity<LoginResponse> refresh(@RequestBody String rawBody) {
+        return ResponseEntity.ok(authService.refreshToken(extractRefreshToken(rawBody)));
+    }
+
+    /**
+     * Normalise le corps de {@code POST /auth/refresh} en acceptant le refresh token
+     * sous trois formes (le format brut reste prioritaire) :
+     *  1. le JWT en texte brut : {@code eyJhbGciOi...};
+     *  2. un wrapper JSON : {@code {"refreshToken": "eyJhbGciOi..."}} (piège fréquent côté client) ;
+     *  3. le JWT recopié avec des guillemets : {@code "eyJhbGciOi..."} ou des espaces autour.
+     */
+    String extractRefreshToken(String body) {
+        if (body == null) {
+            return null;
+        }
+        String trimmed = body.trim();
+        // 3. retire les guillemets de recopie éventuels.
+        if (trimmed.length() >= 2 && trimmed.charAt(0) == '"' && trimmed.charAt(trimmed.length() - 1) == '"') {
+            trimmed = trimmed.substring(1, trimmed.length() - 1).trim();
+        }
+        // 2. si le corps est un objet JSON, on extrait le champ refreshToken / token.
+        if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+            try {
+                var node = objectMapper.readTree(trimmed);
+                if (node.isObject() && node.has("refreshToken")) {
+                    return node.get("refreshToken").asText().trim();
+                }
+                if (node.isObject() && node.has("token")) {
+                    return node.get("token").asText().trim();
+                }
+            } catch (JsonProcessingException ex) {
+                // Pas un JSON valide : on retombe sur le texte brut ci-dessous.
+            }
+        }
+        return trimmed;
     }
 
     @PostMapping("/logout")

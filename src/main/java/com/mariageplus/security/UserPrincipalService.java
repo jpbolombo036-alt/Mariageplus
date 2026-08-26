@@ -1,6 +1,7 @@
 package com.mariageplus.security;
 
 import com.mariageplus.entity.User;
+import com.mariageplus.entity.OrganizationMember;
 import com.mariageplus.repository.OrganizationMemberRepository;
 import com.mariageplus.repository.UserRepository;
 import com.mariageplus.repository.UserRoleRepository;
@@ -58,6 +59,13 @@ public class UserPrincipalService implements UserDetailsService {
                 .map(m -> m.getOrganization().getId())
                 .orElse(null);
 
+        // Weddings assignés (scoping agent) : tous les mariages des membres actifs,
+        // même si l'organisation "courante" n'en garde qu'une.
+        List<Long> weddingIds = organizationMemberRepository.findAllByUser_IdAndActiveTrue(user.getId()).stream()
+                .map(OrganizationMember::getWeddingId)
+                .filter(java.util.Objects::nonNull)
+                .toList();
+
         return UserPrincipal.create(
                 user.getId(),
                 user.getEmail(),
@@ -65,6 +73,7 @@ public class UserPrincipalService implements UserDetailsService {
                 roleCodes,
                 permissions,
                 organizationId,
+                weddingIds,
                 user.getTokenVersion(),
                 user.isActive()
         );

@@ -58,6 +58,7 @@ public class CheckInService {
         Invitation invitation = resolveActiveInvitation(request.getQrToken());
         assertSameWedding(invitation, request.getWeddingId());
         Wedding wedding = loadWedding(invitation);
+        securityUtils.assertWeddingAccess(wedding.getId());
         securityUtils.assertOrganizationAccess(wedding.getOrganizationId());
         Rsvp rsvp = loadRsvp(invitation);
         int checkedIn = checkInRepository.sumByInvitationId(invitation.getId());
@@ -82,6 +83,7 @@ public class CheckInService {
         assertSameWedding(invitation, request.getWeddingId());
 
         Wedding wedding = loadWedding(invitation);
+        securityUtils.assertWeddingAccess(wedding.getId());
         securityUtils.assertOrganizationAccess(wedding.getOrganizationId());
 
         Rsvp rsvp = loadRsvp(invitation);
@@ -122,6 +124,7 @@ public class CheckInService {
         Invitation invitation = invitationRepository.findByIdForUpdate(checkIn.getInvitationId())
                 .orElseThrow(() -> new ResourceNotFoundException("Invitation introuvable"));
         Wedding wedding = loadWedding(invitation);
+        securityUtils.assertWeddingAccess(wedding.getId());
         securityUtils.assertOrganizationAccess(wedding.getOrganizationId());
 
         checkIn.softDelete();

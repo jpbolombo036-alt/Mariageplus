@@ -62,7 +62,8 @@ class AuthServiceTest {
                 .build();
         user.setId(1L);
         principal = UserPrincipal.create(1L, "organisateur@example.com", "encoded",
-                java.util.List.of("ORGANISATEUR"), java.util.List.of("WEDDING_VIEW"), null, 0, true);
+                java.util.List.of("ORGANISATEUR"), java.util.List.of("WEDDING_VIEW"), null,
+                java.util.List.of(), 0, true);
     }
 
     @Test

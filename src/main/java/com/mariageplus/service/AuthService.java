@@ -118,7 +118,7 @@ public class AuthService {
         UserPrincipal principal = UserPrincipal.create(
                 saved.getId(), saved.getEmail(), saved.getPasswordHash(),
                 java.util.List.of("ORGANISATEUR"), java.util.List.of(),
-                savedOrg.getId(), saved.getTokenVersion(), saved.isActive());
+                savedOrg.getId(), java.util.List.of(), saved.getTokenVersion(), saved.isActive());
 
         String accessToken = jwtTokenProvider.generateToken(principal);
         String refreshToken = jwtTokenProvider.generateRefreshToken(saved.getId(), savedOrg.getId());
@@ -159,7 +159,7 @@ public class AuthService {
         UserPrincipal principal = UserPrincipal.create(
                 user.getId(), user.getEmail(), user.getPasswordHash(),
                 java.util.List.of(), java.util.List.of(),
-                organizationId, user.getTokenVersion(), user.isActive());
+                organizationId, java.util.List.of(), user.getTokenVersion(), user.isActive());
 
         String accessToken = jwtTokenProvider.generateToken(principal);
         String newRefreshToken = jwtTokenProvider.generateRefreshToken(user.getId(), organizationId);

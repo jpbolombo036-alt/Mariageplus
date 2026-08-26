@@ -155,7 +155,7 @@ class JourneyIntegrationTest {
 
         // 4. Scan
         mockMvc.perform(post("/api/checkins/scan").header("Authorization", auth(tokenA))
-                        .contentType(MediaType.APPLICATION_JSON).content("{\"qrToken\":\"" + token + "\"}"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"qrToken\":\"" + token + "\",\"weddingId\":" + weddingAId + "}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.expectedAttendees").value(2))
                 .andExpect(jsonPath("$.canCheckIn").value(true));
@@ -163,13 +163,13 @@ class JourneyIntegrationTest {
         // 5. Check-in partiel (1)
         mockMvc.perform(post("/api/checkins").header("Authorization", auth(tokenA))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"qrToken\":\"" + token + "\",\"numberOfAttendees\":1}"))
+                        .content("{\"qrToken\":\"" + token + "\",\"weddingId\":" + weddingAId + ",\"numberOfAttendees\":1}"))
                 .andExpect(status().isCreated());
 
         // 6. Dépassement refusé (1 + 2 > attendu 2)
         mockMvc.perform(post("/api/checkins").header("Authorization", auth(tokenA))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"qrToken\":\"" + token + "\",\"numberOfAttendees\":2}"))
+                        .content("{\"qrToken\":\"" + token + "\",\"weddingId\":" + weddingAId + ",\"numberOfAttendees\":2}"))
                 .andExpect(status().isConflict());
 
         // 7. Table + affectation

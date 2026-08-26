@@ -28,4 +28,10 @@ public class OrganizationMemberRequest {
 
     @NotBlank(message = "Le rôle est requis")
     private String roleCode;
+
+    /**
+     * Mariage assigné (scoping agent). Requis si {@code roleCode} ∈
+     * {GESTIONNAIRE_INVITES, AGENT_ACCUEIL} ; ignoré pour SUPER_ADMIN / ORGANISATEUR.
+     */
+    private Long weddingId;
 }

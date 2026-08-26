@@ -2,6 +2,7 @@ package com.mariageplus.controller;
 
 import com.mariageplus.dto.organization.OrganizationMemberRequest;
 import com.mariageplus.dto.organization.OrganizationMemberResponse;
+import com.mariageplus.dto.organization.OrganizationMemberUpdateRequest;
 import com.mariageplus.dto.organization.OrganizationRequest;
 import com.mariageplus.dto.organization.OrganizationResponse;
 import com.mariageplus.exception.ForbiddenException;
@@ -85,6 +86,25 @@ public class OrganizationController {
         assertCanManageMembers(id);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(organizationMemberService.addMember(id, request));
+    }
+
+    @PutMapping("/{id}/members/{memberId}")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','ORGANISATEUR')")
+    @Operation(summary = "Modifier le mariage assigné d'un membre (scoping agent)")
+    public ResponseEntity<OrganizationMemberResponse> updateMemberWedding(@PathVariable Long id,
+                                                                          @PathVariable Long memberId,
+                                                                          @Valid @RequestBody OrganizationMemberUpdateRequest request) {
+        assertCanManageMembers(id);
+        return ResponseEntity.ok(organizationMemberService.updateMemberWedding(id, memberId, request.getWeddingId()));
+    }
+
+    @DeleteMapping("/{id}/members/{memberId}")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','ORGANISATEUR')")
+    @Operation(summary = "Retirer un membre de l'organisation (suppression logique)")
+    public ResponseEntity<Void> removeMember(@PathVariable Long id, @PathVariable Long memberId) {
+        assertCanManageMembers(id);
+        organizationMemberService.removeMember(id, memberId);
+        return ResponseEntity.noContent().build();
     }
 
     private void assertOrganizationAccess(Long organizationId) {
