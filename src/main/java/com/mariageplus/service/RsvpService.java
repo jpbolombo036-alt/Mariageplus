@@ -1,5 +1,6 @@
 package com.mariageplus.service;
 
+import com.mariageplus.dto.invitation.PublicInvitationPage;
 import com.mariageplus.dto.invitation.PublicInvitationResponse;
 import com.mariageplus.dto.rsvp.PublicRsvpResponse;
 import com.mariageplus.dto.rsvp.SubmitRsvpRequest;
@@ -8,15 +9,19 @@ import com.mariageplus.entity.Invitation;
 import com.mariageplus.entity.Rsvp;
 import com.mariageplus.entity.RsvpStatus;
 import com.mariageplus.entity.Wedding;
+import com.mariageplus.entity.WeddingEvent;
 import com.mariageplus.exception.ResourceNotFoundException;
 import com.mariageplus.repository.GuestRepository;
 import com.mariageplus.repository.RsvpRepository;
+import com.mariageplus.repository.WeddingEventRepository;
 import com.mariageplus.repository.WeddingRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 
 /**
  * Module RSVP public.
@@ -34,6 +39,64 @@ public class RsvpService {
     private final InvitationService invitationService;
     private final GuestRepository guestRepository;
     private final WeddingRepository weddingRepository;
+    private final WeddingEventRepository weddingEventRepository;
+
+    private static final DateTimeFormatter DATE_FR =
+            DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.FRENCH);
+    private static final DateTimeFormatter TIME_FR =
+            DateTimeFormatter.ofPattern("HH'h'mm");
+
+    /**
+     * Lecture publique pour la page web invité : marque l'ouverture (suivi), puis
+     * construit toutes les données nécessaires à la vue ({@code /invitations/{token}}).
+     */
+    @Transactional
+    public PublicInvitationPage getPublicPage(String publicToken) {
+        invitationService.markOpened(publicToken);
+        Invitation invitation = invitationService.resolvePublicInvitation(publicToken);
+        Guest guest = guestRepository.findById(invitation.getGuestId()).orElse(null);
+        Wedding wedding = weddingRepository.findById(invitation.getWeddingId()).orElse(null);
+        Rsvp rsvp = rsvpRepository.findByInvitationId(invitation.getId()).orElse(null);
+        WeddingEvent event = weddingEventRepository
+                .findFirstByWeddingIdOrderByEventDateAscIdAsc(invitation.getWeddingId()).orElse(null);
+
+        boolean canRespond = invitation.getStatus() != com.mariageplus.entity.InvitationStatus.CANCELLED
+                && invitation.getStatus() != com.mariageplus.entity.InvitationStatus.EXPIRED;
+
+        return PublicInvitationPage.builder()
+                .token(publicToken)
+                .guestFirstName(guest != null ? guest.getFirstName() : null)
+                .guestLastName(guest != null ? guest.getLastName() : null)
+                .weddingDisplayName(wedding != null ? wedding.getDisplayName() : null)
+                .couplePhotoUrl(wedding != null ? wedding.getCouplePhotoUrl() : null)
+                .groomPhotoUrl(wedding != null ? wedding.getGroomPhotoUrl() : null)
+                .bridePhotoUrl(wedding != null ? wedding.getBridePhotoUrl() : null)
+                .message(wedding != null ? wedding.getMessage() : null)
+                .eventName(event != null ? event.getName() : null)
+                .eventDate(event != null && event.getEventDate() != null ? DATE_FR.format(event.getEventDate()) : null)
+                .eventStartTime(event != null && event.getStartTime() != null ? TIME_FR.format(event.getStartTime()) : null)
+                .eventVenue(event != null ? venueText(event) : null)
+                .status(invitation.getStatus().name())
+                .canRespond(canRespond)
+                .rsvpStatus(rsvp != null ? rsvp.getStatus().name() : null)
+                .rsvpNumberOfAttendees(rsvp != null ? rsvp.getNumberOfAttendees() : null)
+                .maxAccepted(guest != null ? maximumAllowed(guest) : 1)
+                .build();
+    }
+
+    private String venueText(WeddingEvent event) {
+        StringBuilder sb = new StringBuilder();
+        if (event.getVenueName() != null) sb.append(event.getVenueName());
+        if (event.getVenueAddress() != null) {
+            if (sb.length() > 0) sb.append(", ");
+            sb.append(event.getVenueAddress());
+        }
+        if (event.getCity() != null) {
+            if (sb.length() > 0) sb.append(", ");
+            sb.append(event.getCity());
+        }
+        return sb.toString();
+    }
 
     /**
      * Lecture publique : retourne les infos minimales + le RSVP courant éventuel.

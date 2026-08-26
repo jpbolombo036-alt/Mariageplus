@@ -15,6 +15,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/weddings/{weddingId}/invitations")
 @RequiredArgsConstructor
@@ -75,6 +77,18 @@ public class InvitationController {
     public ResponseEntity<QrCodeResponse> rotateQr(@PathVariable Long weddingId,
                                                    @PathVariable Long invitationId) {
         return ResponseEntity.ok(invitationService.rotateQrToken(weddingId, invitationId));
+    }
+
+    @GetMapping("/pending-rsvp")
+    @Operation(summary = "Invitations envoyées sans réponse (non-répondants, pour relance)")
+    public ResponseEntity<List<InvitationResponse>> listNonResponders(@PathVariable Long weddingId) {
+        return ResponseEntity.ok(invitationService.listNonResponders(weddingId));
+    }
+
+    @GetMapping("/pending-rsvp/count")
+    @Operation(summary = "Nombre d'invitations envoyées sans réponse")
+    public ResponseEntity<Long> countNonResponders(@PathVariable Long weddingId) {
+        return ResponseEntity.ok(invitationService.countNonResponders(weddingId));
     }
 
     @PostMapping("/{invitationId}/send")

@@ -8,12 +8,14 @@ import com.mariageplus.entity.Guest;
 import com.mariageplus.entity.Invitation;
 import com.mariageplus.entity.InvitationStatus;
 import com.mariageplus.entity.Wedding;
+import com.mariageplus.entity.WeddingEvent;
 import com.mariageplus.exception.ConflictException;
 import com.mariageplus.exception.MailDeliveryException;
 import com.mariageplus.exception.ResourceNotFoundException;
 import com.mariageplus.mapper.InvitationMapper;
 import com.mariageplus.repository.GuestRepository;
 import com.mariageplus.repository.InvitationRepository;
+import com.mariageplus.repository.WeddingEventRepository;
 import com.mariageplus.security.SecurityUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,6 +24,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Optional;
 
@@ -35,6 +38,7 @@ class InvitationServiceTest {
 
     @Mock private InvitationRepository invitationRepository;
     @Mock private GuestRepository guestRepository;
+    @Mock private WeddingEventRepository weddingEventRepository;
     @Mock private InvitationMapper invitationMapper;
     @Mock private WeddingService weddingService;
     @Mock private SecurityUtils securityUtils;
@@ -49,6 +53,7 @@ class InvitationServiceTest {
 
     @BeforeEach
     void setUp() {
+        ReflectionTestUtils.setField(invitationService, "maxReminders", 3);
         wedding = Wedding.builder().organizationId(100L).build();
         wedding.setId(1L);
         guest = Guest.builder().firstName("Jean").lastName("Kabongo").weddingId(1L).build();
@@ -126,8 +131,12 @@ class InvitationServiceTest {
     void findPublicByToken_ReturnsGuestInfo() {
         Invitation invitation = Invitation.builder().weddingId(1L).guestId(7L)
                 .publicToken("tok").status(InvitationStatus.GENERATED).build();
+        WeddingEvent futureEvent = WeddingEvent.builder().weddingId(1L)
+                .eventDate(java.time.LocalDate.now().plusDays(10)).build();
         when(invitationRepository.findByPublicToken("tok")).thenReturn(Optional.of(invitation));
         when(guestRepository.findById(7L)).thenReturn(Optional.of(guest));
+        when(weddingEventRepository.findFirstByWeddingIdOrderByEventDateAscIdAsc(1L))
+                .thenReturn(Optional.of(futureEvent));
 
         PublicInvitationResponse response = invitationService.findPublicByToken("tok");
         assertEquals("Jean", response.getGuestFirstName());
@@ -170,7 +179,7 @@ class InvitationServiceTest {
         when(invitationRepository.findByIdAndWeddingId(5L, 1L)).thenReturn(Optional.of(invitation));
         when(guestRepository.findByIdAndWeddingId(7L, 1L)).thenReturn(Optional.of(guest));
         when(invitationMailService.publicInviteUrl("tok")).thenReturn("http://localhost:3000/invitations/tok");
-        when(invitationMailService.sendInvitation(guest, wedding, "http://localhost:3000/invitations/tok"))
+        when(invitationMailService.sendInvitation(any(), any(), any(), anyString()))
                 .thenReturn(false);
         when(invitationRepository.save(any(Invitation.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -222,7 +231,7 @@ class InvitationServiceTest {
         when(invitationRepository.findByIdAndWeddingId(5L, 1L)).thenReturn(Optional.of(invitation));
         when(guestRepository.findByIdAndWeddingId(7L, 1L)).thenReturn(Optional.of(guest));
         when(invitationMailService.publicInviteUrl("tok")).thenReturn("http://x");
-        when(invitationMailService.sendInvitation(any(), any(), any()))
+        when(invitationMailService.sendInvitation(any(), any(), any(), anyString()))
                 .thenThrow(new MailDeliveryException("smtp"));
 
         assertThrows(MailDeliveryException.class, () -> invitationService.send(1L, 5L));

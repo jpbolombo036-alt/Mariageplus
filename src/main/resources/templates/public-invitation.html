@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="fr">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title th:text="${page.weddingDisplayName} + ' — Invitation'">Invitation</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: Georgia, serif; color: #3a2a2f; margin: 0; background: #faf7f5;
+            line-height: 1.6;
+        }
+        .card {
+            max-width: 560px; margin: 32px auto; background: #fff; border-radius: 12px;
+            overflow: hidden; box-shadow: 0 6px 24px rgba(0,0,0,0.08);
+        }
+        .hero { text-align: center; padding: 40px 24px 16px; }
+        .hero img.photo { width: 100%; max-height: 320px; object-fit: cover; border-radius: 8px; }
+        .names { font-size: 30px; font-weight: bold; letter-spacing: .5px; margin: 8px 0; }
+        .greeting { font-size: 16px; margin-top: 8px; color: #8a6a73; }
+        .detail { padding: 8px 24px; text-align: center; }
+        .detail .row { color: #8a6a73; margin-top: 2px; }
+        .message { padding: 16px 28px; white-space: pre-line; color: #4a3a40; font-style: italic; text-align: center; }
+        .rsvp { padding: 8px 24px 40px; text-align: center; }
+        .accepted, .declined { display: inline-block; padding: 12px 22px; margin: 8px; border: none;
+            border-radius: 6px; font-size: 15px; cursor: pointer; color: #fff; text-decoration: none; }
+        .accepted { background: #6b3a4a; }
+        .declined { background: #9c8f93; }
+        .count { margin: 12px auto 0; padding: 8px; border: 1px solid #e5d8db; border-radius: 6px; max-width: 200px; }
+        .status { margin-top: 16px; font-size: 15px; color: #6b3a4a; }
+        .note { font-size: 12px; color: #b0a2a6; margin-top: 8px; }
+    </style>
+</head>
+<body>
+<div class="card">
+    <div class="hero">
+        <img th:if="${page.couplePhotoUrl}" class="photo" th:src="${page.couplePhotoUrl}" alt="Couple"/>
+        <div class="names" th:text="${page.weddingDisplayName}">Groom &amp; Bride</div>
+        <div class="greeting" th:text="'Bonjour ' + ${page.guestFirstName} + ','">Bonjour,</div>
+    </div>
+
+    <div class="detail" th:if="${page.eventDate}">
+        <div class="row" th:text="${page.eventName}">Cérémonie</div>
+        <div class="row" th:text="${page.eventDate}">12 septembre 2026</div>
+        <div class="row" th:if="${page.eventStartTime}" th:text="'à ' + ${page.eventStartTime}">à 14h00</div>
+        <div class="row" th:if="${page.eventVenue}" th:text="${page.eventVenue}">Lieu</div>
+    </div>
+
+    <div class="message" th:if="${page.message}" th:text="${page.message}"></div>
+
+    <div class="rsvp" th:if="${page.canRespond}">
+        <form method="post" th:action="@{/invitations/{token}/rsvp(token=${page.token})}">
+            <div>
+                <button class="accepted" type="submit" name="status" value="ACCEPTED">✅ J'accepte avec plaisir</button>
+                <button class="declined" type="submit" name="status" value="DECLINED">❌ Je décline</button>
+            </div>
+            <div class="count" th:if="${page.rsvpStatus} == 'ACCEPTED'">
+                <select name="numberOfAttendees" class="count">
+                    <option th:each="i : ${#numbers.sequence(1, page.maxAccepted)}"
+                            th:value="${i}"
+                            th:selected="${i} == ${page.rsvpNumberOfAttendees}">[[${i}]]</option>
+                </select>
+            </div>
+            <div class="status" th:if="${page.rsvpStatus} != null" th:text="${page.rsvpStatus}"></div>
+        </form>
+
+        <div class="note" th:if="${page.maxAccepted} > 1"
+             th:text="'(Vous + ' + (${page.maxAccepted} - 1) + ' accompagnant(s))'">(vous + accompagnants)</div>
+        <div class="note">Vous pourrez modifier votre réponse à tout moment avant le grand jour.</div>
+    </div>
+</div>
+</body>
+</html>

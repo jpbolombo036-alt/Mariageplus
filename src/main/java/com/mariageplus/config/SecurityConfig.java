@@ -76,6 +76,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> {
                     auth.requestMatchers("/auth/**").permitAll();
                     auth.requestMatchers("/api/public/**").permitAll();
+                    // Page web publique d'invitation (lien envoyé à l'invité).
+                    auth.requestMatchers("/invitations/**").permitAll();
                     auth.requestMatchers("/health").permitAll();
                     // Swagger est public dans tous les environnements (documentation seule ;
                     // les endpoints restent protégés).

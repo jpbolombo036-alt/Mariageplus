@@ -51,6 +51,17 @@ public interface InvitationRepository extends JpaRepository<Invitation, Long> {
 
     long countByWeddingIdAndStatus(Long weddingId, InvitationStatus status);
 
+    /** Invitations envoyées (SENT) d'un mariage qui n'ont pas encore de réponse RSVP (non-répondants). */
+    @Query("select i from Invitation i where i.weddingId = :weddingId and i.status = 'SENT' "
+            + "and i.deletedAt is null and not exists "
+            + "(select r from Rsvp r where r.invitationId = i.id)")
+    List<Invitation> findNonRespondersByWeddingId(@Param("weddingId") Long weddingId);
+
+    @Query("select count(i) from Invitation i where i.weddingId = :weddingId "
+            + "and i.status = 'SENT' and i.deletedAt is null and not exists "
+            + "(select r from Rsvp r where r.invitationId = i.id)")
+    long countNonRespondersByWeddingId(@Param("weddingId") Long weddingId);
+
     @Query("select count(i) from Invitation i " +
             "where i.weddingId = :weddingId and i.guestId in (select g.id from Guest g where g.categoryId = :categoryId)")
     long countByWeddingIdAndCategory(@Param("weddingId") Long weddingId,

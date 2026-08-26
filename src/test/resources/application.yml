@@ -37,6 +37,11 @@ app:
   security:
     require-activation: false
     admin-init-key: test-admin-init-key
+  invitation:
+    reminder-enabled: false
+    reminder-days-before: 7
+    reminder-cron: 0 0 0 1 1 *  # jamais exécuté en test
+    max-reminders: 3
 
 logging:
   level:

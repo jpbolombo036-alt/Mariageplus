@@ -54,6 +54,10 @@ public class Wedding extends BaseEntity {
     @Column(name = "welcome_message", length = 2000)
     private String welcomeMessage;
 
+    /** Petit mot personnalisé de l'organisateur, affiché dans l'email et la page invité. */
+    @Column(length = 2000)
+    private String message;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     @Builder.Default

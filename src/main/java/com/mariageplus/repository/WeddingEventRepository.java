@@ -22,5 +22,11 @@ public interface WeddingEventRepository extends JpaRepository<WeddingEvent, Long
 
     Optional<WeddingEvent> findByIdAndWeddingId(Long id, Long weddingId);
 
+    /** Événement principal : le plus proche dans le temps (futur en premier, sinon le plus récent passé). */
+    Optional<WeddingEvent> findFirstByWeddingIdOrderByEventDateAscIdAsc(Long weddingId);
+
+    /** Les événements programmés pour la date cible (relance auto J-X). */
+    List<WeddingEvent> findByEventDate(java.time.LocalDate eventDate);
+
     void deleteByWeddingId(Long weddingId);
 }

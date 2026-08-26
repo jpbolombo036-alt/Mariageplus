@@ -11,11 +11,13 @@ import com.mariageplus.entity.Guest;
 import com.mariageplus.entity.Invitation;
 import com.mariageplus.entity.InvitationStatus;
 import com.mariageplus.entity.Wedding;
+import com.mariageplus.entity.WeddingEvent;
 import com.mariageplus.exception.ConflictException;
 import com.mariageplus.exception.ResourceNotFoundException;
 import com.mariageplus.mapper.InvitationMapper;
 import com.mariageplus.repository.GuestRepository;
 import com.mariageplus.repository.InvitationRepository;
+import com.mariageplus.repository.WeddingEventRepository;
 import com.mariageplus.security.SecureTokens;
 import com.mariageplus.security.SecurityUtils;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +29,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -46,12 +49,16 @@ public class InvitationService {
 
     private final InvitationRepository invitationRepository;
     private final GuestRepository guestRepository;
+    private final WeddingEventRepository weddingEventRepository;
     private final InvitationMapper invitationMapper;
     private final WeddingService weddingService;
     private final SecurityUtils securityUtils;
     private final AuditService auditService;
     private final QrCodeService qrCodeService;
     private final InvitationMailService invitationMailService;
+
+    @org.springframework.beans.factory.annotation.Value("${app.invitation.max-reminders:3}")
+    private int maxReminders;
 
     @Transactional
     public InvitationResponse create(Long weddingId, CreateInvitationRequest request) {
@@ -94,6 +101,23 @@ public class InvitationService {
         List<InvitationResponse> content = invitationPage.getContent().stream()
                 .map(invitationMapper::toResponse).collect(Collectors.toList());
         return PageResponse.of(content, invitationPage);
+    }
+
+    /**
+     * Liste des invitations envoyées mais non répondues (relance manuelle assistée).
+     */
+    public List<InvitationResponse> listNonResponders(Long weddingId) {
+        securityUtils.assertPermission("INVITATION_VIEW");
+        weddingService.loadInOrgScope(weddingId);
+        return invitationRepository.findNonRespondersByWeddingId(weddingId).stream()
+                .map(invitationMapper::toResponse).collect(Collectors.toList());
+    }
+
+    /** Nombre d'invitations envoyées non répondues (état bien + relance). */
+    public long countNonResponders(Long weddingId) {
+        securityUtils.assertPermission("INVITATION_VIEW");
+        weddingService.loadInOrgScope(weddingId);
+        return invitationRepository.countNonRespondersByWeddingId(weddingId);
     }
     @Transactional
     public InvitationResponse update(Long weddingId, Long invitationId, UpdateInvitationRequest request) {
@@ -169,20 +193,27 @@ public class InvitationService {
             if (status != InvitationStatus.SENT) {
                 throw new ConflictException("Le renvoi n'est possible que pour une invitation déjà envoyée");
             }
+            if (invitation.getReminderCount() >= maxReminders) {
+                throw new ConflictException("Limite de relances atteinte (" + maxReminders + ")");
+            }
         } else if (status == InvitationStatus.SENT) {
             throw new ConflictException("L'invitation a déjà été envoyée : utilisez le renvoi");
         } else if (status != InvitationStatus.GENERATED && status != InvitationStatus.DRAFT) {
             throw new ConflictException("Cette invitation ne peut pas être envoyée (statut " + status + ")");
         }
 
+        WeddingEvent mainEvent = weddingEventRepository.findFirstByWeddingIdOrderByEventDateAscIdAsc(weddingId).orElse(null);
         String url = invitationMailService.publicInviteUrl(invitation.getPublicToken());
-        boolean emailSent = invitationMailService.sendInvitation(guest, wedding, url);
+        boolean emailSent = invitationMailService.sendInvitation(guest, wedding, mainEvent, url);
 
         LocalDateTime now = LocalDateTime.now();
         if (invitation.getSentAt() == null) {
             invitation.setSentAt(now);
         }
         invitation.setLastSentAt(now);
+        if (resend) {
+            invitation.setReminderCount(invitation.getReminderCount() + 1);
+        }
         invitation.setStatus(InvitationStatus.SENT);
         Invitation saved = invitationRepository.save(invitation);
         String action = resend ? "INVITATION_RESEND" : "INVITATION_SEND";
@@ -200,7 +231,8 @@ public class InvitationService {
 
     /**
      * Résout une invitation par son publicToken avec les règles d'accès public :
-     * token inexistant, invitation supprimée (soft-delete), CANCELLED ou EXPIRED → 404.
+     * token inexistant, invitation supprimée (soft-delete), CANCELLED, EXPIRED,
+     * ou mariage dont l'événement principal est passé → 404.
      */
     public Invitation resolvePublicInvitation(String publicToken) {
         Invitation invitation = invitationRepository.findByPublicToken(publicToken)
@@ -210,7 +242,32 @@ public class InvitationService {
                 || invitation.getStatus() == InvitationStatus.EXPIRED) {
             throw new ResourceNotFoundException("Invitation introuvable");
         }
+        // Expiration temporelle (4a) : uniquement si un événement principal existe.
+        // S'il y a un événement avec une date et que cette date est passée → lien fermé (404).
+        // S'il n'y a aucun événement, on ne ferme pas (comportement legacy).
+        if (invitation.getStatus() == InvitationStatus.GENERATED
+                || invitation.getStatus() == InvitationStatus.SENT) {
+            weddingEventRepository.findFirstByWeddingIdOrderByEventDateAscIdAsc(invitation.getWeddingId())
+                    .filter(event -> event.getEventDate() != null)
+                    .filter(event -> event.getEventDate().isBefore(LocalDate.now()))
+                    .ifPresent(expired -> {
+                        throw new ResourceNotFoundException("Invitation introuvable");
+                    });
+        }
         return invitation;
+    }
+
+    /**
+     * Trace la première ouverture du lien public (suivi organisateur). Idempotent :
+     * ne met à jour que si {@code openedAt} n'est pas déjà posé.
+     */
+    @Transactional
+    public void markOpened(String publicToken) {
+        Invitation invitation = resolvePublicInvitation(publicToken);
+        if (invitation.getOpenedAt() == null) {
+            invitation.setOpenedAt(LocalDateTime.now());
+            invitationRepository.save(invitation);
+        }
     }
 
     /**

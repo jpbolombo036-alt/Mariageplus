@@ -27,6 +27,11 @@ app:
     secret: local-mariageplus-secret-key-32bytes-minimum!!
     expiration: 900000
     refresh-expiration: 604800000
+  invitation:
+    max-reminders: 3
+    reminder-enabled: ${INVITATION_REMINDER_ENABLED:false}
+    reminder-days-before: 7
+    reminder-cron: 0 0 8 * * *
   cors:
     allowed-origins: http://localhost:3000,http://localhost:5173,http://localhost:8080
   admin:

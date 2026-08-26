@@ -64,6 +64,12 @@ app:
       submit-per-token: ${RSVP_RATE_LIMIT_SUBMIT_PER_TOKEN:6}
       per-ip: ${RSVP_RATE_LIMIT_PER_IP:120}
 
+  invitation:
+    max-reminders: ${INVITATION_MAX_REMINDERS:3}
+    reminder-enabled: ${INVITATION_REMINDER_ENABLED:false}
+    reminder-days-before: ${INVITATION_REMINDER_DAYS_BEFORE:7}
+    reminder-cron: ${INVITATION_REMINDER_CRON:0 0 8 * * *}
+
   admin:
     init-enabled: ${ADMIN_INIT_ENABLED:false}
     init-email: ${ADMIN_INIT_EMAIL:}

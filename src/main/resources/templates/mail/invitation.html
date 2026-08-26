@@ -10,6 +10,17 @@
         Vous êtes cordialement invité(e) au mariage de
         <strong th:text="${weddingDisplayName}">les mariés</strong>.
     </p>
+
+    <div th:if="${eventDate != null}"
+         style="margin: 20px 0; padding: 16px; background: #f7f1f3; border-radius: 6px;">
+        <div th:if="${eventName}" style="font-weight: bold;" th:text="${eventName}">Cérémonie</div>
+        <div th:text="${eventDate}">12 septembre 2026</div>
+        <div th:if="${eventStartTime}" th:text="'à ' + ${eventStartTime}">à 14h00</div>
+        <div th:if="${eventVenue}" th:text="${eventVenue}">Lieu</div>
+    </div>
+
+    <p th:if="${invitationMessage}" style="white-space: pre-line;" th:text="${invitationMessage}"></p>
+
     <p>Merci de confirmer votre présence en ouvrant le lien ci-dessous :</p>
     <p style="margin: 28px 0;">
         <a th:href="${publicInviteUrl}"

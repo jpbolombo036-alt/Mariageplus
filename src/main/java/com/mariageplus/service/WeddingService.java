@@ -57,6 +57,7 @@ public class WeddingService {
                 .couplePhotoUrl(request.getCouplePhotoUrl())
                 .description(request.getDescription())
                 .welcomeMessage(request.getWelcomeMessage())
+                .message(request.getMessage())
                 .status(WeddingStatus.DRAFT)
                 .createdBy(userId)
                 .updatedBy(userId)
@@ -152,6 +153,7 @@ public class WeddingService {
         if (request.getCouplePhotoUrl() != null) wedding.setCouplePhotoUrl(request.getCouplePhotoUrl());
         if (request.getDescription() != null) wedding.setDescription(request.getDescription());
         if (request.getWelcomeMessage() != null) wedding.setWelcomeMessage(request.getWelcomeMessage());
+        if (request.getMessage() != null) wedding.setMessage(request.getMessage());
     }
 
     /**

@@ -49,4 +49,13 @@ public class Invitation extends BaseEntity {
 
     @Column(name = "last_sent_at")
     private LocalDateTime lastSentAt;
+
+    /** Nombre de relances déjà effectuées (limite max contrôlée côté service). */
+    @Column(name = "reminder_count", nullable = false)
+    @Builder.Default
+    private int reminderCount = 0;
+
+    /** Première ouverture du lien public (suivi). Null tant que l'invité n'a pas ouvert. */
+    @Column(name = "opened_at")
+    private LocalDateTime openedAt;
 }

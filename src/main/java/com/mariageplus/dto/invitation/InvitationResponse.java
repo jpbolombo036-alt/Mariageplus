@@ -24,6 +24,8 @@ public class InvitationResponse {
     private String status;
     private LocalDateTime sentAt;
     private LocalDateTime lastSentAt;
+    private int reminderCount;
+    private LocalDateTime openedAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

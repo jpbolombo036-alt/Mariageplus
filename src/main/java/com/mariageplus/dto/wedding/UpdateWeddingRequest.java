@@ -35,4 +35,7 @@ public class UpdateWeddingRequest {
 
     @Size(max = 2000, message = "Le message de bienvenue ne doit pas dépasser 2000 caractères")
     private String welcomeMessage;
+
+    @Size(max = 2000, message = "Le message d'invitation ne doit pas dépasser 2000 caractères")
+    private String message;
 }

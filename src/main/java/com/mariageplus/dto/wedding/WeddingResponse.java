@@ -24,6 +24,7 @@ public class WeddingResponse {
     private String couplePhotoUrl;
     private String description;
     private String welcomeMessage;
+    private String message;
     private String status;
     private String displayName;
     private Long createdBy;

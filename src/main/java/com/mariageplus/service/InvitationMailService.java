@@ -2,6 +2,7 @@ package com.mariageplus.service;
 
 import com.mariageplus.entity.Guest;
 import com.mariageplus.entity.Wedding;
+import com.mariageplus.entity.WeddingEvent;
 import com.mariageplus.exception.MailDeliveryException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +16,7 @@ import org.springframework.util.StringUtils;
 import org.thymeleaf.context.Context;
 import org.thymeleaf.spring6.SpringTemplateEngine;
 
+import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
 /**
@@ -28,6 +30,12 @@ public class InvitationMailService {
 
     private final ObjectProvider<JavaMailSender> mailSenderProvider;
     private final SpringTemplateEngine templateEngine;
+    private final IcsCalendarService icsCalendarService;
+
+    private static final DateTimeFormatter DATE_FR =
+            DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.FRENCH);
+    private static final DateTimeFormatter TIME_FR =
+            DateTimeFormatter.ofPattern("HH'h'mm");
 
     @Value("${spring.mail.username:}")
     private String smtpUsername;
@@ -56,7 +64,7 @@ public class InvitationMailService {
     /**
      * @return {@code true} si un email a réellement été remis au serveur SMTP
      */
-    public boolean sendInvitation(Guest guest, Wedding wedding, String publicInviteUrl) {
+    public boolean sendInvitation(Guest guest, Wedding wedding, WeddingEvent event, String publicInviteUrl) {
         if (!isConfigured()) {
             log.warn("SMTP non configuré : invitation non envoyée par email");
             return false;
@@ -72,14 +80,47 @@ public class InvitationMailService {
             ctx.setVariable("guestFirstName", guest.getFirstName());
             ctx.setVariable("weddingDisplayName", couple);
             ctx.setVariable("publicInviteUrl", publicInviteUrl);
+            ctx.setVariable("invitationMessage", wedding.getMessage());
+            if (event != null && event.getEventDate() != null) {
+                ctx.setVariable("eventName", event.getName());
+                ctx.setVariable("eventDate", DATE_FR.format(event.getEventDate()));
+                ctx.setVariable("eventStartTime",
+                        event.getStartTime() == null ? null : TIME_FR.format(event.getStartTime()));
+                ctx.setVariable("eventVenue", venueText(event));
+            }
             String html = templateEngine.process("mail/invitation", ctx);
 
             MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, "UTF-8");
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(mailFrom);
             helper.setTo(guest.getEmail());
             helper.setSubject("Invitation — " + couple);
             helper.setText(html, true);
+
+            // Pièce jointe calendrier (.ics) pour ajouter au calendrier d'un clic.
+            String ics = icsCalendarService.buildIcs(wedding, event);
+            if (ics != null) {
+                helper.addAttachment("invitation.ics",
+                        new jakarta.activation.DataSource() {
+                            @Override
+                            public java.io.InputStream getInputStream() {
+                                return new java.io.ByteArrayInputStream(ics.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                            }
+                            @Override
+                            public java.io.OutputStream getOutputStream() {
+                                throw new UnsupportedOperationException();
+                            }
+                            @Override
+                            public String getContentType() {
+                                return "text/calendar";
+                            }
+                            @Override
+                            public String getName() {
+                                return "invitation.ics";
+                            }
+                        });
+            }
+
             mailSender.send(message);
             return true;
         } catch (MailDeliveryException ex) {
@@ -88,5 +129,19 @@ public class InvitationMailService {
             log.error("Échec d'envoi de l'invitation par email", ex);
             throw new MailDeliveryException("L'envoi de l'email a échoué. Réessayez plus tard.");
         }
+    }
+
+    private String venueText(WeddingEvent event) {
+        StringBuilder sb = new StringBuilder();
+        if (event.getVenueName() != null) sb.append(event.getVenueName());
+        if (event.getVenueAddress() != null) {
+            if (sb.length() > 0) sb.append(", ");
+            sb.append(event.getVenueAddress());
+        }
+        if (event.getCity() != null) {
+            if (sb.length() > 0) sb.append(", ");
+            sb.append(event.getCity());
+        }
+        return sb.toString();
     }
 }

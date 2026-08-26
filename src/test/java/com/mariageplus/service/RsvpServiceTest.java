@@ -13,6 +13,7 @@ import com.mariageplus.entity.WeddingStatus;
 import com.mariageplus.exception.ResourceNotFoundException;
 import com.mariageplus.repository.GuestRepository;
 import com.mariageplus.repository.RsvpRepository;
+import com.mariageplus.repository.WeddingEventRepository;
 import com.mariageplus.repository.WeddingRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,6 +36,7 @@ class RsvpServiceTest {
     @Mock private InvitationService invitationService;
     @Mock private GuestRepository guestRepository;
     @Mock private WeddingRepository weddingRepository;
+    @Mock private WeddingEventRepository weddingEventRepository;
 
     @InjectMocks private RsvpService rsvpService;
 
@@ -60,6 +62,28 @@ class RsvpServiceTest {
         req.setStatus(status);
         req.setNumberOfAttendees(number);
         return req;
+    }
+
+    @Test
+    void getPublicPage_mapsWeddingData_andCapacity() {
+        when(invitationService.resolvePublicInvitation("tok")).thenReturn(invitation);
+        when(guestRepository.findById(7L)).thenReturn(Optional.of(guest));
+        when(weddingRepository.findById(1L)).thenReturn(Optional.of(Wedding.builder()
+                .groomFirstName("Jean").groomLastName("Kabongo")
+                .brideFirstName("Marie").brideLastName("Mukendi")
+                .couplePhotoUrl("http://x/photo.jpg").message("Venez en bleu")
+                .status(WeddingStatus.DRAFT).build()));
+        when(weddingEventRepository.findFirstByWeddingIdOrderByEventDateAscIdAsc(1L))
+                .thenReturn(Optional.empty());
+
+        var page = rsvpService.getPublicPage("tok");
+
+        assertEquals("Jean Kabongo & Marie Mukendi", page.getWeddingDisplayName());
+        assertEquals("http://x/photo.jpg", page.getCouplePhotoUrl());
+        assertEquals("Venez en bleu", page.getMessage());
+        assertEquals(3, page.getMaxAccepted()); // 1 + 2 accompagnants
+        assertNull(page.getRsvpStatus());
+        assertTrue(page.isCanRespond());
     }
 
     @Test

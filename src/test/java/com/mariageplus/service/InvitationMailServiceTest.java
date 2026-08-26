@@ -27,13 +27,14 @@ class InvitationMailServiceTest {
 
     @Mock private ObjectProvider<JavaMailSender> mailSenderProvider;
     @Mock private SpringTemplateEngine templateEngine;
+    @Mock private IcsCalendarService icsCalendarService;
     @Mock private JavaMailSender mailSender;
 
     private InvitationMailService service;
 
     @BeforeEach
     void setUp() {
-        service = new InvitationMailService(mailSenderProvider, templateEngine);
+        service = new InvitationMailService(mailSenderProvider, templateEngine, icsCalendarService);
         ReflectionTestUtils.setField(service, "frontendUrl", "http://localhost:3000/");
         ReflectionTestUtils.setField(service, "mailFrom", "noreply@test.local");
         ReflectionTestUtils.setField(service, "smtpUsername", "");
@@ -52,7 +53,7 @@ class InvitationMailServiceTest {
                 .groomFirstName("Jean").groomLastName("K")
                 .brideFirstName("Marie").brideLastName("M").build();
 
-        assertFalse(service.sendInvitation(guest, wedding, "http://x"));
+        assertFalse(service.sendInvitation(guest, wedding, null, "http://x"));
         verifyNoInteractions(mailSenderProvider);
     }
 
@@ -70,7 +71,7 @@ class InvitationMailServiceTest {
                 .groomFirstName("Jean").groomLastName("Kabongo")
                 .brideFirstName("Marie").brideLastName("Mukendi").build();
 
-        assertTrue(service.sendInvitation(guest, wedding, "http://localhost:3000/invitations/tok"));
+        assertTrue(service.sendInvitation(guest, wedding, null, "http://localhost:3000/invitations/tok"));
         verify(mailSender).send(mimeMessage);
     }
 
@@ -90,6 +91,6 @@ class InvitationMailServiceTest {
                 .brideFirstName("Marie").brideLastName("M").build();
 
         assertThrows(MailDeliveryException.class,
-                () -> service.sendInvitation(guest, wedding, "http://x"));
+                () -> service.sendInvitation(guest, wedding, null, "http://x"));
     }
 }

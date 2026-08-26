@@ -194,6 +194,15 @@ Envoi / renvoi (`SendInvitationResponse`) :
 `POST /api/public/invitations/{publicToken}/rsvp` `{ "status": "ACCEPTED", "numberOfAttendees": 2 }`
 - `ACCEPTED` : `1 ≤ numberOfAttendees ≤ 1 + allowedCompanions`
 - `DECLINED` : `numberOfAttendees = 0`
+- **Page web publique servie par le backend** : `GET /invitations/{publicToken}` (Thymeleaf) → carte d'invitation avec photos + date/lieu + formulaire RSVP. C'est le lien mis dans l'email / le QR.
+- **Expiration temporelle** : après la date de l'événement principal, le lien et le QR ne résolvent plus (**404**).
+
+### 5.6bis Relance & suivi
+- `GET /api/weddings/{wid}/invitations/pending-rsvp` → invitations **envoyées sans réponse** (relance manuelle assistée).
+- `GET /api/weddings/{wid}/invitations/pending-rsvp/count` → nombre.
+- Relancer = `POST .../invitations/{id}/resend` (incrémente `reminderCount`, plafonné à `INVITATION_MAX_REMINDERS`).
+- Suivi : `InvitationResponse` expose désormais `reminderCount` et `openedAt` (première ouverture du lien).
+- **Relance auto** : job quotidien (désactivable) qui relance les non-répondants à `INVITATION_REMINDER_DAYS_BEFORE` jours avant le mariage.
 
 ### 5.7 Import CSV
 `POST /api/weddings/{wid}/guests/import` (`multipart`, champ `file`)  
@@ -299,4 +308,6 @@ Send : `GENERATED` ou `DRAFT`. Resend : déjà `SENT`. Cancel : tout sauf `CANCE
 ## 7. Écran invité (lien public)
 
 L’URL partagée est `{FRONTEND_URL}/invitations/{publicToken}`.  
-L’app (ou une WebView) appelle uniquement `/api/public/invitations/...` **sans JWT**.
+Le backend sert désormais **une page web publique** à cette URL (Thymeleaf) : photo du couple, noms, date/heure/lieu de l'événement principal, message personnalisé de l'organisateur et formulaire RSVP (accepter/décliner + nombre d'accompagnants). Après la date de l'événement, le lien ne résout plus (404).
+
+L’app (ou une WebView) peut aussi consommer `/api/public/invitations/...` **sans JWT** pour un rendu natif.

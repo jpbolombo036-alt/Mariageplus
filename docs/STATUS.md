@@ -33,8 +33,8 @@ Santé : `GET /health` · Swagger (profil `local`) : `/swagger-ui.html`
 ### Produit / métier
 
 - **Pas d’application Flutter dans ce dépôt** — seulement l’API + le guide d’intégration.
-- **Pas de page web publique d’invitation** — le lien `{FRONTEND_URL}/invitations/{token}` suppose un front à construire ; le backend expose uniquement `/api/public/invitations/...`.
-- **Email optionnel** — sans `SMTP_USERNAME` / `SMTP_PASSWORD`, l’envoi marque `SENT` et renvoie `publicInviteUrl` à partager à la main (`emailSent: false`). Pas de file d’attente ni de relance auto.
+- **Page web publique d’invitation** : le backend sert désormais `/invitations/{token}` en Thymeleaf (carte + RSVP). Le Flutter natif reste possible via `/api/public/invitations/...`.
+- **Email optionnel** — sans `SMTP_USERNAME` / `SMTP_PASSWORD`, l’envoi marque `SENT` et renvoie `publicInviteUrl` à partager à la main (`emailSent: false`). Pas de file d’attente, ni de suivi d’ouverture/rebond ; relance auto **désactivée par défaut** (`INVITATION_REMINDER_ENABLED`).
 - **Photos couple / mariés** — champs URL uniquement ; **aucun upload** de fichiers (pas de stockage S3/disque branché sur l’API).
 - **Pas d’export CSV** des invités (permission `GUEST_EXPORT` seedée, pas d’endpoint).
 - **Pas de rapports PDF / export stats** (`REPORT_*` seedés, pas d’endpoint).
