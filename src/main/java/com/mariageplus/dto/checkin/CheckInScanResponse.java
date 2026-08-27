@@ -23,4 +23,5 @@ public class CheckInScanResponse {
     private int checkedInAttendees;
     private int remainingAttendees;
     private boolean canCheckIn;
+    private String tableName;
 }

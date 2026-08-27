@@ -18,6 +18,7 @@ import com.mariageplus.repository.CheckInRepository;
 import com.mariageplus.repository.GuestRepository;
 import com.mariageplus.repository.InvitationRepository;
 import com.mariageplus.repository.RsvpRepository;
+import com.mariageplus.repository.TableAssignmentRepository;
 import com.mariageplus.repository.WeddingRepository;
 import com.mariageplus.security.SecurityUtils;
 import org.junit.jupiter.api.BeforeEach;
@@ -47,6 +48,7 @@ class CheckInServiceTest {
     @Mock private GuestRepository guestRepository;
     @Mock private WeddingRepository weddingRepository;
     @Mock private RsvpRepository rsvpRepository;
+    @Mock private TableAssignmentRepository tableAssignmentRepository;
     @Mock private SecurityUtils securityUtils;
     @Mock private AuditService auditService;
 
@@ -95,6 +97,7 @@ class CheckInServiceTest {
         when(invitationRepository.findByPublicToken("tok")).thenReturn(Optional.of(invitation));
         when(weddingRepository.findById(1L)).thenReturn(Optional.of(wedding));
         when(guestRepository.findById(7L)).thenReturn(Optional.of(guest));
+        when(tableAssignmentRepository.findTableNameByGuestId(7L)).thenReturn(java.util.Optional.empty());
     }
 
     @Test
@@ -117,6 +120,19 @@ class CheckInServiceTest {
         assertEquals(1, response.getRemainingAttendees());
         assertTrue(response.isCanCheckIn());
         assertEquals("ACCEPTED", response.getRsvpStatus());
+        assertNull(response.getTableName());
+    }
+
+    @Test
+    void scan_returnsTableName_whenAssigned() {
+        stubStateInvitation();
+        when(rsvpRepository.findByInvitationId(5L)).thenReturn(Optional.of(acceptedRsvp(3)));
+        when(checkInRepository.sumByInvitationId(5L)).thenReturn(0);
+        when(tableAssignmentRepository.findTableNameByGuestId(7L)).thenReturn(java.util.Optional.of("Table VIP"));
+
+        CheckInScanResponse response = checkInService.scan(scanRequest());
+
+        assertEquals("Table VIP", response.getTableName());
     }
 
     @Test
@@ -191,6 +207,21 @@ class CheckInServiceTest {
         assertNotNull(captor.getValue().getCheckedInAt());
         assertEquals(3, response.getCheckedInAttendees());
         assertEquals(0, response.getRemainingAttendees());
+        assertNull(response.getTableName());
+    }
+
+    @Test
+    void checkIn_returnsTableName_whenAssigned() {
+        when(invitationRepository.findByPublicTokenForUpdate("tok")).thenReturn(Optional.of(invitation));
+        when(weddingRepository.findById(1L)).thenReturn(Optional.of(wedding));
+        when(rsvpRepository.findByInvitationId(5L)).thenReturn(Optional.of(acceptedRsvp(3)));
+        when(checkInRepository.sumByInvitationId(5L)).thenReturn(0);
+        when(checkInRepository.save(any(CheckIn.class))).thenAnswer(a -> a.getArgument(0));
+        when(tableAssignmentRepository.findTableNameByGuestId(7L)).thenReturn(java.util.Optional.of("Table VIP"));
+
+        CheckInResponse response = checkInService.checkIn(checkInRequest(1));
+
+        assertEquals("Table VIP", response.getTableName());
     }
 
     @Test

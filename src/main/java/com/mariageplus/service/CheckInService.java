@@ -49,6 +49,7 @@ public class CheckInService {
     private final GuestRepository guestRepository;
     private final WeddingRepository weddingRepository;
     private final RsvpRepository rsvpRepository;
+    private final TableAssignmentRepository tableAssignmentRepository;
     private final SecurityUtils securityUtils;
     private final AuditService auditService;
 
@@ -214,6 +215,7 @@ public class CheckInService {
                 .checkedInAttendees(checkedIn)
                 .remainingAttendees(remaining)
                 .canCheckIn(canCheckIn)
+                .tableName(tableName(invitation))
                 .build();
     }
 
@@ -231,6 +233,10 @@ public class CheckInService {
                 .expectedAttendees(expected)
                 .checkedInAttendees(total)
                 .remainingAttendees(remaining)
+                .tableName(tableName(invitation))
                 .build();
     }
-}
+
+    private String tableName(Invitation invitation) {
+        return tableAssignmentRepository.findTableNameByGuestId(invitation.getGuestId()).orElse(null);
+    }

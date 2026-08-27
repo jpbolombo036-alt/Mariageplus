@@ -22,6 +22,9 @@ public interface TableAssignmentRepository extends JpaRepository<TableAssignment
 
     long countByWeddingTableId(Long weddingTableId);
 
+    @Query("select t.name from TableAssignment a join WeddingTable t on t.id = a.weddingTableId where a.guestId = :guestId")
+    java.util.Optional<String> findTableNameByGuestId(@Param("guestId") Long guestId);
+
     @Query("select count(a) from TableAssignment a " +
             "where a.weddingTableId in (select t.id from WeddingTable t where t.weddingId = :weddingId)")
     long countByWeddingId(@Param("weddingId") Long weddingId);

@@ -4,6 +4,17 @@ Interface officielle du backend Java/Spring Boot `com.mariageplus`.
 
 > Ce guide est aligné sur le backend réel (endpoints, DTO, permissions, statuts HTTP). **Chaque écran / action est conditionné par la permission** : n’afficher que ce que l’utilisateur a le droit d’utiliser.
 
+> ### ✅ État : backend **fonctionnellement complet** pour le passage au web
+>
+> Tout le catalogue d’API (auth, mariages, invités, catégories, événements, invitations
+> + relances, RSVP public, **page web publique invité**, check-in, tables, dashboard,
+> admin, scoping agents par mariage) est **implémenté et testé** côté backend.
+> Voir **`docs/COUVERTURE_BACKEND_FRONTEND.md`** pour la matrice détaillée
+> (backend exposé ↔ app Flutter consommé ↔ reste à brancher côté web).
+>
+> Ce présent guide décrit le **contrat d’API** à réutiliser tel quel pour le web ; la
+> partie §7 décrit la **page web publique invité déjà servie par le backend**.
+
 ---
 
 ## 1. Vue d'ensemble
