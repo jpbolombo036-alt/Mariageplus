@@ -241,7 +241,7 @@ public class ExportService {
 
     private PdfPCell headerCell(String text) {
         PdfPCell cell = new PdfPCell(new Phrase(text, FontFactory.getFont(FontFactory.HELVETICA_BOLD, 11)));
-        cell.setBackgroundColor(new com.lowagie.text.Color(230, 230, 230));
+        cell.setBackgroundColor(new java.awt.Color(230, 230, 230));
         return cell;
     }
 

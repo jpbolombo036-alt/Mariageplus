@@ -176,7 +176,6 @@ class ExportServiceTest {
 
     @Test
     void exportDashboardPdf_generatesNonEmptyPdf() {
-        when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
         when(weddingDashboardService.getDashboard(1L)).thenReturn(WeddingDashboardResponse.builder()
                 .weddingId(1L).weddingName("Jean & Marie")
                 .guests(GuestStatisticsResponse.builder().total(10).unassigned(2).build())
@@ -194,7 +193,7 @@ class ExportServiceTest {
 
     @Test
     void exportDashboardPdf_requiresReportViewPermission() {
-        when(securityUtils.hasPermission("REPORT_VIEW")).thenReturn(false);
+        doThrow(new SecurityException("denied")).when(securityUtils).assertPermission("REPORT_VIEW");
 
         assertThrows(SecurityException.class, () -> exportService.exportDashboardPdf(1L));
         verify(weddingService, never()).loadInOrgScope(any());
@@ -202,7 +201,7 @@ class ExportServiceTest {
 
     @Test
     void exportGuestsCsv_requiresGuestExportPermission() {
-        when(securityUtils.hasPermission("GUEST_EXPORT")).thenReturn(false);
+        doThrow(new SecurityException("denied")).when(securityUtils).assertPermission("GUEST_EXPORT");
 
         assertThrows(SecurityException.class, () -> exportService.exportGuestsCsv(1L));
         verify(guestRepository, never()).findByWeddingId(any());

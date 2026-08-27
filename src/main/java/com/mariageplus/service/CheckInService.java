@@ -17,6 +17,7 @@ import com.mariageplus.repository.CheckInRepository;
 import com.mariageplus.repository.GuestRepository;
 import com.mariageplus.repository.InvitationRepository;
 import com.mariageplus.repository.RsvpRepository;
+import com.mariageplus.repository.TableAssignmentRepository;
 import com.mariageplus.repository.WeddingRepository;
 import com.mariageplus.security.SecurityUtils;
 import lombok.RequiredArgsConstructor;
@@ -240,3 +241,4 @@ public class CheckInService {
     private String tableName(Invitation invitation) {
         return tableAssignmentRepository.findTableNameByGuestId(invitation.getGuestId()).orElse(null);
     }
+}
