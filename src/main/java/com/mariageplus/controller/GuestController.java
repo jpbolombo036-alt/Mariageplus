@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 @RestController
-@RequestMapping("/api/weddings/{weddingId}/guests")
+@RequestMapping({"/api/weddings/{weddingId}/guests", "/api/events/{weddingId}/guests"})
 @RequiredArgsConstructor
 @Tag(name = "Invités", description = "Gestion des invités d'un mariage (isolés par organisation)")
 public class GuestController {

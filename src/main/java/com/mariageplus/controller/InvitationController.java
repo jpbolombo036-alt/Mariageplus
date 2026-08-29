@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/weddings/{weddingId}/invitations")
+@RequestMapping({"/api/weddings/{weddingId}/invitations", "/api/events/{weddingId}/invitations"})
 @RequiredArgsConstructor
 @Tag(name = "Invitations", description = "Gestion administrative des invitations (isolées par organisation)")
 public class InvitationController {

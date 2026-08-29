@@ -14,7 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/weddings/{weddingId}/guest-categories")
+@RequestMapping({"/api/weddings/{weddingId}/guest-categories", "/api/events/{weddingId}/guest-categories"})
 @RequiredArgsConstructor
 @Tag(name = "Catégories d'invités", description = "Gestion des catégories d'invités d'un mariage (isolées par organisation)")
 public class GuestCategoryController {

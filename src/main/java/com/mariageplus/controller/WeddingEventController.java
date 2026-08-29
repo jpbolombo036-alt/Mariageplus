@@ -14,7 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/weddings/{weddingId}/events")
+@RequestMapping({"/api/weddings/{weddingId}/events", "/api/events/{weddingId}/sessions-legacy"})
 @RequiredArgsConstructor
 @Tag(name = "Événements de mariage", description = "Gestion des événements d'un mariage (isolés par organisation)")
 public class WeddingEventController {

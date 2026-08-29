@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.*;
  * Déplacement et retrait des affectations table/invité.
  */
 @RestController
-@RequestMapping("/api/weddings/{weddingId}/assignments")
+@RequestMapping({"/api/weddings/{weddingId}/assignments", "/api/events/{weddingId}/assignments"})
 @RequiredArgsConstructor
 @Tag(name = "Affectations de tables", description = "Déplacer ou retirer un invité d'une table")
 public class TableAssignmentController {

@@ -18,7 +18,7 @@ import java.util.List;
  * Endpoint en lecture seule ; aucune route existante n'est modifiée.
  */
 @RestController
-@RequestMapping("/api/weddings/{weddingId}/rsvps")
+@RequestMapping({"/api/weddings/{weddingId}/rsvps", "/api/events/{weddingId}/rsvps"})
 @RequiredArgsConstructor
 @Tag(name = "Réponses RSVP", description = "Réponses RSVP par invité (isolées par organisation)")
 public class RsvpAdminController {

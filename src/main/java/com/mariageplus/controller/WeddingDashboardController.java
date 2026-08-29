@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.*;
  * organisation. Les calculs restent dans le service/repositories.
  */
 @RestController
-@RequestMapping("/api/weddings/{weddingId}/dashboard")
+@RequestMapping({"/api/weddings/{weddingId}/dashboard", "/api/events/{weddingId}/dashboard"})
 @RequiredArgsConstructor
 @Tag(name = "Dashboard", description = "Statistiques d'un mariage (lecture seule, isolé par organisation)")
 public class WeddingDashboardController {

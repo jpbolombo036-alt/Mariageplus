@@ -21,7 +21,7 @@ import java.util.List;
  * Isolées par organisation via weddingId → Wedding → Organization.
  */
 @RestController
-@RequestMapping("/api/weddings/{weddingId}/tables")
+@RequestMapping({"/api/weddings/{weddingId}/tables", "/api/events/{weddingId}/tables"})
 @RequiredArgsConstructor
 @Tag(name = "Tables", description = "Gestion des tables d'un mariage (isolées par organisation)")
 public class WeddingTableController {

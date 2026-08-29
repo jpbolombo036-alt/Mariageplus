@@ -30,6 +30,11 @@ import java.util.stream.Collectors;
  * Agrégats COUNT/SUM côté backend (pas de N+1). totalGuests ≠ expectedAttendees.
  * Lecture seule (readOnly). Invitations liées au mariage (pas à un WeddingEvent)
  * → aucune statistique par événement fabriquée.
+ *
+ * La réponse est filtrée selon le rôle de l'utilisateur connecté :
+ * - AGENT_ACCUEIL : check-in uniquement
+ * - GESTIONNAIRE_INVITES : invités, invitations, catégories
+ * - ORGANISATEUR / SUPER_ADMIN : vue complète
  */
 @Service
 @RequiredArgsConstructor
@@ -73,20 +78,65 @@ public class WeddingDashboardService {
                 .map(c -> buildCategory(weddingId, c))
                 .collect(Collectors.toList());
 
-        return WeddingDashboardResponse.builder()
+        List<String> roles = securityUtils.getCurrentRoles();
+        RoleView roleView = resolveRoleView(roles);
+
+        WeddingDashboardResponse.WeddingDashboardResponseBuilder builder = WeddingDashboardResponse.builder()
                 .weddingId(weddingId)
-                .weddingName(wedding.getDisplayName())
-                .guests(GuestStatisticsResponse.builder().total(totalGuests).unassigned(unassigned).build())
-                .invitations(InvitationStatisticsResponse.builder()
-                        .total(totalInvitations).accepted(accepted).declined(declined).pending(pending)
-                        .responseRate(responseRate).build())
-                .attendance(AttendanceStatisticsResponse.builder()
-                        .expected(expected).checkedIn(checkedIn).remaining(remaining).checkInRate(checkInRate).build())
-                .tables(TableStatisticsResponse.builder()
-                        .total(totalTables).capacity(tableCapacity).assignedGuests(tableAssigned)
-                        .remainingCapacity(tableRemaining).build())
-                .categories(categories)
-                .build();
+                .weddingName(wedding.getDisplayName());
+
+        if (roleView == RoleView.FULL) {
+            return builder
+                    .guests(GuestStatisticsResponse.builder().total(totalGuests).unassigned(unassigned).build())
+                    .invitations(InvitationStatisticsResponse.builder()
+                            .total(totalInvitations).accepted(accepted).declined(declined).pending(pending)
+                            .responseRate(responseRate).build())
+                    .attendance(AttendanceStatisticsResponse.builder()
+                            .expected(expected).checkedIn(checkedIn).remaining(remaining).checkInRate(checkInRate).build())
+                    .tables(TableStatisticsResponse.builder()
+                            .total(totalTables).capacity(tableCapacity).assignedGuests(tableAssigned)
+                            .remainingCapacity(tableRemaining).build())
+                    .categories(categories)
+                    .build();
+        }
+
+        if (roleView == RoleView.GUEST_MANAGEMENT) {
+            return builder
+                    .guests(GuestStatisticsResponse.builder().total(totalGuests).unassigned(unassigned).build())
+                    .invitations(InvitationStatisticsResponse.builder()
+                            .total(totalInvitations).accepted(accepted).declined(declined).pending(pending)
+                            .responseRate(responseRate).build())
+                    .categories(categories)
+                    .build();
+        }
+
+        if (roleView == RoleView.CHECKIN_ONLY) {
+            return builder
+                    .attendance(AttendanceStatisticsResponse.builder()
+                            .expected(expected).checkedIn(checkedIn).remaining(remaining).checkInRate(checkInRate).build())
+                    .build();
+        }
+
+        return builder.build();
+    }
+
+    private enum RoleView {
+        FULL,
+        GUEST_MANAGEMENT,
+        CHECKIN_ONLY
+    }
+
+    private RoleView resolveRoleView(List<String> roles) {
+        if (roles == null || roles.isEmpty()) {
+            return RoleView.FULL;
+        }
+        if (roles.contains("AGENT_ACCUEIL")) {
+            return RoleView.CHECKIN_ONLY;
+        }
+        if (roles.contains("GESTIONNAIRE_INVITES")) {
+            return RoleView.GUEST_MANAGEMENT;
+        }
+        return RoleView.FULL;
     }
 
     /** Répartition par catégorie d'invités (GuestCategory → Guest → Invitation → RSVP). */

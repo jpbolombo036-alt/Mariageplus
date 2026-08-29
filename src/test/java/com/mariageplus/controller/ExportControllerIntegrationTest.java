@@ -25,6 +25,7 @@ class ExportControllerIntegrationTest {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private AuthService authService;
+    @Autowired private com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
     private static String tokenA;
     private static Long weddingAId;
@@ -43,9 +44,9 @@ class ExportControllerIntegrationTest {
         String body = mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/weddings")
                         .header("Authorization", auth(token))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(req)))
+                        .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
-        return new com.fasterxml.jackson.databind.ObjectMapper().readValue(body, WeddingResponse.class).getId();
+        return objectMapper.readValue(body, WeddingResponse.class).getId();
     }
 
     @BeforeEach

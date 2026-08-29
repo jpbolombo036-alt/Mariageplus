@@ -11,7 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/weddings/{weddingId}/export")
+@RequestMapping({"/api/weddings/{weddingId}/export", "/api/events/{weddingId}/export"})
 @RequiredArgsConstructor
 @Tag(name = "Exports", description = "Export CSV et PDF des données d'un mariage")
 public class ExportController {
