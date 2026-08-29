@@ -85,9 +85,6 @@ SELECT
     we.deleted_at
 FROM wedding_events we;
 
--- 4) Reposition des séquences (IDs insérés explicitement).
--- Offset élevé pour garantir l'absence de collision. Syntaxe identique
--- supportée par H2 (tests) et PostgreSQL (production).
-ALTER TABLE events ALTER COLUMN id RESTART WITH 1000000;
-ALTER TABLE wedding_details ALTER COLUMN id RESTART WITH 1000000;
-ALTER TABLE event_sessions ALTER COLUMN id RESTART WITH 1000000;
+-- 4) Reposition des séquences (IDs insérés explicitement) : voir V18,
+-- migration spécifique par moteur (H2 en tests, PostgreSQL en production).
+

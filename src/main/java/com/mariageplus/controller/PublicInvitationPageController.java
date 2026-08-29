@@ -25,7 +25,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 @Controller
 public class PublicInvitationPageController {
 
-    @Value("${app.frontend.url:http://localhost:3000, https://mariaplus-web.vercel.app/}")
+    @Value("${app.frontend.url:http://localhost:3000}")
     private String frontendUrl;
 
     @GetMapping("/invitations/{publicToken}")
