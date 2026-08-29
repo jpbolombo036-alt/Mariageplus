@@ -167,16 +167,6 @@ class EventControllerIntegrationTest {
         mockMvc.perform(get("/api/events"))
                 .andExpect(status().isUnauthorized());
     }
-
-    @Test
-    void legacyWeddingsRoute_returnsDeprecationHeaders() throws Exception {
-        mockMvc.perform(get("/api/weddings")
-                        .header("Authorization", "Bearer " + token))
-                .andExpect(status().isOk())
-                .andExpect(header().string("Deprecation", "true"))
-                .andExpect(header().string("Sunset", "Fri, 01 Jan 2027 00:00:00 GMT"))
-                .andExpect(header().string("Link", "</api/events>; rel=\"successor-version\""));
-    }
 }
 
 

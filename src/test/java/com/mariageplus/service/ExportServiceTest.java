@@ -11,7 +11,8 @@ import com.mariageplus.entity.GuestCategory;
 import com.mariageplus.entity.Invitation;
 import com.mariageplus.entity.Rsvp;
 import com.mariageplus.entity.RsvpStatus;
-import com.mariageplus.entity.Wedding;
+import com.mariageplus.entity.Event;
+import com.mariageplus.service.EventService;
 import com.mariageplus.entity.WeddingTable;
 import com.mariageplus.exception.ResourceNotFoundException;
 import com.mariageplus.repository.CheckInRepository;
@@ -49,7 +50,7 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class ExportServiceTest {
 
-    @Mock private WeddingService weddingService;
+    @Mock private EventService eventService;
     @Mock private GuestRepository guestRepository;
     @Mock private GuestCategoryRepository guestCategoryRepository;
     @Mock private InvitationRepository invitationRepository;
@@ -62,18 +63,18 @@ class ExportServiceTest {
 
     @InjectMocks private ExportService exportService;
 
-    private Wedding wedding;
+    private Event wedding;
 
     @BeforeEach
     void setUp() {
-        wedding = new Wedding();
+        wedding = new Event();
         wedding.setId(1L);
         wedding.setOrganizationId(10L);
     }
 
     @Test
     void exportGuestsCsv_returnsCsvWithHeaders() {
-        when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
+        when(eventService.loadInOrgScope(1L)).thenReturn(wedding);
         when(guestCategoryRepository.findByWeddingId(1L)).thenReturn(List.of());
         Guest guest = new Guest();
         guest.setId(1L);
@@ -97,7 +98,7 @@ class ExportServiceTest {
 
     @Test
     void exportGuestsCsv_escapesSpecialCharacters() {
-        when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
+        when(eventService.loadInOrgScope(1L)).thenReturn(wedding);
         when(guestCategoryRepository.findByWeddingId(1L)).thenReturn(List.of());
         Guest guest = new Guest();
         guest.setId(1L);
@@ -118,7 +119,7 @@ class ExportServiceTest {
 
     @Test
     void exportInvitationsCsv_includesRsvpStatus() {
-        when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
+        when(eventService.loadInOrgScope(1L)).thenReturn(wedding);
         Invitation invitation = new Invitation();
         invitation.setId(10L);
         invitation.setWeddingId(1L);
@@ -137,7 +138,7 @@ class ExportServiceTest {
 
     @Test
     void exportRsvpsCsv_listsResponses() {
-        when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
+        when(eventService.loadInOrgScope(1L)).thenReturn(wedding);
         Invitation invitation = new Invitation();
         invitation.setId(10L);
         invitation.setWeddingId(1L);
@@ -158,7 +159,7 @@ class ExportServiceTest {
 
     @Test
     void exportTablesCsv_countsAssignments() {
-        when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
+        when(eventService.loadInOrgScope(1L)).thenReturn(wedding);
         WeddingTable table = new WeddingTable();
         table.setId(1L);
         table.setWeddingId(1L);
@@ -196,7 +197,7 @@ class ExportServiceTest {
         doThrow(new SecurityException("denied")).when(securityUtils).assertPermission("REPORT_VIEW");
 
         assertThrows(SecurityException.class, () -> exportService.exportDashboardPdf(1L));
-        verify(weddingService, never()).loadInOrgScope(any());
+        verify(eventService, never()).loadInOrgScope(any());
     }
 
     @Test

@@ -27,12 +27,12 @@ public class RsvpQueryService {
     private final RsvpRepository rsvpRepository;
     private final InvitationRepository invitationRepository;
     private final SecurityUtils securityUtils;
-    private final WeddingService weddingService;
+    private final EventService eventService;
 
     @Transactional(readOnly = true)
     public List<RsvpSummaryResponse> listForWedding(Long weddingId) {
         securityUtils.assertPermission("GUEST_VIEW");
-        weddingService.loadInOrgScope(weddingId);
+        eventService.loadInOrgScope(weddingId);
 
         var invitations = invitationRepository.findByWeddingId(weddingId);
         if (invitations.isEmpty()) {

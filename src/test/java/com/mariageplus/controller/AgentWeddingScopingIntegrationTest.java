@@ -5,8 +5,8 @@ import com.mariageplus.dto.auth.LoginRequest;
 import com.mariageplus.dto.auth.LoginResponse;
 import com.mariageplus.dto.auth.RegisterRequest;
 import com.mariageplus.dto.organization.OrganizationMemberRequest;
-import com.mariageplus.dto.wedding.CreateWeddingRequest;
-import com.mariageplus.dto.wedding.WeddingResponse;
+import com.mariageplus.dto.event.CreateEventRequest;
+import com.mariageplus.dto.event.EventResponse;
 import com.mariageplus.service.AuthService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -51,7 +51,7 @@ class AgentWeddingScopingIntegrationTest {
             RegisterRequest org = new RegisterRequest();
             org.setFirstName("Org");
             org.setLastName("Scoping");
-            org.setEmail("scoping-org@example.com");
+            org.setEmail(("scoping-org-" + java.util.UUID.randomUUID() + "@example.com"));
             org.setPassword("password123");
             org.setOrganizationName("Organisation Scoping");
             LoginResponse organizer = authService.register(org);
@@ -65,7 +65,8 @@ class AgentWeddingScopingIntegrationTest {
             OrganizationMemberRequest agent = new OrganizationMemberRequest();
             agent.setFirstName("Agent");
             agent.setLastName("Invites");
-            agent.setEmail("agent-invites@example.com");
+            String agentEmail = "agent-invites-" + java.util.UUID.randomUUID() + "@example.com";
+            agent.setEmail(agentEmail);
             agent.setPassword("password123");
             agent.setRoleCode("GESTIONNAIRE_INVITES");
             agent.setWeddingId(weddingAId);
@@ -82,7 +83,7 @@ class AgentWeddingScopingIntegrationTest {
 
             // 3. Login de l'agent → JWT rechargé avec ses mariages assignés.
             LoginRequest login = new LoginRequest();
-            login.setEmail("agent-invites@example.com");
+            login.setEmail(agentEmail);
             login.setPassword("password123");
             tokenAgent = authService.login(login).getAccessToken();
 
@@ -95,17 +96,21 @@ class AgentWeddingScopingIntegrationTest {
     }
 
     private Long createWedding(String label) throws Exception {
-        CreateWeddingRequest req = new CreateWeddingRequest();
-        req.setGroomFirstName(label + "-Groom");
-        req.setGroomLastName("Nom");
-        req.setBrideFirstName(label + "-Bride");
-        req.setBrideLastName("Nom");
-        String body = mockMvc.perform(post("/api/weddings")
+        CreateEventRequest req = new CreateEventRequest();
+        req.setName(label + " Groom & Bride");
+        req.setType(com.mariageplus.entity.EventType.WEDDING);
+        com.mariageplus.dto.event.WeddingDetailsRequest det = new com.mariageplus.dto.event.WeddingDetailsRequest();
+        det.setGroomFirstName(label + "-Groom");
+        det.setGroomLastName("Nom");
+        det.setBrideFirstName(label + "-Bride");
+        det.setBrideLastName("Nom");
+        req.setWeddingDetails(det);
+        String body = mockMvc.perform(post("/api/events")
                         .header("Authorization", auth(tokenOrganizer))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
-        return objectMapper.readValue(body, WeddingResponse.class).getId();
+        return objectMapper.readValue(body, EventResponse.class).getId();
     }
 
     @Test

@@ -6,7 +6,7 @@ import com.mariageplus.entity.GuestCategory;
 import com.mariageplus.entity.Invitation;
 import com.mariageplus.entity.Rsvp;
 import com.mariageplus.entity.RsvpStatus;
-import com.mariageplus.entity.Wedding;
+import com.mariageplus.entity.Event;
 import com.mariageplus.entity.WeddingTable;
 import com.mariageplus.repository.CheckInRepository;
 import com.mariageplus.repository.GuestCategoryRepository;
@@ -41,7 +41,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ExportService {
 
-    private final WeddingService weddingService;
+    private final EventService eventService;
     private final GuestRepository guestRepository;
     private final GuestCategoryRepository guestCategoryRepository;
     private final InvitationRepository invitationRepository;
@@ -54,7 +54,7 @@ public class ExportService {
 
     public byte[] exportGuestsCsv(Long weddingId) {
         securityUtils.assertPermission("GUEST_EXPORT");
-        Wedding wedding = weddingService.loadInOrgScope(weddingId);
+        Event event = eventService.loadInOrgScope(weddingId);
         List<Guest> guests = guestRepository.findByWeddingId(weddingId);
         Map<Long, String> categories = guestCategoryRepository.findByWeddingId(weddingId).stream()
                 .collect(Collectors.toMap(GuestCategory::getId, GuestCategory::getName, (a, b) -> a));
@@ -82,7 +82,7 @@ public class ExportService {
 
     public byte[] exportInvitationsCsv(Long weddingId) {
         securityUtils.assertPermission("INVITATION_VIEW");
-        Wedding wedding = weddingService.loadInOrgScope(weddingId);
+        Event event = eventService.loadInOrgScope(weddingId);
         List<Invitation> invitations = invitationRepository.findByWeddingId(weddingId);
         Map<Long, Rsvp> rsvps = rsvpRepository.findByInvitationIdIn(
                 invitations.stream().map(Invitation::getId).toList()).stream()
@@ -112,7 +112,7 @@ public class ExportService {
 
     public byte[] exportRsvpsCsv(Long weddingId) {
         securityUtils.assertPermission("RSVP_VIEW");
-        Wedding wedding = weddingService.loadInOrgScope(weddingId);
+        Event event = eventService.loadInOrgScope(weddingId);
         List<Rsvp> rsvps = rsvpRepository.findActiveByWeddingId(weddingId);
         Map<Long, Invitation> invitations = invitationRepository.findByWeddingId(weddingId).stream()
                 .collect(Collectors.toMap(Invitation::getId, i -> i, (a, b) -> a));
@@ -137,7 +137,7 @@ public class ExportService {
 
     public byte[] exportTablesCsv(Long weddingId) {
         securityUtils.assertPermission("TABLE_VIEW");
-        Wedding wedding = weddingService.loadInOrgScope(weddingId);
+        Event event = eventService.loadInOrgScope(weddingId);
         List<WeddingTable> tables = weddingTableRepository.findByWeddingId(weddingId);
 
         StringWriter sw = new StringWriter();

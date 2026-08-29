@@ -4,7 +4,8 @@ import com.mariageplus.dto.table.AssignGuestRequest;
 import com.mariageplus.dto.table.MoveGuestRequest;
 import com.mariageplus.entity.Guest;
 import com.mariageplus.entity.TableAssignment;
-import com.mariageplus.entity.Wedding;
+import com.mariageplus.entity.Event;
+import com.mariageplus.service.EventService;
 import com.mariageplus.entity.WeddingTable;
 import com.mariageplus.exception.ConflictException;
 import com.mariageplus.exception.ResourceNotFoundException;
@@ -37,19 +38,19 @@ class WeddingTableServiceTest {
     @Mock private WeddingTableRepository weddingTableRepository;
     @Mock private TableAssignmentRepository tableAssignmentRepository;
     @Mock private GuestRepository guestRepository;
-    @Mock private WeddingService weddingService;
+    @Mock private EventService eventService;
     @Mock private SecurityUtils securityUtils;
     @Mock private AuditService auditService;
 
     @InjectMocks private WeddingTableService weddingTableService;
 
-    private Wedding wedding;
+    private Event wedding;
     private WeddingTable table;
     private Guest guest;
 
     @BeforeEach
     void setUp() {
-        wedding = Wedding.builder().build();
+        wedding = Event.builder().build();
         wedding.setId(1L);
         wedding.setOrganizationId(100L);
         table = WeddingTable.builder().weddingId(1L).name("T1").capacity(2).build();
@@ -71,7 +72,7 @@ class WeddingTableServiceTest {
     }
 
     private void stubScopeAndTableAndGuest() {
-        when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
+        when(eventService.loadInOrgScope(1L)).thenReturn(wedding);
         when(weddingTableRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(table));
         when(guestRepository.findByIdAndWeddingId(5L, 1L)).thenReturn(Optional.of(guest));
     }
@@ -120,7 +121,7 @@ class WeddingTableServiceTest {
 
     @Test
     void assign_guestOfAnotherWedding_notFound() {
-        when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
+        when(eventService.loadInOrgScope(1L)).thenReturn(wedding);
         when(weddingTableRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(table));
         when(guestRepository.findByIdAndWeddingId(5L, 1L)).thenReturn(Optional.empty());
 
@@ -143,7 +144,7 @@ class WeddingTableServiceTest {
 
     @Test
     void move_locksTargetTable() {
-        when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
+        when(eventService.loadInOrgScope(1L)).thenReturn(wedding);
         TableAssignment existing = TableAssignment.builder().guestId(5L).weddingTableId(10L).build();
         existing.setId(1L);
         when(tableAssignmentRepository.findById(1L)).thenReturn(Optional.of(existing));
@@ -162,7 +163,7 @@ class WeddingTableServiceTest {
 
     @Test
     void move_targetFull_throwsConflict() {
-        when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
+        when(eventService.loadInOrgScope(1L)).thenReturn(wedding);
         TableAssignment existing = TableAssignment.builder().guestId(5L).weddingTableId(10L).build();
         existing.setId(1L);
         when(tableAssignmentRepository.findById(1L)).thenReturn(Optional.of(existing));
@@ -179,7 +180,7 @@ class WeddingTableServiceTest {
 
     @Test
     void remove_deletesAssignment() {
-        when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
+        when(eventService.loadInOrgScope(1L)).thenReturn(wedding);
         TableAssignment existing = TableAssignment.builder().guestId(5L).weddingTableId(10L).build();
         existing.setId(1L);
         when(tableAssignmentRepository.findById(1L)).thenReturn(Optional.of(existing));
@@ -192,7 +193,7 @@ class WeddingTableServiceTest {
 
     @Test
     void delete_tableWithAssignments_throwsConflict() {
-        when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
+        when(eventService.loadInOrgScope(1L)).thenReturn(wedding);
         when(weddingTableRepository.findByIdAndWeddingId(10L, 1L)).thenReturn(Optional.of(table));
         when(tableAssignmentRepository.countByWeddingTableId(10L)).thenReturn(1L);
 

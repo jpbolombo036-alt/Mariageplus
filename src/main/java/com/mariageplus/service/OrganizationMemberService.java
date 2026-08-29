@@ -6,13 +6,13 @@ import com.mariageplus.entity.Organization;
 import com.mariageplus.entity.OrganizationMember;
 import com.mariageplus.entity.Role;
 import com.mariageplus.entity.User;
-import com.mariageplus.entity.Wedding;
+import com.mariageplus.entity.Event;
 import com.mariageplus.exception.ConflictException;
 import com.mariageplus.exception.ResourceNotFoundException;
 import com.mariageplus.repository.OrganizationMemberRepository;
 import com.mariageplus.repository.RoleRepository;
 import com.mariageplus.repository.UserRepository;
-import com.mariageplus.repository.WeddingRepository;
+import com.mariageplus.repository.EventRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -33,7 +33,7 @@ public class OrganizationMemberService {
     private final OrganizationService organizationService;
     private final RoleRepository roleRepository;
     private final UserRepository userRepository;
-    private final WeddingRepository weddingRepository;
+    private final EventRepository eventRepository;
     private final UserService userService;
     private final PasswordEncoder passwordEncoder;
 
@@ -137,9 +137,9 @@ public class OrganizationMemberService {
     }
 
     private void ensureWeddingBelongsToOrg(Long weddingId, Long organizationId) {
-        Wedding wedding = weddingRepository.findById(weddingId)
+        Event event = eventRepository.findById(weddingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Mariage non trouvé avec l'ID: " + weddingId));
-        if (!organizationId.equals(wedding.getOrganizationId())) {
+        if (!organizationId.equals(event.getOrganizationId())) {
             throw new IllegalArgumentException("Ce mariage n'appartient pas à cette organisation");
         }
     }

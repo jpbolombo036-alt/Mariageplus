@@ -3,7 +3,8 @@ package com.mariageplus.service;
 import com.mariageplus.dto.dashboard.WeddingDashboardResponse;
 import com.mariageplus.entity.GuestCategory;
 import com.mariageplus.entity.RsvpStatus;
-import com.mariageplus.entity.Wedding;
+import com.mariageplus.entity.Event;
+import com.mariageplus.service.EventService;
 import com.mariageplus.repository.CheckInRepository;
 import com.mariageplus.repository.GuestCategoryRepository;
 import com.mariageplus.repository.GuestRepository;
@@ -39,20 +40,20 @@ class WeddingDashboardServiceTest {
     @Mock private WeddingTableRepository weddingTableRepository;
     @Mock private TableAssignmentRepository tableAssignmentRepository;
     @Mock private GuestCategoryRepository guestCategoryRepository;
-    @Mock private WeddingService weddingService;
+    @Mock private EventService eventService;
     @Mock private SecurityUtils securityUtils;
 
     @InjectMocks private WeddingDashboardService dashboardService;
 
-    private Wedding wedding;
+    private Event wedding;
 
     @BeforeEach
     void setUp() {
-        wedding = Wedding.builder().groomFirstName("Jean").groomLastName("Kabongo")
-                .brideFirstName("Marie").brideLastName("Mukendi").build();
+        wedding = Event.builder().name("Jean Kabongo & Marie Mukendi")
+                .build();
         wedding.setId(1L);
         wedding.setOrganizationId(100L);
-        lenient().when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
+        lenient().when(eventService.loadInOrgScope(1L)).thenReturn(wedding);
         lenient().when(guestCategoryRepository.findByWeddingId(1L)).thenReturn(List.of());
     }
 

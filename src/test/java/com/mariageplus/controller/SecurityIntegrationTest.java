@@ -26,13 +26,13 @@ class SecurityIntegrationTest {
 
     @Test
     void protectedEndpoint_withoutJwt_401() throws Exception {
-        mockMvc.perform(get("/api/weddings"))
+        mockMvc.perform(get("/api/events"))
                 .andExpect(status().isUnauthorized());
     }
 
     @Test
     void protectedEndpoint_invalidJwt_401() throws Exception {
-        mockMvc.perform(get("/api/weddings").header("Authorization", "Bearer invalid.token.value"))
+        mockMvc.perform(get("/api/events").header("Authorization", "Bearer invalid.token.value"))
                 .andExpect(status().isUnauthorized());
     }
 
@@ -46,7 +46,7 @@ class SecurityIntegrationTest {
         req.setOrganizationName("Organisation Sécurité");
         String token = authService.register(req).getAccessToken() + "tampered"; // signature altérée
 
-        mockMvc.perform(get("/api/weddings").header("Authorization", "Bearer " + token))
+        mockMvc.perform(get("/api/events").header("Authorization", "Bearer " + token))
                 .andExpect(status().isUnauthorized());
     }
 
@@ -62,7 +62,7 @@ class SecurityIntegrationTest {
 
         authService.logout(response.getUser().getId());
 
-        mockMvc.perform(get("/api/weddings").header("Authorization", "Bearer " + response.getAccessToken()))
+        mockMvc.perform(get("/api/events").header("Authorization", "Bearer " + response.getAccessToken()))
                 .andExpect(status().isUnauthorized());
     }
 }

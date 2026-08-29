@@ -7,15 +7,16 @@ import com.mariageplus.dto.invitation.PublicInvitationResponse;
 import com.mariageplus.entity.Guest;
 import com.mariageplus.entity.Invitation;
 import com.mariageplus.entity.InvitationStatus;
-import com.mariageplus.entity.Wedding;
-import com.mariageplus.entity.WeddingEvent;
+import com.mariageplus.entity.Event;
+import com.mariageplus.service.EventService;
+import com.mariageplus.entity.EventSession;
 import com.mariageplus.exception.ConflictException;
 import com.mariageplus.exception.MailDeliveryException;
 import com.mariageplus.exception.ResourceNotFoundException;
 import com.mariageplus.mapper.InvitationMapper;
 import com.mariageplus.repository.GuestRepository;
 import com.mariageplus.repository.InvitationRepository;
-import com.mariageplus.repository.WeddingEventRepository;
+import com.mariageplus.repository.EventRepository;
 import com.mariageplus.security.SecurityUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -38,9 +39,9 @@ class InvitationServiceTest {
 
     @Mock private InvitationRepository invitationRepository;
     @Mock private GuestRepository guestRepository;
-    @Mock private WeddingEventRepository weddingEventRepository;
+    @Mock private EventRepository eventRepository;
     @Mock private InvitationMapper invitationMapper;
-    @Mock private WeddingService weddingService;
+    @Mock private EventService eventService;
     @Mock private SecurityUtils securityUtils;
     @Mock private AuditService auditService;
     @Mock private QrCodeService qrCodeService;
@@ -48,13 +49,13 @@ class InvitationServiceTest {
 
     @InjectMocks private InvitationService invitationService;
 
-    private Wedding wedding;
+    private Event wedding;
     private Guest guest;
 
     @BeforeEach
     void setUp() {
         ReflectionTestUtils.setField(invitationService, "maxReminders", 3);
-        wedding = Wedding.builder().organizationId(100L).build();
+        wedding = Event.builder().organizationId(100L).build();
         wedding.setId(1L);
         guest = Guest.builder().firstName("Jean").lastName("Kabongo").weddingId(1L).build();
         guest.setId(7L);
@@ -64,7 +65,7 @@ class InvitationServiceTest {
 
     @Test
     void create_GeneratesCodeAndPublicToken_Automatically() {
-        when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
+        when(eventService.loadInOrgScope(1L)).thenReturn(wedding);
         when(guestRepository.findByIdAndWeddingId(7L, 1L)).thenReturn(Optional.of(guest));
         when(invitationRepository.existsByGuestId(7L)).thenReturn(false);
         when(invitationRepository.existsByInvitationCode(anyString())).thenReturn(false);
@@ -88,7 +89,7 @@ class InvitationServiceTest {
 
     @Test
     void create_RejectsGuestFromAnotherWedding() {
-        when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
+        when(eventService.loadInOrgScope(1L)).thenReturn(wedding);
         when(guestRepository.findByIdAndWeddingId(7L, 1L)).thenReturn(Optional.empty());
 
         CreateInvitationRequest req = new CreateInvitationRequest();
@@ -99,7 +100,7 @@ class InvitationServiceTest {
 
     @Test
     void create_RejectsDuplicateInvitationForGuest() {
-        when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
+        when(eventService.loadInOrgScope(1L)).thenReturn(wedding);
         when(guestRepository.findByIdAndWeddingId(7L, 1L)).thenReturn(Optional.of(guest));
         when(invitationRepository.existsByGuestId(7L)).thenReturn(true);
 
@@ -131,12 +132,8 @@ class InvitationServiceTest {
     void findPublicByToken_ReturnsGuestInfo() {
         Invitation invitation = Invitation.builder().weddingId(1L).guestId(7L)
                 .publicToken("tok").status(InvitationStatus.GENERATED).build();
-        WeddingEvent futureEvent = WeddingEvent.builder().weddingId(1L)
-                .eventDate(java.time.LocalDate.now().plusDays(10)).build();
         when(invitationRepository.findByPublicToken("tok")).thenReturn(Optional.of(invitation));
         when(guestRepository.findById(7L)).thenReturn(Optional.of(guest));
-        when(weddingEventRepository.findFirstByWeddingIdOrderByEventDateAscIdAsc(1L))
-                .thenReturn(Optional.of(futureEvent));
 
         PublicInvitationResponse response = invitationService.findPublicByToken("tok");
         assertEquals("Jean", response.getGuestFirstName());
@@ -160,7 +157,7 @@ class InvitationServiceTest {
                 .weddingId(1L).guestId(7L).publicToken("tok")
                 .status(InvitationStatus.GENERATED).build();
         invitation.setId(5L);
-        when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
+        when(eventService.loadInOrgScope(1L)).thenReturn(wedding);
         when(invitationRepository.findByIdAndWeddingId(5L, 1L)).thenReturn(Optional.of(invitation));
         when(guestRepository.findByIdAndWeddingId(7L, 1L)).thenReturn(Optional.of(guest));
 
@@ -175,11 +172,11 @@ class InvitationServiceTest {
                 .weddingId(1L).guestId(7L).publicToken("tok")
                 .status(InvitationStatus.GENERATED).build();
         invitation.setId(5L);
-        when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
+        when(eventService.loadInOrgScope(1L)).thenReturn(wedding);
         when(invitationRepository.findByIdAndWeddingId(5L, 1L)).thenReturn(Optional.of(invitation));
         when(guestRepository.findByIdAndWeddingId(7L, 1L)).thenReturn(Optional.of(guest));
         when(invitationMailService.publicInviteUrl("tok")).thenReturn("http://localhost:3000/invitations/tok");
-        when(invitationMailService.sendInvitation(any(), any(), any(), anyString()))
+        when(invitationMailService.sendInvitation(any(), any(), anyString()))
                 .thenReturn(false);
         when(invitationRepository.save(any(Invitation.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -199,7 +196,7 @@ class InvitationServiceTest {
                 .weddingId(1L).guestId(7L).publicToken("tok")
                 .status(InvitationStatus.SENT).build();
         invitation.setId(5L);
-        when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
+        when(eventService.loadInOrgScope(1L)).thenReturn(wedding);
         when(invitationRepository.findByIdAndWeddingId(5L, 1L)).thenReturn(Optional.of(invitation));
         when(guestRepository.findByIdAndWeddingId(7L, 1L)).thenReturn(Optional.of(guest));
 
@@ -213,7 +210,7 @@ class InvitationServiceTest {
                 .weddingId(1L).guestId(7L).publicToken("tok")
                 .status(InvitationStatus.GENERATED).build();
         invitation.setId(5L);
-        when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
+        when(eventService.loadInOrgScope(1L)).thenReturn(wedding);
         when(invitationRepository.findByIdAndWeddingId(5L, 1L)).thenReturn(Optional.of(invitation));
         when(guestRepository.findByIdAndWeddingId(7L, 1L)).thenReturn(Optional.of(guest));
 
@@ -227,11 +224,11 @@ class InvitationServiceTest {
                 .weddingId(1L).guestId(7L).publicToken("tok")
                 .status(InvitationStatus.GENERATED).build();
         invitation.setId(5L);
-        when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
+        when(eventService.loadInOrgScope(1L)).thenReturn(wedding);
         when(invitationRepository.findByIdAndWeddingId(5L, 1L)).thenReturn(Optional.of(invitation));
         when(guestRepository.findByIdAndWeddingId(7L, 1L)).thenReturn(Optional.of(guest));
         when(invitationMailService.publicInviteUrl("tok")).thenReturn("http://x");
-        when(invitationMailService.sendInvitation(any(), any(), any(), anyString()))
+        when(invitationMailService.sendInvitation(any(), any(), anyString()))
                 .thenThrow(new MailDeliveryException("smtp"));
 
         assertThrows(MailDeliveryException.class, () -> invitationService.send(1L, 5L));
@@ -244,7 +241,7 @@ class InvitationServiceTest {
         Invitation invitation = Invitation.builder()
                 .weddingId(1L).guestId(7L).status(InvitationStatus.GENERATED).build();
         invitation.setId(5L);
-        when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
+        when(eventService.loadInOrgScope(1L)).thenReturn(wedding);
         when(invitationRepository.findByIdAndWeddingId(5L, 1L)).thenReturn(Optional.of(invitation));
         when(invitationRepository.save(any(Invitation.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -258,7 +255,7 @@ class InvitationServiceTest {
         Invitation invitation = Invitation.builder()
                 .weddingId(1L).guestId(7L).status(InvitationStatus.CANCELLED).build();
         invitation.setId(5L);
-        when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
+        when(eventService.loadInOrgScope(1L)).thenReturn(wedding);
         when(invitationRepository.findByIdAndWeddingId(5L, 1L)).thenReturn(Optional.of(invitation));
 
         assertThrows(ConflictException.class, () -> invitationService.cancel(1L, 5L));
@@ -275,7 +272,7 @@ class InvitationServiceTest {
         Invitation invitation = Invitation.builder()
                 .weddingId(1L).guestId(7L).publicToken("old-token").status(InvitationStatus.GENERATED).build();
         invitation.setId(5L);
-        when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
+        when(eventService.loadInOrgScope(1L)).thenReturn(wedding);
         when(invitationRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(invitation));
         when(invitationRepository.save(any(Invitation.class))).thenAnswer(inv -> inv.getArgument(0));
         when(qrCodeService.generateQrDataUri(anyString()))
@@ -296,7 +293,7 @@ class InvitationServiceTest {
 
     @Test
     void rotateQrToken_unknown_404() {
-        when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
+        when(eventService.loadInOrgScope(1L)).thenReturn(wedding);
         when(invitationRepository.findByIdForUpdate(99L)).thenReturn(Optional.empty());
         assertThrows(ResourceNotFoundException.class, () -> invitationService.rotateQrToken(1L, 99L));
         verify(invitationRepository, never()).save(any(Invitation.class));
@@ -307,7 +304,7 @@ class InvitationServiceTest {
         Invitation invitation = Invitation.builder()
                 .weddingId(2L).guestId(7L).publicToken("old-token").status(InvitationStatus.GENERATED).build();
         invitation.setId(5L);
-        when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
+        when(eventService.loadInOrgScope(1L)).thenReturn(wedding);
         when(invitationRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(invitation));
         assertThrows(ResourceNotFoundException.class, () -> invitationService.rotateQrToken(1L, 5L));
         verify(invitationRepository, never()).save(any(Invitation.class));
@@ -318,7 +315,7 @@ class InvitationServiceTest {
         Invitation invitation = Invitation.builder()
                 .weddingId(1L).guestId(7L).publicToken("old-token").status(InvitationStatus.CANCELLED).build();
         invitation.setId(5L);
-        when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
+        when(eventService.loadInOrgScope(1L)).thenReturn(wedding);
         when(invitationRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(invitation));
         assertThrows(ResourceNotFoundException.class, () -> invitationService.rotateQrToken(1L, 5L));
         verify(invitationRepository, never()).save(any(Invitation.class));

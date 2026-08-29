@@ -10,8 +10,9 @@ import com.mariageplus.entity.Invitation;
 import com.mariageplus.entity.InvitationStatus;
 import com.mariageplus.entity.Rsvp;
 import com.mariageplus.entity.RsvpStatus;
-import com.mariageplus.entity.Wedding;
-import com.mariageplus.entity.WeddingStatus;
+import com.mariageplus.entity.Event;
+import com.mariageplus.service.EventService;
+import com.mariageplus.entity.EventStatus;
 import com.mariageplus.exception.ConflictException;
 import com.mariageplus.exception.ResourceNotFoundException;
 import com.mariageplus.repository.CheckInRepository;
@@ -19,7 +20,7 @@ import com.mariageplus.repository.GuestRepository;
 import com.mariageplus.repository.InvitationRepository;
 import com.mariageplus.repository.RsvpRepository;
 import com.mariageplus.repository.TableAssignmentRepository;
-import com.mariageplus.repository.WeddingRepository;
+import com.mariageplus.repository.EventRepository;
 import com.mariageplus.security.SecurityUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -46,7 +47,7 @@ class CheckInServiceTest {
     @Mock private CheckInRepository checkInRepository;
     @Mock private InvitationRepository invitationRepository;
     @Mock private GuestRepository guestRepository;
-    @Mock private WeddingRepository weddingRepository;
+    @Mock private EventRepository eventRepository;
     @Mock private RsvpRepository rsvpRepository;
     @Mock private TableAssignmentRepository tableAssignmentRepository;
     @Mock private SecurityUtils securityUtils;
@@ -55,7 +56,7 @@ class CheckInServiceTest {
     @InjectMocks private CheckInService checkInService;
 
     private Invitation invitation;
-    private Wedding wedding;
+    private Event wedding;
     private Guest guest;
 
     @BeforeEach
@@ -66,10 +67,10 @@ class CheckInServiceTest {
         guest = Guest.builder().firstName("Jean").lastName("Kabongo")
                 .weddingId(1L).allowedCompanions(2).build();
         guest.setId(7L);
-        wedding = Wedding.builder()
-                .groomFirstName("Jean").groomLastName("Kabongo")
-                .brideFirstName("Marie").brideLastName("Mukendi")
-                .status(WeddingStatus.DRAFT).build();
+        wedding = Event.builder()
+                .name("Jean Kabongo & Marie Mukendi")
+                
+                .status(EventStatus.DRAFT).build();
         wedding.setId(1L);
         wedding.setOrganizationId(100L);
     }
@@ -95,7 +96,7 @@ class CheckInServiceTest {
 
     private void stubStateInvitation() {
         when(invitationRepository.findByPublicToken("tok")).thenReturn(Optional.of(invitation));
-        when(weddingRepository.findById(1L)).thenReturn(Optional.of(wedding));
+        when(eventRepository.findById(1L)).thenReturn(Optional.of(wedding));
         when(guestRepository.findById(7L)).thenReturn(Optional.of(guest));
         when(tableAssignmentRepository.findTableNameByGuestId(7L)).thenReturn(java.util.Optional.empty());
     }
@@ -179,7 +180,7 @@ class CheckInServiceTest {
     @Test
     void checkIn_usesLockedQuery() {
         when(invitationRepository.findByPublicTokenForUpdate("tok")).thenReturn(Optional.of(invitation));
-        when(weddingRepository.findById(1L)).thenReturn(Optional.of(wedding));
+        when(eventRepository.findById(1L)).thenReturn(Optional.of(wedding));
         when(rsvpRepository.findByInvitationId(5L)).thenReturn(Optional.of(acceptedRsvp(3)));
         when(checkInRepository.sumByInvitationId(5L)).thenReturn(1);
         when(checkInRepository.save(any(CheckIn.class))).thenAnswer(a -> a.getArgument(0));
@@ -193,7 +194,7 @@ class CheckInServiceTest {
     @Test
     void checkIn_creates_whenCapacityAvailable() {
         when(invitationRepository.findByPublicTokenForUpdate("tok")).thenReturn(Optional.of(invitation));
-        when(weddingRepository.findById(1L)).thenReturn(Optional.of(wedding));
+        when(eventRepository.findById(1L)).thenReturn(Optional.of(wedding));
         when(rsvpRepository.findByInvitationId(5L)).thenReturn(Optional.of(acceptedRsvp(3)));
         when(checkInRepository.sumByInvitationId(5L)).thenReturn(1);
         when(checkInRepository.save(any(CheckIn.class))).thenAnswer(a -> a.getArgument(0));
@@ -213,7 +214,7 @@ class CheckInServiceTest {
     @Test
     void checkIn_returnsTableName_whenAssigned() {
         when(invitationRepository.findByPublicTokenForUpdate("tok")).thenReturn(Optional.of(invitation));
-        when(weddingRepository.findById(1L)).thenReturn(Optional.of(wedding));
+        when(eventRepository.findById(1L)).thenReturn(Optional.of(wedding));
         when(rsvpRepository.findByInvitationId(5L)).thenReturn(Optional.of(acceptedRsvp(3)));
         when(checkInRepository.sumByInvitationId(5L)).thenReturn(0);
         when(checkInRepository.save(any(CheckIn.class))).thenAnswer(a -> a.getArgument(0));
@@ -227,7 +228,7 @@ class CheckInServiceTest {
     @Test
     void checkIn_rejects_noRsvp() {
         when(invitationRepository.findByPublicTokenForUpdate("tok")).thenReturn(Optional.of(invitation));
-        when(weddingRepository.findById(1L)).thenReturn(Optional.of(wedding));
+        when(eventRepository.findById(1L)).thenReturn(Optional.of(wedding));
         when(rsvpRepository.findByInvitationId(5L)).thenReturn(Optional.empty());
 
         assertThrows(ConflictException.class, () -> checkInService.checkIn(checkInRequest(1)));
@@ -237,7 +238,7 @@ class CheckInServiceTest {
     @Test
     void checkIn_rejects_declinedRsvp() {
         when(invitationRepository.findByPublicTokenForUpdate("tok")).thenReturn(Optional.of(invitation));
-        when(weddingRepository.findById(1L)).thenReturn(Optional.of(wedding));
+        when(eventRepository.findById(1L)).thenReturn(Optional.of(wedding));
         when(rsvpRepository.findByInvitationId(5L)).thenReturn(Optional.of(
                 Rsvp.builder().invitationId(5L).status(RsvpStatus.DECLINED).numberOfAttendees(0).build()));
 
@@ -249,7 +250,7 @@ class CheckInServiceTest {
     void checkIn_rejects_overrun_concurrentLike() {
         // RSVP = 3, déjà entré = 2, demande = 2 → 2 + 2 > 3 → refus (recalcul dans la transaction)
         when(invitationRepository.findByPublicTokenForUpdate("tok")).thenReturn(Optional.of(invitation));
-        when(weddingRepository.findById(1L)).thenReturn(Optional.of(wedding));
+        when(eventRepository.findById(1L)).thenReturn(Optional.of(wedding));
         when(rsvpRepository.findByInvitationId(5L)).thenReturn(Optional.of(acceptedRsvp(3)));
         when(checkInRepository.sumByInvitationId(5L)).thenReturn(2);
 
@@ -267,7 +268,7 @@ class CheckInServiceTest {
     @Test
     void checkIn_rejects_wrongOrganization() {
         when(invitationRepository.findByPublicTokenForUpdate("tok")).thenReturn(Optional.of(invitation));
-        when(weddingRepository.findById(1L)).thenReturn(Optional.of(wedding));
+        when(eventRepository.findById(1L)).thenReturn(Optional.of(wedding));
         doThrow(new SecurityException("hors périmètre")).when(securityUtils).assertOrganizationAccess(100L);
 
         assertThrows(SecurityException.class, () -> checkInService.checkIn(checkInRequest(1)));
@@ -299,7 +300,7 @@ class CheckInServiceTest {
         checkIn.setId(9L);
         when(checkInRepository.findById(9L)).thenReturn(Optional.of(checkIn));
         when(invitationRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(invitation));
-        when(weddingRepository.findById(1L)).thenReturn(Optional.of(wedding));
+        when(eventRepository.findById(1L)).thenReturn(Optional.of(wedding));
         when(checkInRepository.save(any(CheckIn.class))).thenAnswer(a -> a.getArgument(0));
 
         checkInService.cancel(9L);
@@ -324,7 +325,7 @@ class CheckInServiceTest {
         checkIn.setId(9L);
         when(checkInRepository.findById(9L)).thenReturn(Optional.of(checkIn));
         when(invitationRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(invitation));
-        when(weddingRepository.findById(1L)).thenReturn(Optional.of(wedding));
+        when(eventRepository.findById(1L)).thenReturn(Optional.of(wedding));
         doThrow(new SecurityException("hors périmètre")).when(securityUtils).assertOrganizationAccess(100L);
 
         assertThrows(SecurityException.class, () -> checkInService.cancel(9L));

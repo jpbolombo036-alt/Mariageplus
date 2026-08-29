@@ -1,8 +1,7 @@
 package com.mariageplus.service;
 
 import com.mariageplus.entity.Guest;
-import com.mariageplus.entity.Wedding;
-import com.mariageplus.entity.WeddingEvent;
+import com.mariageplus.entity.Event;
 import com.mariageplus.exception.MailDeliveryException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
@@ -64,7 +63,7 @@ public class InvitationMailService {
     /**
      * @return {@code true} si un email a réellement été remis au serveur SMTP
      */
-    public boolean sendInvitation(Guest guest, Wedding wedding, WeddingEvent event, String publicInviteUrl) {
+    public boolean sendInvitation(Guest guest, Event event, String publicInviteUrl) {
         if (!isConfigured()) {
             log.warn("SMTP non configuré : invitation non envoyée par email");
             return false;
@@ -75,12 +74,12 @@ public class InvitationMailService {
             return false;
         }
         try {
-            String couple = wedding.getDisplayName().trim();
+            String couple = event.getName().trim();
             Context ctx = new Context(Locale.FRENCH);
             ctx.setVariable("guestFirstName", guest.getFirstName());
             ctx.setVariable("weddingDisplayName", couple);
             ctx.setVariable("publicInviteUrl", publicInviteUrl);
-            ctx.setVariable("invitationMessage", wedding.getMessage());
+            ctx.setVariable("invitationMessage", event.getMessage());
             if (event != null && event.getEventDate() != null) {
                 ctx.setVariable("eventName", event.getName());
                 ctx.setVariable("eventDate", DATE_FR.format(event.getEventDate()));
@@ -98,7 +97,7 @@ public class InvitationMailService {
             helper.setText(html, true);
 
             // Pièce jointe calendrier (.ics) pour ajouter au calendrier d'un clic.
-            String ics = icsCalendarService.buildIcs(wedding, event);
+            String ics = icsCalendarService.buildIcs(event, null);
             if (ics != null) {
                 helper.addAttachment("invitation.ics",
                         new jakarta.activation.DataSource() {
@@ -131,7 +130,7 @@ public class InvitationMailService {
         }
     }
 
-    private String venueText(WeddingEvent event) {
+    private String venueText(Event event) {
         StringBuilder sb = new StringBuilder();
         if (event.getVenueName() != null) sb.append(event.getVenueName());
         if (event.getVenueAddress() != null) {

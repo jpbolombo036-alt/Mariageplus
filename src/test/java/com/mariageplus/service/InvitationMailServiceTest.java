@@ -1,7 +1,7 @@
 package com.mariageplus.service;
 
 import com.mariageplus.entity.Guest;
-import com.mariageplus.entity.Wedding;
+import com.mariageplus.entity.Event;
 import com.mariageplus.exception.MailDeliveryException;
 import jakarta.mail.internet.MimeMessage;
 import org.junit.jupiter.api.BeforeEach;
@@ -49,11 +49,10 @@ class InvitationMailServiceTest {
     @Test
     void sendInvitation_notConfigured_returnsFalse() {
         Guest guest = Guest.builder().firstName("Jean").email("jean@ex.com").build();
-        Wedding wedding = Wedding.builder()
-                .groomFirstName("Jean").groomLastName("K")
-                .brideFirstName("Marie").brideLastName("M").build();
+        Event wedding = Event.builder()
+                .name("Jean K & Marie M").build();
 
-        assertFalse(service.sendInvitation(guest, wedding, null, "http://x"));
+        assertFalse(service.sendInvitation(guest, wedding, "http://x"));
         verifyNoInteractions(mailSenderProvider);
     }
 
@@ -67,11 +66,11 @@ class InvitationMailServiceTest {
         when(templateEngine.process(eq("mail/invitation"), any(Context.class))).thenReturn("<html/>");
 
         Guest guest = Guest.builder().firstName("Jean").email("jean@ex.com").build();
-        Wedding wedding = Wedding.builder()
-                .groomFirstName("Jean").groomLastName("Kabongo")
-                .brideFirstName("Marie").brideLastName("Mukendi").build();
+        Event wedding = Event.builder()
+                .name("Jean Kabongo & Marie Mukendi")
+                .build();
 
-        assertTrue(service.sendInvitation(guest, wedding, null, "http://localhost:3000/invitations/tok"));
+        assertTrue(service.sendInvitation(guest, wedding, "http://localhost:3000/invitations/tok"));
         verify(mailSender).send(mimeMessage);
     }
 
@@ -86,11 +85,10 @@ class InvitationMailServiceTest {
         doThrow(new MailSendException("smtp down")).when(mailSender).send(any(MimeMessage.class));
 
         Guest guest = Guest.builder().firstName("Jean").email("jean@ex.com").build();
-        Wedding wedding = Wedding.builder()
-                .groomFirstName("Jean").groomLastName("K")
-                .brideFirstName("Marie").brideLastName("M").build();
+        Event wedding = Event.builder()
+                .name("Jean K & Marie M").build();
 
         assertThrows(MailDeliveryException.class,
-                () -> service.sendInvitation(guest, wedding, null, "http://x"));
+                () -> service.sendInvitation(guest, wedding, "http://x"));
     }
 }

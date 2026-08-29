@@ -1,10 +1,10 @@
 package com.mariageplus.service;
 
 import com.mariageplus.entity.Invitation;
-import com.mariageplus.entity.WeddingEvent;
+import com.mariageplus.entity.EventSession;
 import com.mariageplus.exception.ConflictException;
 import com.mariageplus.repository.InvitationRepository;
-import com.mariageplus.repository.WeddingEventRepository;
+import com.mariageplus.repository.EventSessionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,7 +32,7 @@ import static org.mockito.Mockito.when;
 class InvitationReminderServiceTest {
 
     @Mock private InvitationRepository invitationRepository;
-    @Mock private WeddingEventRepository weddingEventRepository;
+    @Mock private EventSessionRepository eventSessionRepository;
     @Mock private InvitationService invitationService;
 
     @InjectMocks private InvitationReminderService service;
@@ -53,10 +53,10 @@ class InvitationReminderServiceTest {
     @Test
     void remind_HitsWeddingsWhoseMainEventIsInWindow() {
         LocalDate target = LocalDate.now().plusDays(7);
-        WeddingEvent event = WeddingEvent.builder().weddingId(42L)
-                .eventDate(target).build();
+        EventSession event = EventSession.builder().eventId(42L)
+                .sessionDate(target).build();
         event.setId(99L);
-        when(weddingEventRepository.findByEventDate(target)).thenReturn(List.of(event));
+        when(eventSessionRepository.findBySessionDateAndActiveTrue(target)).thenReturn(List.of(event));
 
         Invitation sent = new Invitation();
         sent.setId(5L);
@@ -72,9 +72,9 @@ class InvitationReminderServiceTest {
     @Test
     void remind_ignoresInvitationOverLimit() {
         LocalDate target = LocalDate.now().plusDays(7);
-        WeddingEvent event = WeddingEvent.builder().weddingId(42L).eventDate(target).build();
+        EventSession event = EventSession.builder().eventId(42L).sessionDate(target).build();
         event.setId(99L);
-        when(weddingEventRepository.findByEventDate(target)).thenReturn(List.of(event));
+        when(eventSessionRepository.findBySessionDateAndActiveTrue(target)).thenReturn(List.of(event));
 
         Invitation sent = new Invitation();
         sent.setId(5L);

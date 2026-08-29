@@ -8,7 +8,7 @@ import com.mariageplus.dto.dashboard.TableStatisticsResponse;
 import com.mariageplus.dto.dashboard.WeddingDashboardResponse;
 import com.mariageplus.entity.GuestCategory;
 import com.mariageplus.entity.RsvpStatus;
-import com.mariageplus.entity.Wedding;
+import com.mariageplus.entity.Event;
 import com.mariageplus.repository.CheckInRepository;
 import com.mariageplus.repository.GuestCategoryRepository;
 import com.mariageplus.repository.GuestRepository;
@@ -47,13 +47,13 @@ public class WeddingDashboardService {
     private final WeddingTableRepository weddingTableRepository;
     private final TableAssignmentRepository tableAssignmentRepository;
     private final GuestCategoryRepository guestCategoryRepository;
-    private final WeddingService weddingService;
+    private final EventService eventService;
     private final SecurityUtils securityUtils;
 
     @Transactional(readOnly = true)
     public WeddingDashboardResponse getDashboard(Long weddingId) {
         securityUtils.assertPermission("DASHBOARD_VIEW");
-        Wedding wedding = weddingService.loadInOrgScope(weddingId);
+        Event event = eventService.loadInOrgScope(weddingId);
 
         long totalGuests = guestRepository.countByWeddingId(weddingId);
 
@@ -83,7 +83,7 @@ public class WeddingDashboardService {
 
         WeddingDashboardResponse.WeddingDashboardResponseBuilder builder = WeddingDashboardResponse.builder()
                 .weddingId(weddingId)
-                .weddingName(wedding.getDisplayName());
+                .weddingName(event.getName());
 
         if (roleView == RoleView.FULL) {
             return builder

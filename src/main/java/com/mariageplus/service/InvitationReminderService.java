@@ -2,10 +2,10 @@ package com.mariageplus.service;
 
 import com.mariageplus.entity.Invitation;
 import com.mariageplus.entity.InvitationStatus;
-import com.mariageplus.entity.WeddingEvent;
+import com.mariageplus.entity.EventSession;
 import com.mariageplus.exception.ConflictException;
+import com.mariageplus.repository.EventSessionRepository;
 import com.mariageplus.repository.InvitationRepository;
-import com.mariageplus.repository.WeddingEventRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -32,7 +32,7 @@ import java.util.List;
 public class InvitationReminderService {
 
     private final InvitationRepository invitationRepository;
-    private final WeddingEventRepository weddingEventRepository;
+    private final EventSessionRepository eventSessionRepository;
     private final InvitationService invitationService;
 
     @Value("${app.invitation.reminder-days-before:7}")
@@ -52,8 +52,8 @@ public class InvitationReminderService {
             return;
         }
         LocalDate target = LocalDate.now().plusDays(reminderDaysBefore);
-        for (WeddingEvent event : weddingEventRepository.findByEventDate(target)) {
-            Long weddingId = event.getWeddingId();
+        for (EventSession session : eventSessionRepository.findBySessionDateAndActiveTrue(target)) {
+            Long weddingId = session.getEventId();
             if (weddingId == null) {
                 continue;
             }

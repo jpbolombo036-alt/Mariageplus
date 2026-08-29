@@ -3,7 +3,8 @@ package com.mariageplus.service;
 import com.mariageplus.dto.guestcategory.CreateGuestCategoryRequest;
 import com.mariageplus.dto.guestcategory.GuestCategoryResponse;
 import com.mariageplus.entity.GuestCategory;
-import com.mariageplus.entity.Wedding;
+import com.mariageplus.entity.Event;
+import com.mariageplus.service.EventService;
 import com.mariageplus.exception.ResourceNotFoundException;
 import com.mariageplus.mapper.GuestCategoryMapper;
 import com.mariageplus.repository.GuestCategoryRepository;
@@ -32,17 +33,17 @@ class GuestCategoryServiceTest {
 
     @Mock private GuestCategoryRepository guestCategoryRepository;
     @Mock private GuestCategoryMapper guestCategoryMapper;
-    @Mock private WeddingService weddingService;
+    @Mock private EventService eventService;
     @Mock private SecurityUtils securityUtils;
     @Mock private AuditService auditService;
 
     @InjectMocks private GuestCategoryService guestCategoryService;
 
-    private Wedding wedding;
+    private Event wedding;
 
     @BeforeEach
     void setUp() {
-        wedding = Wedding.builder().organizationId(100L).build();
+        wedding = Event.builder().organizationId(100L).build();
         wedding.setId(1L);
         lenient().when(guestCategoryMapper.toResponse(any(GuestCategory.class)))
                 .thenReturn(GuestCategoryResponse.builder().build());
@@ -56,7 +57,7 @@ class GuestCategoryServiceTest {
 
     @Test
     void create_AssignsWeddingAndDefaultActive() {
-        when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
+        when(eventService.loadInOrgScope(1L)).thenReturn(wedding);
         when(guestCategoryRepository.save(any(GuestCategory.class))).thenAnswer(inv -> inv.getArgument(0));
 
         guestCategoryService.create(1L, validRequest());
@@ -70,7 +71,7 @@ class GuestCategoryServiceTest {
 
     @Test
     void getById_NotFound_Throws() {
-        when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
+        when(eventService.loadInOrgScope(1L)).thenReturn(wedding);
         when(guestCategoryRepository.findByIdAndWeddingId(99L, 1L)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class, () -> guestCategoryService.getById(1L, 99L));
@@ -79,7 +80,7 @@ class GuestCategoryServiceTest {
     @Test
     void list_FiltersByWeddingInDatabase() {
         GuestCategory category = GuestCategory.builder().weddingId(1L).build();
-        when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
+        when(eventService.loadInOrgScope(1L)).thenReturn(wedding);
         when(guestCategoryRepository.findByWeddingId(eq(1L), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(category), PageRequest.of(0, 10), 1));
 
@@ -92,7 +93,7 @@ class GuestCategoryServiceTest {
     void delete_SoftDeletesCategory() {
         GuestCategory category = GuestCategory.builder().weddingId(1L).build();
         category.setId(5L);
-        when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
+        when(eventService.loadInOrgScope(1L)).thenReturn(wedding);
         when(guestCategoryRepository.findByIdAndWeddingId(5L, 1L)).thenReturn(Optional.of(category));
         when(guestCategoryRepository.save(any(GuestCategory.class))).thenAnswer(inv -> inv.getArgument(0));
 

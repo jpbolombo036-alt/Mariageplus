@@ -198,6 +198,9 @@ public class EventService {
         Event event = eventRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Événement non trouvé avec l'ID: " + id));
         securityUtils.assertOrganizationAccess(event.getOrganizationId());
+        // Scoping agent : GESTIONNAIRE_INVITES / AGENT_ACCUEIL n'accèdent qu'aux
+        // événements qui leur sont assignés (hérité de l'ancien WeddingService).
+        securityUtils.assertWeddingAccess(event.getId());
         return event;
     }
 

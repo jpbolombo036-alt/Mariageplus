@@ -8,13 +8,13 @@ import com.mariageplus.entity.Invitation;
 import com.mariageplus.entity.InvitationStatus;
 import com.mariageplus.entity.Rsvp;
 import com.mariageplus.entity.RsvpStatus;
-import com.mariageplus.entity.Wedding;
-import com.mariageplus.entity.WeddingStatus;
+import com.mariageplus.entity.Event;
+import com.mariageplus.entity.EventStatus;
 import com.mariageplus.exception.ResourceNotFoundException;
 import com.mariageplus.repository.GuestRepository;
 import com.mariageplus.repository.RsvpRepository;
-import com.mariageplus.repository.WeddingEventRepository;
-import com.mariageplus.repository.WeddingRepository;
+import com.mariageplus.repository.WeddingDetailsRepository;
+import com.mariageplus.repository.EventRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -35,8 +35,8 @@ class RsvpServiceTest {
     @Mock private RsvpRepository rsvpRepository;
     @Mock private InvitationService invitationService;
     @Mock private GuestRepository guestRepository;
-    @Mock private WeddingRepository weddingRepository;
-    @Mock private WeddingEventRepository weddingEventRepository;
+    @Mock private EventRepository eventRepository;
+    @Mock private WeddingDetailsRepository weddingDetailsRepository;
 
     @InjectMocks private RsvpService rsvpService;
 
@@ -68,18 +68,16 @@ class RsvpServiceTest {
     void getPublicPage_mapsWeddingData_andCapacity() {
         when(invitationService.resolvePublicInvitation("tok")).thenReturn(invitation);
         when(guestRepository.findById(7L)).thenReturn(Optional.of(guest));
-        when(weddingRepository.findById(1L)).thenReturn(Optional.of(Wedding.builder()
-                .groomFirstName("Jean").groomLastName("Kabongo")
-                .brideFirstName("Marie").brideLastName("Mukendi")
-                .couplePhotoUrl("http://x/photo.jpg").message("Venez en bleu")
-                .status(WeddingStatus.DRAFT).build()));
-        when(weddingEventRepository.findFirstByWeddingIdOrderByEventDateAscIdAsc(1L))
-                .thenReturn(Optional.empty());
+        when(eventRepository.findById(1L)).thenReturn(Optional.of(Event.builder()
+                .name("Jean Kabongo & Marie Mukendi")
+                
+                .message("Venez en bleu")
+                .status(EventStatus.DRAFT).build()));
 
         var page = rsvpService.getPublicPage("tok");
 
         assertEquals("Jean Kabongo & Marie Mukendi", page.getWeddingDisplayName());
-        assertEquals("http://x/photo.jpg", page.getCouplePhotoUrl());
+        assertNull(page.getCouplePhotoUrl()); // photo vient de WeddingDetails (absent ici)
         assertEquals("Venez en bleu", page.getMessage());
         assertEquals(3, page.getMaxAccepted()); // 1 + 2 accompagnants
         assertNull(page.getRsvpStatus());
@@ -90,10 +88,10 @@ class RsvpServiceTest {
     void getPublicInvitation_IncludesRsvpStatus_whenExists() {
         when(invitationService.resolvePublicInvitation("token")).thenReturn(invitation);
         when(guestRepository.findById(7L)).thenReturn(Optional.of(guest));
-        when(weddingRepository.findById(1L)).thenReturn(Optional.of(Wedding.builder()
-                .groomFirstName("Jean").groomLastName("Kabongo")
-                .brideFirstName("Marie").brideLastName("Mukendi")
-                .status(WeddingStatus.DRAFT).build()));
+        when(eventRepository.findById(1L)).thenReturn(Optional.of(Event.builder()
+                .name("Jean Kabongo & Marie Mukendi")
+                
+                .status(EventStatus.DRAFT).build()));
         when(rsvpRepository.findByInvitationId(1L)).thenReturn(Optional.of(
                 Rsvp.builder().invitationId(1L).status(RsvpStatus.ACCEPTED).numberOfAttendees(2).build()));
 

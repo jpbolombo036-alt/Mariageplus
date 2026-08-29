@@ -5,7 +5,7 @@ import com.mariageplus.dto.guest.GuestImportResponse;
 import com.mariageplus.dto.guest.GuestResponse;
 import com.mariageplus.entity.Guest;
 import com.mariageplus.entity.GuestCategory;
-import com.mariageplus.entity.Wedding;
+import com.mariageplus.entity.Event;
 import com.mariageplus.exception.ConflictException;
 import com.mariageplus.exception.ResourceNotFoundException;
 import com.mariageplus.mapper.GuestMapper;
@@ -35,18 +35,18 @@ class GuestServiceTest {
     @Mock private GuestRepository guestRepository;
     @Mock private GuestCategoryRepository guestCategoryRepository;
     @Mock private GuestMapper guestMapper;
-    @Mock private WeddingService weddingService;
+    @Mock private EventService eventService;
     @Mock private SecurityUtils securityUtils;
     @Mock private AuditService auditService;
 
     @InjectMocks private GuestService guestService;
 
-    private Wedding wedding;
+    private Event event;
 
     @BeforeEach
     void setUp() {
-        wedding = Wedding.builder().organizationId(100L).build();
-        wedding.setId(1L);
+        event = Event.builder().organizationId(100L).build();
+        event.setId(1L);
         lenient().when(guestMapper.toResponse(any(Guest.class))).thenReturn(GuestResponse.builder().build());
     }
 
@@ -59,7 +59,7 @@ class GuestServiceTest {
 
     @Test
     void create_AcceptsCategoryFromSameWedding() {
-        when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
+        when(eventService.loadInOrgScope(1L)).thenReturn(event);
         when(guestCategoryRepository.existsByIdAndWeddingId(7L, 1L)).thenReturn(true);
         when(guestRepository.save(any(Guest.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -75,7 +75,7 @@ class GuestServiceTest {
 
     @Test
     void create_RejectsCategoryFromAnotherWedding() {
-        when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
+        when(eventService.loadInOrgScope(1L)).thenReturn(event);
         when(guestCategoryRepository.existsByIdAndWeddingId(7L, 1L)).thenReturn(false);
 
         CreateGuestRequest req = validRequest();
@@ -86,7 +86,7 @@ class GuestServiceTest {
 
     @Test
     void create_RejectsDuplicateEmailWithinWedding() {
-        when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
+        when(eventService.loadInOrgScope(1L)).thenReturn(event);
         when(guestRepository.existsByEmailAndWeddingId("dup@example.com", 1L)).thenReturn(true);
 
         CreateGuestRequest req = validRequest();
@@ -96,7 +96,7 @@ class GuestServiceTest {
 
     @Test
     void getById_NotFound_Throws() {
-        when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
+        when(eventService.loadInOrgScope(1L)).thenReturn(event);
         when(guestRepository.findByIdAndWeddingId(99L, 1L)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class, () -> guestService.getById(1L, 99L));
@@ -106,7 +106,7 @@ class GuestServiceTest {
     void delete_SoftDeletesGuest() {
         Guest guest = Guest.builder().weddingId(1L).build();
         guest.setId(5L);
-        when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
+        when(eventService.loadInOrgScope(1L)).thenReturn(event);
         when(guestRepository.findByIdAndWeddingId(5L, 1L)).thenReturn(Optional.of(guest));
         when(guestRepository.save(any(Guest.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -121,7 +121,7 @@ class GuestServiceTest {
     void importCsv_importsValidRows_reportsErrors_skipsEmpty() {
         GuestCategory vip = GuestCategory.builder().name("VIP").weddingId(1L).build();
         vip.setId(7L);
-        when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
+        when(eventService.loadInOrgScope(1L)).thenReturn(event);
         when(guestCategoryRepository.findByWeddingId(1L)).thenReturn(List.of(vip));
         when(guestRepository.existsByEmailAndWeddingId(anyString(), eq(1L))).thenReturn(false);
         when(guestRepository.save(any(Guest.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -154,7 +154,7 @@ class GuestServiceTest {
 
     @Test
     void importCsv_duplicateEmailInFile_isError() {
-        when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
+        when(eventService.loadInOrgScope(1L)).thenReturn(event);
         when(guestCategoryRepository.findByWeddingId(1L)).thenReturn(List.of());
         when(guestRepository.existsByEmailAndWeddingId(anyString(), eq(1L))).thenReturn(false);
         when(guestRepository.save(any(Guest.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -175,7 +175,7 @@ class GuestServiceTest {
 
     @Test
     void importCsv_missingHeader_throws() {
-        when(weddingService.loadInOrgScope(1L)).thenReturn(wedding);
+        when(eventService.loadInOrgScope(1L)).thenReturn(event);
         MockMultipartFile file = new MockMultipartFile("file", "g.csv", "text/csv",
                 "email,phone\n".getBytes(StandardCharsets.UTF_8));
         assertThrows(IllegalArgumentException.class, () -> guestService.importCsv(1L, file));

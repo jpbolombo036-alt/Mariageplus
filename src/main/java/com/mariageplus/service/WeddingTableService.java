@@ -8,7 +8,7 @@ import com.mariageplus.dto.table.UpdateWeddingTableRequest;
 import com.mariageplus.dto.table.WeddingTableResponse;
 import com.mariageplus.entity.Guest;
 import com.mariageplus.entity.TableAssignment;
-import com.mariageplus.entity.Wedding;
+import com.mariageplus.entity.Event;
 import com.mariageplus.entity.WeddingTable;
 import com.mariageplus.exception.ConflictException;
 import com.mariageplus.exception.ResourceNotFoundException;
@@ -38,7 +38,7 @@ public class WeddingTableService {
     private final WeddingTableRepository weddingTableRepository;
     private final TableAssignmentRepository tableAssignmentRepository;
     private final GuestRepository guestRepository;
-    private final WeddingService weddingService;
+    private final EventService eventService;
     private final SecurityUtils securityUtils;
     private final AuditService auditService;
 
@@ -46,7 +46,7 @@ public class WeddingTableService {
 
     public List<WeddingTableResponse> list(Long weddingId) {
         securityUtils.assertPermission("TABLE_VIEW");
-        weddingService.loadInOrgScope(weddingId);
+        eventService.loadInOrgScope(weddingId);
         return weddingTableRepository.findByWeddingId(weddingId).stream()
                 .map(this::toTableResponse)
                 .collect(Collectors.toList());
@@ -60,7 +60,7 @@ public class WeddingTableService {
     @Transactional
     public WeddingTableResponse create(Long weddingId, CreateWeddingTableRequest request) {
         securityUtils.assertPermission("TABLE_CREATE");
-        Wedding wedding = weddingService.loadInOrgScope(weddingId);
+        Event event = eventService.loadInOrgScope(weddingId);
         assertNameFree(weddingId, request.getName(), null);
 
         WeddingTable table = WeddingTable.builder()
@@ -71,7 +71,7 @@ public class WeddingTableService {
                 .build();
         WeddingTable saved = weddingTableRepository.save(table);
         auditService.record("TABLE_CREATE", saved.getId(), "WeddingTable",
-                securityUtils.getCurrentUserId(), wedding.getOrganizationId(),
+                securityUtils.getCurrentUserId(), event.getOrganizationId(),
                 "Création de la table '" + saved.getName() + "'");
         return toTableResponse(saved);
     }
@@ -79,7 +79,7 @@ public class WeddingTableService {
     @Transactional
     public WeddingTableResponse update(Long weddingId, Long tableId, UpdateWeddingTableRequest request) {
         securityUtils.assertPermission("TABLE_UPDATE");
-        Wedding wedding = weddingService.loadInOrgScope(weddingId);
+        Event event = eventService.loadInOrgScope(weddingId);
         WeddingTable table = loadTable(weddingId, tableId);
         long assigned = tableAssignmentRepository.countByWeddingTableId(tableId);
 
@@ -100,7 +100,7 @@ public class WeddingTableService {
         }
         WeddingTable saved = weddingTableRepository.save(table);
         auditService.record("TABLE_UPDATE", saved.getId(), "WeddingTable",
-                securityUtils.getCurrentUserId(), wedding.getOrganizationId(),
+                securityUtils.getCurrentUserId(), event.getOrganizationId(),
                 "Modification de la table '" + saved.getName() + "'");
         return toTableResponse(saved);
     }
@@ -112,7 +112,7 @@ public class WeddingTableService {
     @Transactional
     public void delete(Long weddingId, Long tableId) {
         securityUtils.assertPermission("TABLE_DELETE");
-        Wedding wedding = weddingService.loadInOrgScope(weddingId);
+        Event event = eventService.loadInOrgScope(weddingId);
         WeddingTable table = loadTable(weddingId, tableId);
         long assigned = tableAssignmentRepository.countByWeddingTableId(tableId);
         if (assigned > 0) {
@@ -121,7 +121,7 @@ public class WeddingTableService {
         }
         weddingTableRepository.delete(table);
         auditService.record("TABLE_DELETE", tableId, "WeddingTable",
-                securityUtils.getCurrentUserId(), wedding.getOrganizationId(), "Suppression de la table");
+                securityUtils.getCurrentUserId(), event.getOrganizationId(), "Suppression de la table");
     }
 
     // ---------------- Affectation / déplacement ----------------
@@ -133,7 +133,7 @@ public class WeddingTableService {
     @Transactional
     public TableAssignmentResponse assign(Long weddingId, Long tableId, AssignGuestRequest request) {
         securityUtils.assertPermission("TABLE_ASSIGN_GUEST");
-        Wedding wedding = weddingService.loadInOrgScope(weddingId);
+        Event event = eventService.loadInOrgScope(weddingId);
         WeddingTable table = weddingTableRepository.findByIdForUpdate(tableId)
                 .orElseThrow(() -> new ResourceNotFoundException("Table non trouvée"));
         assertTableBelongsToWedding(table, weddingId);
@@ -155,7 +155,7 @@ public class WeddingTableService {
                 .build();
         TableAssignment saved = saveAssignment(assignment);
         auditService.record("TABLE_ASSIGN", saved.getId(), "TableAssignment",
-                securityUtils.getCurrentUserId(), wedding.getOrganizationId(),
+                securityUtils.getCurrentUserId(), event.getOrganizationId(),
                 "Affectation de '" + guestName(guest) + "' à la table '" + table.getName() + "'");
         return toAssignmentResponse(saved, guest, table);
     }
@@ -164,7 +164,7 @@ public class WeddingTableService {
     @Transactional
     public TableAssignmentResponse move(Long weddingId, Long assignmentId, MoveGuestRequest request) {
         securityUtils.assertPermission("TABLE_ASSIGN_GUEST");
-        Wedding wedding = weddingService.loadInOrgScope(weddingId);
+        Event event = eventService.loadInOrgScope(weddingId);
         TableAssignment assignment = loadAssignment(weddingId, assignmentId);
 
         WeddingTable target = weddingTableRepository.findByIdForUpdate(request.getTableId())
@@ -182,7 +182,7 @@ public class WeddingTableService {
         assignment.setWeddingTableId(target.getId());
         TableAssignment saved = tableAssignmentRepository.save(assignment);
         auditService.record("TABLE_MOVE", saved.getId(), "TableAssignment",
-                securityUtils.getCurrentUserId(), wedding.getOrganizationId(),
+                securityUtils.getCurrentUserId(), event.getOrganizationId(),
                 "Déplacement de '" + guestName(guest) + "' vers la table '" + target.getName() + "'");
         return toAssignmentResponse(saved, guest, target);
     }
@@ -191,11 +191,11 @@ public class WeddingTableService {
     @Transactional
     public void remove(Long weddingId, Long assignmentId) {
         securityUtils.assertPermission("TABLE_ASSIGN_GUEST");
-        Wedding wedding = weddingService.loadInOrgScope(weddingId);
+        Event event = eventService.loadInOrgScope(weddingId);
         TableAssignment assignment = loadAssignment(weddingId, assignmentId);
         tableAssignmentRepository.delete(assignment);
         auditService.record("TABLE_UNASSIGN", assignmentId, "TableAssignment",
-                securityUtils.getCurrentUserId(), wedding.getOrganizationId(), "Retrait d'un invité d'une table");
+                securityUtils.getCurrentUserId(), event.getOrganizationId(), "Retrait d'un invité d'une table");
     }
 
     /** Sauvegarde en traduisant la contrainte UNIQUE(guest_id) en erreur métier 409. */

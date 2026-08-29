@@ -5,12 +5,12 @@ import com.mariageplus.entity.Organization;
 import com.mariageplus.entity.OrganizationMember;
 import com.mariageplus.entity.Role;
 import com.mariageplus.entity.User;
-import com.mariageplus.entity.Wedding;
+import com.mariageplus.entity.Event;
 import com.mariageplus.exception.ConflictException;
 import com.mariageplus.repository.OrganizationMemberRepository;
 import com.mariageplus.repository.RoleRepository;
 import com.mariageplus.repository.UserRepository;
-import com.mariageplus.repository.WeddingRepository;
+import com.mariageplus.repository.EventRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -39,7 +39,7 @@ class OrganizationMemberServiceTest {
     @Mock private OrganizationService organizationService;
     @Mock private RoleRepository roleRepository;
     @Mock private UserRepository userRepository;
-    @Mock private WeddingRepository weddingRepository;
+    @Mock private EventRepository EventRepository;
     @Mock private UserService userService;
     @Mock private PasswordEncoder passwordEncoder;
 
@@ -90,10 +90,10 @@ class OrganizationMemberServiceTest {
     void addMemberWithWeddingId_reusesExistingUserAndSavesScopedMember() {
         when(organizationService.getOrganization(1L)).thenReturn(org());
         when(roleRepository.findByCode("GESTIONNAIRE_INVITES")).thenReturn(Optional.of(role("GESTIONNAIRE_INVITES")));
-        Wedding wed = new Wedding();
+        Event wed = new Event();
         wed.setId(42L);
         wed.setOrganizationId(1L);
-        when(weddingRepository.findById(42L)).thenReturn(Optional.of(wed));
+        when(EventRepository.findById(42L)).thenReturn(Optional.of(wed));
 
         User existing = user(5L, "agent@example.com");
         when(userRepository.findByEmail("agent@example.com")).thenReturn(Optional.of(existing));
@@ -112,10 +112,10 @@ class OrganizationMemberServiceTest {
     void duplicateMembership_throwsConflict() {
         when(organizationService.getOrganization(1L)).thenReturn(org());
         when(roleRepository.findByCode("GESTIONNAIRE_INVITES")).thenReturn(Optional.of(role("GESTIONNAIRE_INVITES")));
-        Wedding wed = new Wedding();
+        Event wed = new Event();
         wed.setId(42L);
         wed.setOrganizationId(1L);
-        when(weddingRepository.findById(42L)).thenReturn(Optional.of(wed));
+        when(EventRepository.findById(42L)).thenReturn(Optional.of(wed));
 
         Long freshUserId = 9L;
         when(userRepository.findByEmail("new@example.com")).thenReturn(Optional.of(user(freshUserId, "new@example.com")));

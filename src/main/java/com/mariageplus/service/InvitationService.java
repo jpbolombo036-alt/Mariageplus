@@ -10,14 +10,13 @@ import com.mariageplus.dto.invitation.UpdateInvitationRequest;
 import com.mariageplus.entity.Guest;
 import com.mariageplus.entity.Invitation;
 import com.mariageplus.entity.InvitationStatus;
-import com.mariageplus.entity.Wedding;
-import com.mariageplus.entity.WeddingEvent;
+import com.mariageplus.entity.Event;
 import com.mariageplus.exception.ConflictException;
 import com.mariageplus.exception.ResourceNotFoundException;
 import com.mariageplus.mapper.InvitationMapper;
+import com.mariageplus.repository.EventRepository;
 import com.mariageplus.repository.GuestRepository;
 import com.mariageplus.repository.InvitationRepository;
-import com.mariageplus.repository.WeddingEventRepository;
 import com.mariageplus.security.SecureTokens;
 import com.mariageplus.security.SecurityUtils;
 import lombok.RequiredArgsConstructor;
@@ -49,9 +48,9 @@ public class InvitationService {
 
     private final InvitationRepository invitationRepository;
     private final GuestRepository guestRepository;
-    private final WeddingEventRepository weddingEventRepository;
+    private final EventRepository eventRepository;
     private final InvitationMapper invitationMapper;
-    private final WeddingService weddingService;
+    private final EventService eventService;
     private final SecurityUtils securityUtils;
     private final AuditService auditService;
     private final QrCodeService qrCodeService;
@@ -63,7 +62,7 @@ public class InvitationService {
     @Transactional
     public InvitationResponse create(Long weddingId, CreateInvitationRequest request) {
         securityUtils.assertPermission("INVITATION_CREATE");
-        Wedding wedding = weddingService.loadInOrgScope(weddingId);
+        Event event = eventService.loadInOrgScope(weddingId);
 
         Guest guest = guestRepository.findByIdAndWeddingId(request.getGuestId(), weddingId)
                 .orElseThrow(() -> new IllegalArgumentException("L'invité n'appartient pas à ce mariage"));
@@ -81,20 +80,20 @@ public class InvitationService {
                 .build();
         Invitation saved = invitationRepository.save(invitation);
         auditService.record("INVITATION_CREATE", saved.getId(), "Invitation",
-                securityUtils.getCurrentUserId(), wedding.getOrganizationId(),
+                securityUtils.getCurrentUserId(), event.getOrganizationId(),
                 "Création d'une invitation pour l'invité " + guest.getFirstName() + " " + guest.getLastName());
         return invitationMapper.toResponse(saved);
     }
 
     public InvitationResponse getById(Long weddingId, Long invitationId) {
         securityUtils.assertPermission("INVITATION_VIEW");
-        weddingService.loadInOrgScope(weddingId);
+        eventService.loadInOrgScope(weddingId);
         return invitationMapper.toResponse(loadInvitation(weddingId, invitationId));
     }
 
     public PageResponse<InvitationResponse> list(Long weddingId, int page, int size, String sortBy, String sortDir) {
         securityUtils.assertPermission("INVITATION_VIEW");
-        weddingService.loadInOrgScope(weddingId);
+        eventService.loadInOrgScope(weddingId);
         Sort sort = "desc".equalsIgnoreCase(sortDir) ? Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
         Pageable pageable = PageRequest.of(page, size, sort);
         Page<Invitation> invitationPage = invitationRepository.findActiveByWeddingId(weddingId, pageable);
@@ -108,7 +107,7 @@ public class InvitationService {
      */
     public List<InvitationResponse> listNonResponders(Long weddingId) {
         securityUtils.assertPermission("INVITATION_VIEW");
-        weddingService.loadInOrgScope(weddingId);
+        eventService.loadInOrgScope(weddingId);
         return invitationRepository.findNonRespondersByWeddingId(weddingId).stream()
                 .map(invitationMapper::toResponse).collect(Collectors.toList());
     }
@@ -116,13 +115,13 @@ public class InvitationService {
     /** Nombre d'invitations envoyées non répondues (état bien + relance). */
     public long countNonResponders(Long weddingId) {
         securityUtils.assertPermission("INVITATION_VIEW");
-        weddingService.loadInOrgScope(weddingId);
+        eventService.loadInOrgScope(weddingId);
         return invitationRepository.countNonRespondersByWeddingId(weddingId);
     }
     @Transactional
     public InvitationResponse update(Long weddingId, Long invitationId, UpdateInvitationRequest request) {
         securityUtils.assertPermission("INVITATION_UPDATE");
-        Wedding wedding = weddingService.loadInOrgScope(weddingId);
+        Event wedding = eventService.loadInOrgScope(weddingId);
         Invitation invitation = loadInvitation(weddingId, invitationId);
 
         if (request.getStatus() != null) {
@@ -144,7 +143,7 @@ public class InvitationService {
     @Transactional
     public void delete(Long weddingId, Long invitationId) {
         securityUtils.assertPermission("INVITATION_DELETE");
-        weddingService.loadInOrgScope(weddingId);
+        eventService.loadInOrgScope(weddingId);
         Invitation invitation = loadInvitation(weddingId, invitationId);
         invitation.softDelete();
         invitationRepository.save(invitation);
@@ -165,7 +164,7 @@ public class InvitationService {
     @Transactional
     public InvitationResponse cancel(Long weddingId, Long invitationId) {
         securityUtils.assertPermission("INVITATION_CANCEL");
-        Wedding wedding = weddingService.loadInOrgScope(weddingId);
+        Event wedding = eventService.loadInOrgScope(weddingId);
         Invitation invitation = loadInvitation(weddingId, invitationId);
         if (invitation.getStatus() == InvitationStatus.CANCELLED
                 || invitation.getStatus() == InvitationStatus.EXPIRED) {
@@ -179,7 +178,7 @@ public class InvitationService {
     }
 
     private SendInvitationResponse dispatch(Long weddingId, Long invitationId, boolean resend) {
-        Wedding wedding = weddingService.loadInOrgScope(weddingId);
+        Event wedding = eventService.loadInOrgScope(weddingId);
         Invitation invitation = loadInvitation(weddingId, invitationId);
         Guest guest = guestRepository.findByIdAndWeddingId(invitation.getGuestId(), weddingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Invité introuvable"));
@@ -202,9 +201,8 @@ public class InvitationService {
             throw new ConflictException("Cette invitation ne peut pas être envoyée (statut " + status + ")");
         }
 
-        WeddingEvent mainEvent = weddingEventRepository.findFirstByWeddingIdOrderByEventDateAscIdAsc(weddingId).orElse(null);
         String url = invitationMailService.publicInviteUrl(invitation.getPublicToken());
-        boolean emailSent = invitationMailService.sendInvitation(guest, wedding, mainEvent, url);
+        boolean emailSent = invitationMailService.sendInvitation(guest, wedding, url);
 
         LocalDateTime now = LocalDateTime.now();
         if (invitation.getSentAt() == null) {
@@ -247,7 +245,7 @@ public class InvitationService {
         // S'il n'y a aucun événement, on ne ferme pas (comportement legacy).
         if (invitation.getStatus() == InvitationStatus.GENERATED
                 || invitation.getStatus() == InvitationStatus.SENT) {
-            weddingEventRepository.findFirstByWeddingIdOrderByEventDateAscIdAsc(invitation.getWeddingId())
+            eventRepository.findById(invitation.getWeddingId())
                     .filter(event -> event.getEventDate() != null)
                     .filter(event -> event.getEventDate().isBefore(LocalDate.now()))
                     .ifPresent(expired -> {
@@ -292,7 +290,7 @@ public class InvitationService {
      */
     public QrCodeResponse getQrData(Long weddingId, Long invitationId) {
         securityUtils.assertPermission("INVITATION_VIEW");
-        weddingService.loadInOrgScope(weddingId);
+        eventService.loadInOrgScope(weddingId);
         Invitation invitation = loadInvitation(weddingId, invitationId);
         return new QrCodeResponse(qrCodeService.generateQrDataUri(invitation.getPublicToken()));
     }
@@ -308,7 +306,7 @@ public class InvitationService {
     @Transactional
     public QrCodeResponse rotateQrToken(Long weddingId, Long invitationId) {
         securityUtils.assertPermission("INVITATION_UPDATE");
-        Wedding wedding = weddingService.loadInOrgScope(weddingId);
+        Event wedding = eventService.loadInOrgScope(weddingId);
         Invitation invitation = invitationRepository.findByIdForUpdate(invitationId)
                 .orElseThrow(() -> notFound(invitationId, weddingId));
         if (invitation.isDeleted() || !invitation.getWeddingId().equals(weddingId)) {

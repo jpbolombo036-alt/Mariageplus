@@ -10,7 +10,7 @@ import com.mariageplus.entity.Invitation;
 import com.mariageplus.entity.InvitationStatus;
 import com.mariageplus.entity.Rsvp;
 import com.mariageplus.entity.RsvpStatus;
-import com.mariageplus.entity.Wedding;
+import com.mariageplus.entity.Event;
 import com.mariageplus.exception.ConflictException;
 import com.mariageplus.exception.ResourceNotFoundException;
 import com.mariageplus.repository.CheckInRepository;
@@ -18,7 +18,7 @@ import com.mariageplus.repository.GuestRepository;
 import com.mariageplus.repository.InvitationRepository;
 import com.mariageplus.repository.RsvpRepository;
 import com.mariageplus.repository.TableAssignmentRepository;
-import com.mariageplus.repository.WeddingRepository;
+import com.mariageplus.repository.EventRepository;
 import com.mariageplus.security.SecurityUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -48,7 +48,7 @@ public class CheckInService {
     private final CheckInRepository checkInRepository;
     private final InvitationRepository invitationRepository;
     private final GuestRepository guestRepository;
-    private final WeddingRepository weddingRepository;
+    private final EventRepository eventRepository;
     private final RsvpRepository rsvpRepository;
     private final TableAssignmentRepository tableAssignmentRepository;
     private final SecurityUtils securityUtils;
@@ -59,9 +59,9 @@ public class CheckInService {
         securityUtils.assertPermission("CHECKIN_SCAN");
         Invitation invitation = resolveActiveInvitation(request.getQrToken());
         assertSameWedding(invitation, request.getWeddingId());
-        Wedding wedding = loadWedding(invitation);
-        securityUtils.assertWeddingAccess(wedding.getId());
-        securityUtils.assertOrganizationAccess(wedding.getOrganizationId());
+        Event event = loadWedding(invitation);
+        securityUtils.assertWeddingAccess(event.getId());
+        securityUtils.assertOrganizationAccess(event.getOrganizationId());
         Rsvp rsvp = loadRsvp(invitation);
         int checkedIn = checkInRepository.sumByInvitationId(invitation.getId());
         int expected = expectedAttendees(rsvp);
@@ -70,7 +70,7 @@ public class CheckInService {
                 && rsvp.getStatus() == RsvpStatus.ACCEPTED
                 && expected > 0
                 && remaining > 0;
-        return toScanResponse(invitation, wedding, rsvp, expected, checkedIn, remaining, canCheckIn);
+        return toScanResponse(invitation, event, rsvp, expected, checkedIn, remaining, canCheckIn);
     }
 
     /** Check-in : enregistre une entrée dans la limite du RSVP (verrou pessimiste). */
@@ -84,9 +84,9 @@ public class CheckInService {
         assertActive(invitation);
         assertSameWedding(invitation, request.getWeddingId());
 
-        Wedding wedding = loadWedding(invitation);
-        securityUtils.assertWeddingAccess(wedding.getId());
-        securityUtils.assertOrganizationAccess(wedding.getOrganizationId());
+        Event event = loadWedding(invitation);
+        securityUtils.assertWeddingAccess(event.getId());
+        securityUtils.assertOrganizationAccess(event.getOrganizationId());
 
         Rsvp rsvp = loadRsvp(invitation);
         int expected = expectedAttendeesChecked(rsvp);
@@ -105,12 +105,12 @@ public class CheckInService {
                 .build());
 
         auditService.record("CHECKIN_CREATE", saved.getId(), "CheckIn",
-                securityUtils.getCurrentUserId(), wedding.getOrganizationId(),
+                securityUtils.getCurrentUserId(), event.getOrganizationId(),
                 "Check-in de " + attendees + " personne(s) — invitation " + invitation.getId());
 
         int total = checkedIn + attendees;
         int remaining = Math.max(0, expected - total);
-        return toCheckInResponse(invitation, wedding, rsvp, saved, attendees, expected, total, remaining);
+        return toCheckInResponse(invitation, event, rsvp, saved, attendees, expected, total, remaining);
     }
 
     /**
@@ -125,14 +125,14 @@ public class CheckInService {
 
         Invitation invitation = invitationRepository.findByIdForUpdate(checkIn.getInvitationId())
                 .orElseThrow(() -> new ResourceNotFoundException("Invitation introuvable"));
-        Wedding wedding = loadWedding(invitation);
-        securityUtils.assertWeddingAccess(wedding.getId());
-        securityUtils.assertOrganizationAccess(wedding.getOrganizationId());
+        Event event = loadWedding(invitation);
+        securityUtils.assertWeddingAccess(event.getId());
+        securityUtils.assertOrganizationAccess(event.getOrganizationId());
 
         checkIn.softDelete();
         checkInRepository.save(checkIn);
         auditService.record("CHECKIN_CANCEL", checkIn.getId(), "CheckIn",
-                securityUtils.getCurrentUserId(), wedding.getOrganizationId(),
+                securityUtils.getCurrentUserId(), event.getOrganizationId(),
                 "Annulation du check-in (" + checkIn.getNumberOfAttendees() + " personne(s))");
     }
 
@@ -180,8 +180,8 @@ public class CheckInService {
         }
     }
 
-    private Wedding loadWedding(Invitation invitation) {
-        return weddingRepository.findById(invitation.getWeddingId())
+    private Event loadWedding(Invitation invitation) {
+        return eventRepository.findById(invitation.getWeddingId())
                 .orElseThrow(() -> new ResourceNotFoundException("Mariage introuvable"));
     }
 
@@ -205,11 +205,11 @@ public class CheckInService {
                 + " " + (guest.getLastName() == null ? "" : guest.getLastName());
     }
 
-    private CheckInScanResponse toScanResponse(Invitation invitation, Wedding wedding, Rsvp rsvp,
+    private CheckInScanResponse toScanResponse(Invitation invitation, Event wedding, Rsvp rsvp,
                                                int expected, int checkedIn, int remaining, boolean canCheckIn) {
         return CheckInScanResponse.builder()
                 .guestName(guestName(invitation))
-                .weddingDisplayName(wedding.getDisplayName())
+                .weddingDisplayName(wedding.getName())
                 .invitationStatus(invitation.getStatus().name())
                 .rsvpStatus(rsvp == null ? null : rsvp.getStatus().name())
                 .expectedAttendees(expected)
@@ -220,13 +220,13 @@ public class CheckInService {
                 .build();
     }
 
-    private CheckInResponse toCheckInResponse(Invitation invitation, Wedding wedding, Rsvp rsvp,
+    private CheckInResponse toCheckInResponse(Invitation invitation, Event wedding, Rsvp rsvp,
                                               CheckIn saved, int attendees, int expected,
                                               int total, int remaining) {
         return CheckInResponse.builder()
                 .checkInId(saved.getId())
                 .guestName(guestName(invitation))
-                .weddingDisplayName(wedding.getDisplayName())
+                .weddingDisplayName(wedding.getName())
                 .invitationStatus(invitation.getStatus().name())
                 .rsvpStatus(rsvp == null ? null : rsvp.getStatus().name())
                 .numberOfAttendees(attendees)

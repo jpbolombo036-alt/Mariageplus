@@ -8,7 +8,7 @@ import com.mariageplus.dto.guest.GuestResponse;
 import com.mariageplus.dto.guest.UpdateGuestRequest;
 import com.mariageplus.entity.Guest;
 import com.mariageplus.entity.GuestCategory;
-import com.mariageplus.entity.Wedding;
+import com.mariageplus.entity.Event;
 import com.mariageplus.exception.ConflictException;
 import com.mariageplus.exception.ResourceNotFoundException;
 import com.mariageplus.mapper.GuestMapper;
@@ -49,14 +49,14 @@ public class GuestService {
     private final GuestRepository guestRepository;
     private final GuestCategoryRepository guestCategoryRepository;
     private final GuestMapper guestMapper;
-    private final WeddingService weddingService;
+    private final EventService eventService;
     private final SecurityUtils securityUtils;
     private final AuditService auditService;
 
     @Transactional
     public GuestResponse create(Long weddingId, CreateGuestRequest request) {
         securityUtils.assertPermission("GUEST_CREATE");
-        Wedding wedding = weddingService.loadInOrgScope(weddingId);
+        Event event = eventService.loadInOrgScope(weddingId);
         validateCategoryBelongsToWedding(weddingId, request.getCategoryId());
         assertEmailUnique(weddingId, request.getEmail());
 
@@ -74,14 +74,14 @@ public class GuestService {
                 .build();
         Guest saved = guestRepository.save(guest);
         auditService.record("GUEST_CREATE", saved.getId(), "Guest",
-                securityUtils.getCurrentUserId(), wedding.getOrganizationId(),
+                securityUtils.getCurrentUserId(), event.getOrganizationId(),
                 "Création de l'invité '" + saved.getFirstName() + " " + saved.getLastName() + "'");
         return guestMapper.toResponse(saved);
     }
 
     public PageResponse<GuestResponse> list(Long weddingId, int page, int size, String sortBy, String sortDir) {
         securityUtils.assertPermission("GUEST_VIEW");
-        weddingService.loadInOrgScope(weddingId);
+        eventService.loadInOrgScope(weddingId);
         Sort sort = "desc".equalsIgnoreCase(sortDir) ? Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
         Pageable pageable = PageRequest.of(page, size, sort);
         Page<Guest> guestPage = guestRepository.findByWeddingId(weddingId, pageable);
@@ -92,13 +92,13 @@ public class GuestService {
 
     public GuestResponse getById(Long weddingId, Long guestId) {
         securityUtils.assertPermission("GUEST_VIEW");
-        weddingService.loadInOrgScope(weddingId);
+        eventService.loadInOrgScope(weddingId);
         return guestMapper.toResponse(loadGuest(weddingId, guestId));
     }
     @Transactional
     public GuestResponse update(Long weddingId, Long guestId, UpdateGuestRequest request) {
         securityUtils.assertPermission("GUEST_UPDATE");
-        Wedding wedding = weddingService.loadInOrgScope(weddingId);
+        Event event = eventService.loadInOrgScope(weddingId);
         Guest guest = loadGuest(weddingId, guestId);
 
         if (request.getCategoryId() != null && !request.getCategoryId().equals(guest.getCategoryId())) {
@@ -119,7 +119,7 @@ public class GuestService {
 
         Guest saved = guestRepository.save(guest);
         auditService.record("GUEST_UPDATE", saved.getId(), "Guest",
-                securityUtils.getCurrentUserId(), wedding.getOrganizationId(),
+                securityUtils.getCurrentUserId(), event.getOrganizationId(),
                 "Modification de l'invité '" + saved.getFirstName() + " " + saved.getLastName() + "'");
         return guestMapper.toResponse(saved);
     }
@@ -127,7 +127,7 @@ public class GuestService {
     @Transactional
     public void delete(Long weddingId, Long guestId) {
         securityUtils.assertPermission("GUEST_DELETE");
-        weddingService.loadInOrgScope(weddingId);
+        eventService.loadInOrgScope(weddingId);
         Guest guest = loadGuest(weddingId, guestId);
         guest.softDelete();
         guestRepository.save(guest);
@@ -140,7 +140,7 @@ public class GuestService {
      */
     public GuestImportResponse importCsv(Long weddingId, MultipartFile file) {
         securityUtils.assertPermission("GUEST_IMPORT");
-        Wedding wedding = weddingService.loadInOrgScope(weddingId);
+        Event event = eventService.loadInOrgScope(weddingId);
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("Fichier CSV requis");
         }
@@ -186,7 +186,7 @@ public class GuestService {
         }
 
         auditService.record("GUEST_IMPORT", weddingId, "Wedding",
-                securityUtils.getCurrentUserId(), wedding.getOrganizationId(),
+                securityUtils.getCurrentUserId(), event.getOrganizationId(),
                 "Import CSV : " + imported + " importé(s), " + skipped + " ignoré(s), "
                         + errors.size() + " erreur(s)");
         return GuestImportResponse.builder()

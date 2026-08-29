@@ -8,13 +8,13 @@ import com.mariageplus.entity.Guest;
 import com.mariageplus.entity.Invitation;
 import com.mariageplus.entity.Rsvp;
 import com.mariageplus.entity.RsvpStatus;
-import com.mariageplus.entity.Wedding;
-import com.mariageplus.entity.WeddingEvent;
+import com.mariageplus.entity.Event;
+import com.mariageplus.entity.WeddingDetails;
 import com.mariageplus.exception.ResourceNotFoundException;
 import com.mariageplus.repository.GuestRepository;
 import com.mariageplus.repository.RsvpRepository;
-import com.mariageplus.repository.WeddingEventRepository;
-import com.mariageplus.repository.WeddingRepository;
+import com.mariageplus.repository.WeddingDetailsRepository;
+import com.mariageplus.repository.EventRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,8 +38,8 @@ public class RsvpService {
     private final RsvpRepository rsvpRepository;
     private final InvitationService invitationService;
     private final GuestRepository guestRepository;
-    private final WeddingRepository weddingRepository;
-    private final WeddingEventRepository weddingEventRepository;
+    private final EventRepository eventRepository;
+    private final WeddingDetailsRepository weddingDetailsRepository;
 
     private static final DateTimeFormatter DATE_FR =
             DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.FRENCH);
@@ -55,10 +55,11 @@ public class RsvpService {
         invitationService.markOpened(publicToken);
         Invitation invitation = invitationService.resolvePublicInvitation(publicToken);
         Guest guest = guestRepository.findById(invitation.getGuestId()).orElse(null);
-        Wedding wedding = weddingRepository.findById(invitation.getWeddingId()).orElse(null);
+        Event event = eventRepository.findById(invitation.getWeddingId()).orElse(null);
         Rsvp rsvp = rsvpRepository.findByInvitationId(invitation.getId()).orElse(null);
-        WeddingEvent event = weddingEventRepository
-                .findFirstByWeddingIdOrderByEventDateAscIdAsc(invitation.getWeddingId()).orElse(null);
+        WeddingDetails details = weddingDetailsRepository.findByEventId(invitation.getWeddingId()).orElse(null);
+        String displayName = event != null ? event.getName()
+                : (details != null ? details.getDisplayName() : null);
 
         boolean canRespond = invitation.getStatus() != com.mariageplus.entity.InvitationStatus.CANCELLED
                 && invitation.getStatus() != com.mariageplus.entity.InvitationStatus.EXPIRED;
@@ -67,11 +68,11 @@ public class RsvpService {
                 .token(publicToken)
                 .guestFirstName(guest != null ? guest.getFirstName() : null)
                 .guestLastName(guest != null ? guest.getLastName() : null)
-                .weddingDisplayName(wedding != null ? wedding.getDisplayName() : null)
-                .couplePhotoUrl(wedding != null ? wedding.getCouplePhotoUrl() : null)
-                .groomPhotoUrl(wedding != null ? wedding.getGroomPhotoUrl() : null)
-                .bridePhotoUrl(wedding != null ? wedding.getBridePhotoUrl() : null)
-                .message(wedding != null ? wedding.getMessage() : null)
+                .weddingDisplayName(displayName)
+                .couplePhotoUrl(details != null ? details.getCouplePhotoUrl() : null)
+                .groomPhotoUrl(details != null ? details.getGroomPhotoUrl() : null)
+                .bridePhotoUrl(details != null ? details.getBridePhotoUrl() : null)
+                .message(event != null ? event.getMessage() : null)
                 .eventName(event != null ? event.getName() : null)
                 .eventDate(event != null && event.getEventDate() != null ? DATE_FR.format(event.getEventDate()) : null)
                 .eventStartTime(event != null && event.getStartTime() != null ? TIME_FR.format(event.getStartTime()) : null)
@@ -84,7 +85,7 @@ public class RsvpService {
                 .build();
     }
 
-    private String venueText(WeddingEvent event) {
+    private String venueText(Event event) {
         StringBuilder sb = new StringBuilder();
         if (event.getVenueName() != null) sb.append(event.getVenueName());
         if (event.getVenueAddress() != null) {
@@ -106,19 +107,20 @@ public class RsvpService {
     public PublicInvitationResponse getPublicInvitation(String publicToken) {
         Invitation invitation = invitationService.resolvePublicInvitation(publicToken);
         Guest guest = guestRepository.findById(invitation.getGuestId()).orElse(null);
-        Wedding wedding = weddingRepository.findById(invitation.getWeddingId()).orElse(null);
+        Event event = eventRepository.findById(invitation.getWeddingId()).orElse(null);
         Rsvp rsvp = rsvpRepository.findByInvitationId(invitation.getId()).orElse(null);
-        WeddingEvent event = weddingEventRepository
-                .findFirstByWeddingIdOrderByEventDateAscIdAsc(invitation.getWeddingId()).orElse(null);
+        WeddingDetails details = weddingDetailsRepository.findByEventId(invitation.getWeddingId()).orElse(null);
+        String displayName = event != null ? event.getName()
+                : (details != null ? details.getDisplayName() : null);
 
         return PublicInvitationResponse.builder()
                 .guestFirstName(guest != null ? guest.getFirstName() : null)
                 .guestLastName(guest != null ? guest.getLastName() : null)
-                .weddingDisplayName(wedding != null ? wedding.getDisplayName() : null)
-                .couplePhotoUrl(wedding != null ? wedding.getCouplePhotoUrl() : null)
-                .groomPhotoUrl(wedding != null ? wedding.getGroomPhotoUrl() : null)
-                .bridePhotoUrl(wedding != null ? wedding.getBridePhotoUrl() : null)
-                .message(wedding != null ? wedding.getMessage() : null)
+                .weddingDisplayName(displayName)
+                .couplePhotoUrl(details != null ? details.getCouplePhotoUrl() : null)
+                .groomPhotoUrl(details != null ? details.getGroomPhotoUrl() : null)
+                .bridePhotoUrl(details != null ? details.getBridePhotoUrl() : null)
+                .message(event != null ? event.getMessage() : null)
                 .eventName(event != null ? event.getName() : null)
                 .eventDate(event != null && event.getEventDate() != null
                         ? DATE_FR.format(event.getEventDate()) : null)
