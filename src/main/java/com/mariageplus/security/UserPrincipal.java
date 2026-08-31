@@ -17,6 +17,7 @@ import java.util.stream.Collectors;
  * multi-tenant). Un SUPER_ADMIN n'est lié à aucune organisation (null).
  */
 @Data
+@NoArgsConstructor
 @AllArgsConstructor
 public class UserPrincipal implements UserDetails {
 
