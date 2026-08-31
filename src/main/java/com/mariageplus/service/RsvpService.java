@@ -69,9 +69,9 @@ public class RsvpService {
                 .guestFirstName(guest != null ? guest.getFirstName() : null)
                 .guestLastName(guest != null ? guest.getLastName() : null)
                 .weddingDisplayName(displayName)
-                .couplePhotoUrl(details != null ? details.getCouplePhotoUrl() : null)
-                .groomPhotoUrl(details != null ? details.getGroomPhotoUrl() : null)
-                .bridePhotoUrl(details != null ? details.getBridePhotoUrl() : null)
+                .couplePhotoUrl(photoUrl(invitation.getWeddingId(), details != null ? details.getCouplePhotoUrl() : null, "couple"))
+                .groomPhotoUrl(photoUrl(invitation.getWeddingId(), details != null ? details.getGroomPhotoUrl() : null, "groom"))
+                .bridePhotoUrl(photoUrl(invitation.getWeddingId(), details != null ? details.getBridePhotoUrl() : null, "bride"))
                 .message(event != null ? event.getMessage() : null)
                 .eventName(event != null ? event.getName() : null)
                 .eventDate(event != null && event.getEventDate() != null ? DATE_FR.format(event.getEventDate()) : null)
@@ -83,6 +83,20 @@ public class RsvpService {
                 .rsvpNumberOfAttendees(rsvp != null ? rsvp.getNumberOfAttendees() : null)
                 .maxAccepted(guest != null ? maximumAllowed(guest) : 1)
                 .build();
+    }
+
+    /**
+     * Résout l'URL affichable d'une photo : URL externe telle quelle,
+     * clé S3 → endpoint public de streaming, sinon null.
+     */
+    private String photoUrl(Long eventId, String stored, String kind) {
+        if (stored == null || stored.isBlank()) {
+            return null;
+        }
+        if (stored.startsWith("http://") || stored.startsWith("https://")) {
+            return stored;
+        }
+        return "/api/events/" + eventId + "/photos/" + kind;
     }
 
     private String venueText(Event event) {
@@ -117,9 +131,9 @@ public class RsvpService {
                 .guestFirstName(guest != null ? guest.getFirstName() : null)
                 .guestLastName(guest != null ? guest.getLastName() : null)
                 .weddingDisplayName(displayName)
-                .couplePhotoUrl(details != null ? details.getCouplePhotoUrl() : null)
-                .groomPhotoUrl(details != null ? details.getGroomPhotoUrl() : null)
-                .bridePhotoUrl(details != null ? details.getBridePhotoUrl() : null)
+                .couplePhotoUrl(photoUrl(invitation.getWeddingId(), details != null ? details.getCouplePhotoUrl() : null, "couple"))
+                .groomPhotoUrl(photoUrl(invitation.getWeddingId(), details != null ? details.getGroomPhotoUrl() : null, "groom"))
+                .bridePhotoUrl(photoUrl(invitation.getWeddingId(), details != null ? details.getBridePhotoUrl() : null, "bride"))
                 .message(event != null ? event.getMessage() : null)
                 .eventName(event != null ? event.getName() : null)
                 .eventDate(event != null && event.getEventDate() != null

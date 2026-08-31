@@ -46,6 +46,16 @@ public class WeddingDetails extends BaseEntity {
     @Column(name = "couple_photo_url", length = 1000)
     private String couplePhotoUrl;
 
+    /** Fallback base des photos (si stockage S3 non configuré). */
+    @Column(name = "groom_image")
+    private byte[] groomImage;
+
+    @Column(name = "bride_image")
+    private byte[] brideImage;
+
+    @Column(name = "couple_image")
+    private byte[] coupleImage;
+
     @Column(name = "welcome_message", length = 2000)
     private String welcomeMessage;
 

@@ -300,6 +300,105 @@ public class EventService {
         return "image/webp";
     }
 
+    /** Kinds autorisés pour les photos de la fiche mariage. */
+    private static final java.util.Set<String> PHOTO_KINDS = java.util.Set.of("groom", "bride", "couple");
+
+    /** Upload / remplace une photo de la fiche mariage (groom | bride | couple). */
+    @Transactional
+    public void setDetailPhoto(Long eventId, String kind, byte[] image) {
+        securityUtils.assertPermission("EVENT_UPDATE");
+        String k = kind == null ? "" : kind.toLowerCase();
+        if (!PHOTO_KINDS.contains(k)) {
+            throw new IllegalArgumentException("Type de photo invalide (groom, bride ou couple)");
+        }
+        validateImage(image);
+        Event event = loadInOrgScope(eventId);
+        WeddingDetails details = weddingDetailsRepository.findByEventId(eventId)
+                .orElseGet(() -> WeddingDetails.builder().eventId(eventId).build());
+        String oldKey = photoKeyOf(details, k);
+        if (storageService.isEnabled()) {
+            if (oldKey != null && !oldKey.isBlank() && !oldKey.startsWith("http")) {
+                storageService.delete(oldKey);
+            }
+            String key = "events/" + eventId + "/" + k + "/" + System.currentTimeMillis() + extensionOf(image);
+            storageService.upload(key, image, contentTypeOf(image));
+            setPhotoKey(details, k, key);
+            setImageBytes(details, k, null);
+        } else {
+            setImageBytes(details, k, image);
+        }
+        weddingDetailsRepository.save(details);
+        auditService.record("EVENT_UPDATE", eventId, "Event",
+                securityUtils.getCurrentUserId(), event.getOrganizationId(),
+                "Mise à jour de la photo " + k + " de la fiche mariage");
+    }
+
+    /** Photo de fiche mariage (S3 d'abord, base en fallback) ; null si aucune. Accès public. */
+    @Transactional(readOnly = true)
+    public byte[] getDetailPhoto(Long eventId, String kind) {
+        String k = kind == null ? "" : kind.toLowerCase();
+        if (!PHOTO_KINDS.contains(k)) {
+            throw new IllegalArgumentException("Type de photo invalide (groom, bride ou couple)");
+        }
+        WeddingDetails details = weddingDetailsRepository.findByEventId(eventId).orElse(null);
+        if (details == null) {
+            return null;
+        }
+        String key = photoKeyOf(details, k);
+        if (key != null && !key.isBlank() && !key.startsWith("http") && storageService.isEnabled()) {
+            byte[] fromS3 = storageService.download(key);
+            if (fromS3 != null) {
+                return fromS3;
+            }
+        }
+        byte[] bytes = imageBytesOf(details, k);
+        return (bytes == null || bytes.length == 0) ? null : bytes;
+    }
+
+    private void validateImage(byte[] image) {
+        if (image == null || image.length == 0) {
+            throw new IllegalArgumentException("Fichier image vide ou manquant");
+        }
+        if (image.length > IMAGE_MAX_BYTES) {
+            throw new IllegalArgumentException("Image trop volumineuse (max 2 Mo)");
+        }
+        if (!isSupportedImage(image)) {
+            throw new IllegalArgumentException("Format d'image non supporté (JPEG, PNG, GIF ou WebP attendu)");
+        }
+    }
+
+    private String photoKeyOf(WeddingDetails d, String kind) {
+        return switch (kind) {
+            case "groom" -> d.getGroomPhotoUrl();
+            case "bride" -> d.getBridePhotoUrl();
+            default -> d.getCouplePhotoUrl();
+        };
+    }
+
+    private void setPhotoKey(WeddingDetails d, String kind, String value) {
+        switch (kind) {
+            case "groom" -> d.setGroomPhotoUrl(value);
+            case "bride" -> d.setBridePhotoUrl(value);
+            default -> d.setCouplePhotoUrl(value);
+        }
+    }
+
+    private byte[] imageBytesOf(WeddingDetails d, String kind) {
+        return switch (kind) {
+            case "groom" -> d.getGroomImage();
+            case "bride" -> d.getBrideImage();
+            default -> d.getCoupleImage();
+        };
+    }
+
+    private void setImageBytes(WeddingDetails d, String kind, byte[] value) {
+        switch (kind) {
+            case "groom" -> d.setGroomImage(value);
+            case "bride" -> d.setBrideImage(value);
+            default -> d.setCoupleImage(value);
+        }
+    }
+
     private void upsertWeddingDetails(Long eventId, WeddingDetailsRequest request) {
         WeddingDetails details = weddingDetailsRepository.findByEventId(eventId)
                 .orElseGet(() -> WeddingDetails.builder().eventId(eventId).build());

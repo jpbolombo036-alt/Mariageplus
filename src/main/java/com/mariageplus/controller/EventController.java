@@ -97,6 +97,34 @@ public class EventController {
         return ResponseEntity.noContent().build();
     }
 
+    @PutMapping("/{id}/photos/{kind}")
+    @Operation(summary = "Uploader une photo de la fiche mariage (kind = groom | bride | couple — max 2 Mo)")
+    public ResponseEntity<?> uploadDetailPhoto(@PathVariable Long id,
+                                               @PathVariable String kind,
+                                               @RequestParam("file") MultipartFile file) {
+        try {
+            eventService.setDetailPhoto(id, kind, file.getBytes());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("error", e.getMessage()));
+        } catch (java.io.IOException e) {
+            return ResponseEntity.internalServerError().body(java.util.Map.of("error", "Impossible de lire le fichier"));
+        }
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{id}/photos/{kind}")
+    @Operation(summary = "Photo de la fiche mariage (public : affichée sur la page d'invitation)")
+    public ResponseEntity<byte[]> getDetailPhoto(@PathVariable Long id, @PathVariable String kind) {
+        byte[] image = eventService.getDetailPhoto(id, kind);
+        if (image == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(detectMediaType(image)))
+                .cacheControl(CacheControl.maxAge(60, TimeUnit.SECONDS).cachePublic())
+                .body(image);
+    }
+
     private String detectMediaType(byte[] b) {
         if (b.length >= 3 && (b[0] & 0xFF) == 0xFF && (b[1] & 0xFF) == 0xD8) return "image/jpeg";
         if (b.length >= 4 && (b[0] & 0xFF) == 0x89 && b[1] == 'P') return "image/png";

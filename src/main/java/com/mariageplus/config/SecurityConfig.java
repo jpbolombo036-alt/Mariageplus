@@ -76,6 +76,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> {
                     auth.requestMatchers("/auth/**").permitAll();
                     auth.requestMatchers("/api/public/**").permitAll();
+                    auth.requestMatchers(org.springframework.http.HttpMethod.GET, "/api/events/*/photos/*").permitAll();
                     // Page web publique d'invitation (lien envoyé à l'invité).
                     auth.requestMatchers("/invitations/**").permitAll();
                     auth.requestMatchers("/health").permitAll();
