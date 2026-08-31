@@ -105,11 +105,7 @@ SELECT * FROM (
     UNION ALL SELECT 'REPORT_EXPORT', 'Exporter les rapports', 'DASHBOARD', NOW() AS created_at, NOW() AS updated_at
     UNION ALL SELECT 'SETTINGS_VIEW', 'Voir les paramètres', 'SETTINGS', NOW() AS created_at, NOW() AS updated_at
     UNION ALL SELECT 'SETTINGS_UPDATE', 'Modifier les paramètres', 'SETTINGS', NOW() AS created_at, NOW() AS updated_at
-    UNION ALL SELECT 'DRINK_VIEW', 'Voir les boissons', 'DRINKS', NOW() AS created_at, NOW() AS updated_at
-    UNION ALL SELECT 'DRINK_CREATE', 'Créer des boissons', 'DRINKS', NOW() AS created_at, NOW() AS updated_at
-    UNION ALL SELECT 'DRINK_UPDATE', 'Modifier des boissons', 'DRINKS', NOW() AS created_at, NOW() AS updated_at
-    UNION ALL SELECT 'DRINK_DELETE', 'Supprimer des boissons', 'DRINKS', NOW() AS created_at, NOW() AS updated_at
- ) AS v
+) AS v
 WHERE NOT EXISTS (SELECT 1 FROM permissions);
 
 -- ============================================================
@@ -140,8 +136,7 @@ WHERE r.code = 'ORGANISATEUR'
     'CHECKIN_VIEW','CHECKIN_SCAN','CHECKIN_CREATE','CHECKIN_CANCEL',
     'TABLE_VIEW','TABLE_CREATE','TABLE_UPDATE','TABLE_DELETE','TABLE_ASSIGN_GUEST',
     'DASHBOARD_VIEW','STATISTICS_VIEW','REPORT_VIEW','REPORT_EXPORT',
-    'SETTINGS_VIEW','SETTINGS_UPDATE',
-    'DRINK_VIEW','DRINK_CREATE','DRINK_UPDATE','DRINK_DELETE'
+    'SETTINGS_VIEW','SETTINGS_UPDATE'
   )
   AND NOT EXISTS (SELECT 1 FROM role_permissions rp WHERE rp.role_id = r.id AND rp.permission_id = p.id);
 
