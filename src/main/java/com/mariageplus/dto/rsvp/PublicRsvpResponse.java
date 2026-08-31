@@ -21,4 +21,5 @@ public class PublicRsvpResponse {
     private String rsvpStatus;
     private Integer numberOfAttendees;
     private LocalDateTime respondedAt;
+    private String drinkChoice;
 }

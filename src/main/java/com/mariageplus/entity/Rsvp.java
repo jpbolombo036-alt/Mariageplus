@@ -35,6 +35,9 @@ public class Rsvp extends BaseEntity {
     @Column(name = "number_of_attendees")
     private Integer numberOfAttendees;
 
+    @Column(name = "drink_choice", length = 100)
+    private String drinkChoice;
+
     @Column(name = "responded_at")
     private LocalDateTime respondedAt;
 }

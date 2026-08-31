@@ -131,6 +131,7 @@ public class RsvpService {
                 .status(invitation.getStatus().name())
                 .rsvpStatus(rsvp != null ? rsvp.getStatus().name() : null)
                 .rsvpNumberOfAttendees(rsvp != null ? rsvp.getNumberOfAttendees() : null)
+                .rsvpDrinkChoice(rsvp != null ? rsvp.getDrinkChoice() : null)
                 .publicToken(invitation.getPublicToken())
                 .build();
     }
@@ -162,6 +163,7 @@ public class RsvpService {
                 .orElseGet(() -> Rsvp.builder().invitationId(invitation.getId()).build());
         rsvp.setStatus(status);
         rsvp.setNumberOfAttendees(attendees);
+        rsvp.setDrinkChoice(request.getDrinkChoice());
         rsvp.setRespondedAt(LocalDateTime.now());
         Rsvp saved = rsvpRepository.save(rsvp);
 
@@ -170,6 +172,7 @@ public class RsvpService {
                 .rsvpStatus(saved.getStatus().name())
                 .numberOfAttendees(saved.getNumberOfAttendees())
                 .respondedAt(saved.getRespondedAt())
+                .drinkChoice(saved.getDrinkChoice())
                 .build();
     }
 
@@ -223,5 +226,10 @@ public class RsvpService {
             return RsvpStatus.valueOf(value);
         }
         throw new IllegalArgumentException("Réponse invalide : " + raw);
+    }
+
+    public Long resolveEventId(String publicToken) {
+        Invitation invitation = invitationService.resolvePublicInvitation(publicToken);
+        return invitation.getWeddingId();
     }
 }

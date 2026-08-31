@@ -39,6 +39,7 @@ public class PublicInvitationResponse {
     private String status;
     private String rsvpStatus;
     private Integer rsvpNumberOfAttendees;
+    private String rsvpDrinkChoice;
 
     /** Token public de l'invitation, nécessaire pour afficher le QR code côté front. */
     private String publicToken;
