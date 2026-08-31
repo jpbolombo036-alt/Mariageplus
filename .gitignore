@@ -6,6 +6,9 @@ target
 .env.local
 .env.*.local
 *.log
+*.err
+*.out
+_tail.txt
 .idea
 .vscode
 *.iml

@@ -8,7 +8,9 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
+      # validate (et non update) : le schema est gere par Flyway, on evite
+      # toute divergence H2/Postgres. Meme comportement que la prod.
+      ddl-auto: validate
     properties:
       hibernate:
         dialect: org.hibernate.dialect.H2Dialect
