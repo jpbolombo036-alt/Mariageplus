@@ -29,4 +29,5 @@ public class CheckInResponse {
     private int checkedInAttendees;
     private int remainingAttendees;
     private String tableName;
+    private String drinkChoice;
 }

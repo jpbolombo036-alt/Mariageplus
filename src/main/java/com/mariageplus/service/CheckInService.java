@@ -217,6 +217,7 @@ public class CheckInService {
                 .remainingAttendees(remaining)
                 .canCheckIn(canCheckIn)
                 .tableName(tableName(invitation))
+                .drinkChoice(rsvp == null ? null : rsvp.getDrinkChoice())
                 .build();
     }
 
@@ -235,6 +236,7 @@ public class CheckInService {
                 .checkedInAttendees(total)
                 .remainingAttendees(remaining)
                 .tableName(tableName(invitation))
+                .drinkChoice(rsvp == null ? null : rsvp.getDrinkChoice())
                 .build();
     }
 
