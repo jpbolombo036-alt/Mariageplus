@@ -139,6 +139,49 @@ public class UserService {
         userRepository.save(user);
     }
 
+    /** Taille maximale de la photo de profil (2 Mo). */
+    private static final int AVATAR_MAX_BYTES = 2 * 1024 * 1024;
+
+    @Transactional
+    public void updateAvatar(Long id, byte[] image) {
+        if (image == null || image.length == 0) {
+            throw new IllegalArgumentException("Fichier image vide ou manquant");
+        }
+        if (image.length > AVATAR_MAX_BYTES) {
+            throw new IllegalArgumentException("Image trop volumineuse (max 2 Mo)");
+        }
+        if (!isSupportedImage(image)) {
+            throw new IllegalArgumentException("Format d'image non supporté (JPEG, PNG, GIF ou WebP attendu)");
+        }
+        User user = getUser(id);
+        user.setAvatar(image);
+        userRepository.save(user);
+    }
+
+    /** Retourne les octets de l'avatar, ou null si aucune photo. */
+    @Transactional(readOnly = true)
+    public byte[] getAvatar(Long id) {
+        User user = getUser(id);
+        return (user.getAvatar() == null || user.getAvatar().length == 0) ? null : user.getAvatar();
+    }
+
+    @Transactional
+    public void deleteAvatar(Long id) {
+        User user = getUser(id);
+        user.setAvatar(null);
+        userRepository.save(user);
+    }
+
+    /** Détection par magic bytes : JPEG, PNG, GIF, WebP. */
+    private boolean isSupportedImage(byte[] b) {
+        if (b.length < 12) return false;
+        if ((b[0] & 0xFF) == 0xFF && (b[1] & 0xFF) == 0xD8) return true;                 // JPEG
+        if ((b[0] & 0xFF) == 0x89 && b[1] == 'P' && b[2] == 'N' && b[3] == 'G') return true; // PNG
+        if (b[0] == 'G' && b[1] == 'I' && b[2] == 'F') return true;                      // GIF
+        return b[0] == 'R' && b[1] == 'I' && b[2] == 'F' && b[3] == 'F'
+                && b[8] == 'W' && b[9] == 'E' && b[10] == 'B' && b[11] == 'P';           // WebP
+    }
+
     @Transactional
     public void delete(Long id) {
         User user = getUser(id);

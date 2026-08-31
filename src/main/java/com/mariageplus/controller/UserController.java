@@ -12,9 +12,14 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.util.concurrent.TimeUnit;
 
 @RestController
 @RequestMapping("/api/users")
@@ -99,5 +104,55 @@ public class UserController {
         }
         userService.changePassword(currentUser.getId(), request.getOldPassword(), request.getNewPassword());
         return ResponseEntity.ok().build();
+    }
+
+    @PutMapping("/me/avatar")
+    @Operation(summary = "Uploader sa photo de profil (JPEG, PNG, GIF, WebP — max 2 Mo)")
+    public ResponseEntity<?> uploadAvatar(@CurrentUser UserInfo currentUser,
+                                          @RequestParam("file") MultipartFile file) {
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        try {
+            userService.updateAvatar(currentUser.getId(), file.getBytes());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("error", e.getMessage()));
+        } catch (java.io.IOException e) {
+            return ResponseEntity.internalServerError().body(java.util.Map.of("error", "Impossible de lire le fichier"));
+        }
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/me/avatar")
+    @Operation(summary = "Photo de profil de l'utilisateur connecté")
+    public ResponseEntity<byte[]> getAvatar(@CurrentUser UserInfo currentUser) {
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        byte[] image = userService.getAvatar(currentUser.getId());
+        if (image == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(detectMediaType(image)))
+                .cacheControl(CacheControl.maxAge(60, TimeUnit.SECONDS).cachePrivate())
+                .body(image);
+    }
+
+    @DeleteMapping("/me/avatar")
+    @Operation(summary = "Supprimer sa photo de profil")
+    public ResponseEntity<?> deleteAvatar(@CurrentUser UserInfo currentUser) {
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        userService.deleteAvatar(currentUser.getId());
+        return ResponseEntity.noContent().build();
+    }
+
+    private String detectMediaType(byte[] b) {
+        if (b.length >= 3 && (b[0] & 0xFF) == 0xFF && (b[1] & 0xFF) == 0xD8) return "image/jpeg";
+        if (b.length >= 4 && (b[0] & 0xFF) == 0x89 && b[1] == 'P') return "image/png";
+        if (b.length >= 3 && b[0] == 'G' && b[1] == 'I') return "image/gif";
+        return "image/webp";
     }
 }

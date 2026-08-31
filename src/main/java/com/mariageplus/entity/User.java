@@ -60,4 +60,8 @@ public class User extends BaseEntity {
     @Builder.Default
     @Column(name = "token_version", nullable = false)
     private long tokenVersion = 0;
+
+    /** Photo de profil (image stockée en base, max 2 Mo, validée côté service). */
+    @Column(name = "avatar")
+    private byte[] avatar;
 }
