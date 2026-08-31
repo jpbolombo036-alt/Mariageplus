@@ -34,6 +34,7 @@ public class EventResponse {
     private Integer displayOrder;
     private Boolean active;
     private Long organizationId;
+    private Boolean hasImage;
     private WeddingDetailsResponse weddingDetails;
     private List<EventSessionResponse> sessions;
 }

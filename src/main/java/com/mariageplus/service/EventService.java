@@ -47,6 +47,8 @@ public class EventService {
     private final EventSessionRepository eventSessionRepository;
     private final EventMapper eventMapper;
     private final SecurityUtils securityUtils;
+    private final StorageService storageService;
+    private final AuditService auditService;
 
     @Transactional
     public EventResponse create(CreateEventRequest request) {
@@ -154,7 +156,6 @@ public class EventService {
     }
 
     private final OrganizationService organizationService;
-    private final AuditService auditService;
 
     @Transactional
     public EventResponse updateStatus(Long id, UpdateEventStatusRequest request) {
@@ -213,6 +214,90 @@ public class EventService {
                 : null;
         List<EventSession> sessions = eventSessionRepository.findByEventId(event.getId());
         return eventMapper.toResponse(event, details, sessions);
+    }
+
+    /** Taille maximale de la photo d'événement (2 Mo). */
+    private static final int IMAGE_MAX_BYTES = 2 * 1024 * 1024;
+
+    /** Upload / remplace la photo de couverture de l'événement. */
+    @Transactional
+    public void setImage(Long id, byte[] image) {
+        securityUtils.assertPermission("EVENT_UPDATE");
+        if (image == null || image.length == 0) {
+            throw new IllegalArgumentException("Fichier image vide ou manquant");
+        }
+        if (image.length > IMAGE_MAX_BYTES) {
+            throw new IllegalArgumentException("Image trop volumineuse (max 2 Mo)");
+        }
+        if (!isSupportedImage(image)) {
+            throw new IllegalArgumentException("Format d'image non supporté (JPEG, PNG, GIF ou WebP attendu)");
+        }
+        Event event = loadInOrgScope(id);
+        if (storageService.isEnabled()) {
+            if (event.getImageKey() != null && !event.getImageKey().isBlank()) {
+                storageService.delete(event.getImageKey());
+            }
+            String key = "events/" + id + "/" + System.currentTimeMillis() + extensionOf(image);
+            storageService.upload(key, image, contentTypeOf(image));
+            event.setImageKey(key);
+            event.setImage(null);
+        } else {
+            event.setImage(image);
+        }
+        event.setUpdatedBy(securityUtils.getCurrentUserId());
+        eventRepository.save(event);
+        auditService.record("EVENT_UPDATE", id, "Event",
+                securityUtils.getCurrentUserId(), event.getOrganizationId(), "Mise à jour de la photo de l'événement");
+    }
+
+    /** Photo de couverture (S3 d'abord, base en fallback) ; null si aucune. */
+    @Transactional(readOnly = true)
+    public byte[] getImage(Long id) {
+        Event event = loadInOrgScope(id);
+        if (event.getImageKey() != null && !event.getImageKey().isBlank()) {
+            byte[] fromS3 = storageService.download(event.getImageKey());
+            if (fromS3 != null) {
+                return fromS3;
+            }
+        }
+        return (event.getImage() == null || event.getImage().length == 0) ? null : event.getImage();
+    }
+
+    /** Supprime la photo de couverture. */
+    @Transactional
+    public void deleteImage(Long id) {
+        securityUtils.assertPermission("EVENT_UPDATE");
+        Event event = loadInOrgScope(id);
+        if (event.getImageKey() != null && !event.getImageKey().isBlank()) {
+            storageService.delete(event.getImageKey());
+        }
+        event.setImageKey(null);
+        event.setImage(null);
+        event.setUpdatedBy(securityUtils.getCurrentUserId());
+        eventRepository.save(event);
+    }
+
+    private boolean isSupportedImage(byte[] b) {
+        if (b.length < 12) return false;
+        if ((b[0] & 0xFF) == 0xFF && (b[1] & 0xFF) == 0xD8) return true;
+        if ((b[0] & 0xFF) == 0x89 && b[1] == 'P' && b[2] == 'N' && b[3] == 'G') return true;
+        if (b[0] == 'G' && b[1] == 'I' && b[2] == 'F') return true;
+        return b[0] == 'R' && b[1] == 'I' && b[2] == 'F' && b[3] == 'F'
+                && b[8] == 'W' && b[9] == 'E' && b[10] == 'B' && b[11] == 'P';
+    }
+
+    private String extensionOf(byte[] b) {
+        if (b.length >= 3 && (b[0] & 0xFF) == 0xFF && (b[1] & 0xFF) == 0xD8) return ".jpg";
+        if (b.length >= 4 && (b[0] & 0xFF) == 0x89 && b[1] == 'P') return ".png";
+        if (b.length >= 3 && b[0] == 'G' && b[1] == 'I') return ".gif";
+        return ".webp";
+    }
+
+    private String contentTypeOf(byte[] b) {
+        if (b.length >= 3 && (b[0] & 0xFF) == 0xFF && (b[1] & 0xFF) == 0xD8) return "image/jpeg";
+        if (b.length >= 4 && (b[0] & 0xFF) == 0x89 && b[1] == 'P') return "image/png";
+        if (b.length >= 3 && b[0] == 'G' && b[1] == 'I') return "image/gif";
+        return "image/webp";
     }
 
     private void upsertWeddingDetails(Long eventId, WeddingDetailsRequest request) {

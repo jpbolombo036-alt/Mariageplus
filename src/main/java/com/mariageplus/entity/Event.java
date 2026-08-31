@@ -91,4 +91,11 @@ public class Event extends BaseEntity {
 
     @Column(name = "updated_by")
     private Long updatedBy;
+
+    /** Photo de couverture : clé objet S3 (prioritaire) / fallback en base. */
+    @Column(name = "image_key", length = 500)
+    private String imageKey;
+
+    @Column(name = "image")
+    private byte[] image;
 }
