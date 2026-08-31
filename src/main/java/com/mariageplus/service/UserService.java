@@ -142,6 +142,8 @@ public class UserService {
     /** Taille maximale de la photo de profil (2 Mo). */
     private static final int AVATAR_MAX_BYTES = 2 * 1024 * 1024;
 
+    private final StorageService storageService;
+
     @Transactional
     public void updateAvatar(Long id, byte[] image) {
         if (image == null || image.length == 0) {
@@ -154,22 +156,59 @@ public class UserService {
             throw new IllegalArgumentException("Format d'image non supporté (JPEG, PNG, GIF ou WebP attendu)");
         }
         User user = getUser(id);
-        user.setAvatar(image);
+        if (storageService.isEnabled()) {
+            // Supprime l'ancien objet si présent, puis stocke dans S3
+            if (user.getAvatarUrl() != null && !user.getAvatarUrl().isBlank()) {
+                storageService.delete(user.getAvatarUrl());
+            }
+            String key = "avatars/" + id + "/" + System.currentTimeMillis()
+                    + extensionOf(image);
+            storageService.upload(key, image, contentTypeOf(image));
+            user.setAvatarUrl(key);
+            user.setAvatar(null); // plus besoin du doublon en base
+        } else {
+            // Fallback : stockage en base (S3 non configuré)
+            user.setAvatar(image);
+        }
         userRepository.save(user);
     }
 
-    /** Retourne les octets de l'avatar, ou null si aucune photo. */
+    /** Retourne les octets de l'avatar (S3 d'abord, base en fallback), ou null si aucune photo. */
     @Transactional(readOnly = true)
     public byte[] getAvatar(Long id) {
         User user = getUser(id);
+        if (user.getAvatarUrl() != null && !user.getAvatarUrl().isBlank()) {
+            byte[] fromS3 = storageService.download(user.getAvatarUrl());
+            if (fromS3 != null) {
+                return fromS3;
+            }
+        }
         return (user.getAvatar() == null || user.getAvatar().length == 0) ? null : user.getAvatar();
     }
 
     @Transactional
     public void deleteAvatar(Long id) {
         User user = getUser(id);
+        if (user.getAvatarUrl() != null && !user.getAvatarUrl().isBlank()) {
+            storageService.delete(user.getAvatarUrl());
+        }
+        user.setAvatarUrl(null);
         user.setAvatar(null);
         userRepository.save(user);
+    }
+
+    private String extensionOf(byte[] b) {
+        if (b.length >= 3 && (b[0] & 0xFF) == 0xFF && (b[1] & 0xFF) == 0xD8) return ".jpg";
+        if (b.length >= 4 && (b[0] & 0xFF) == 0x89 && b[1] == 'P') return ".png";
+        if (b.length >= 3 && b[0] == 'G' && b[1] == 'I') return ".gif";
+        return ".webp";
+    }
+
+    private String contentTypeOf(byte[] b) {
+        if (b.length >= 3 && (b[0] & 0xFF) == 0xFF && (b[1] & 0xFF) == 0xD8) return "image/jpeg";
+        if (b.length >= 4 && (b[0] & 0xFF) == 0x89 && b[1] == 'P') return "image/png";
+        if (b.length >= 3 && b[0] == 'G' && b[1] == 'I') return "image/gif";
+        return "image/webp";
     }
 
     /** Détection par magic bytes : JPEG, PNG, GIF, WebP. */

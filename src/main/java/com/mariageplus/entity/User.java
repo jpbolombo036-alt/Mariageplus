@@ -64,4 +64,8 @@ public class User extends BaseEntity {
     /** Photo de profil (image stockée en base, max 2 Mo, validée côté service). */
     @Column(name = "avatar")
     private byte[] avatar;
+
+    /** Clé de l'objet dans le stockage S3-compatible (prioritaire sur la colonne avatar). */
+    @Column(name = "avatar_url", length = 500)
+    private String avatarUrl;
 }

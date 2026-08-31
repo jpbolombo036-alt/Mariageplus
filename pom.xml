@@ -123,6 +123,12 @@
             <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- Stockage objet S3-compatible (AWS S3, Cloudflare R2, Backblaze B2, MinIO...) -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>s3</artifactId>
+            <version>2.25.60</version>
+        </dependency>
     </dependencies>
 
     <build>
