@@ -76,7 +76,9 @@ app:
     init-password: ${ADMIN_INIT_PASSWORD:}
 
   frontend:
-    url: ${FRONTEND_URL:}
+    # URL publique du front web (liens d'invitation email/QR, redirections RSVP).
+    # Surchargeable via la variable d'environnement FRONTEND_URL.
+    url: ${FRONTEND_URL:https://mariaplus-web.vercel.app}
 
   upload:
     dir: ${UPLOAD_DIR:}

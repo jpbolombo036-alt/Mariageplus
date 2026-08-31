@@ -48,6 +48,16 @@ public class InvitationMailService {
     @Value("${app.frontend.url:http://localhost:3000}")
     private String frontendUrl;
 
+    @jakarta.annotation.PostConstruct
+    void warnIfLocalFrontendUrl() {
+        if (frontendUrl != null && frontendUrl.contains("localhost")) {
+            log.warn("app.frontend.url pointe vers localhost ({}). Les liens d'invitation envoyés aux "
+                    + "invités ne fonctionneront pas hors de cette machine. Définissez FRONTEND_URL avec "
+                    + "l'URL publique du front (ex. https://mariaplus-web.vercel.app) en production.",
+                    frontendUrl);
+        }
+    }
+
     public boolean isConfigured() {
         return StringUtils.hasText(smtpUsername) && StringUtils.hasText(smtpPassword);
     }

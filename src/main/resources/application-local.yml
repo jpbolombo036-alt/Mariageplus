@@ -29,6 +29,10 @@ app:
     secret: local-mariageplus-secret-key-32bytes-minimum!!
     expiration: 900000
     refresh-expiration: 604800000
+  frontend:
+    # En local, les liens d'invitation pointent vers le front de dev.
+    # (La prod utilise FRONTEND_URL / https://mariaplus-web.vercel.app par défaut.)
+    url: ${FRONTEND_URL:http://localhost:3000}
   invitation:
     max-reminders: 3
     reminder-enabled: ${INVITATION_REMINDER_ENABLED:false}
