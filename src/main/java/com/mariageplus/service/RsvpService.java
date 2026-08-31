@@ -131,6 +131,7 @@ public class RsvpService {
                 .status(invitation.getStatus().name())
                 .rsvpStatus(rsvp != null ? rsvp.getStatus().name() : null)
                 .rsvpNumberOfAttendees(rsvp != null ? rsvp.getNumberOfAttendees() : null)
+                .publicToken(invitation.getPublicToken())
                 .build();
     }
 
