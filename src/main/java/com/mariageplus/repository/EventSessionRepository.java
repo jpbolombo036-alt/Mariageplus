@@ -24,5 +24,13 @@ public interface EventSessionRepository extends JpaRepository<EventSession, Long
 
     Optional<EventSession> findByIdAndEventId(Long id, Long eventId);
 
+    /**
+     * Prochaine session à venir d'un événement (sessionDate >= date fournie),
+     * triée par date puis heure de début — pour la carte « Prochain événement ».
+     * Le filtre deleted_at IS NULL est appliqué par @SQLRestriction de BaseEntity.
+     */
+    Optional<EventSession> findFirstByEventIdAndSessionDateGreaterThanEqualOrderBySessionDateAscStartTimeAscIdAsc(
+            Long eventId, java.time.LocalDate date);
+
     void deleteByEventId(Long eventId);
 }

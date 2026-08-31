@@ -1,15 +1,21 @@
 package com.mariageplus.service;
 
 import com.mariageplus.dto.dashboard.AttendanceStatisticsResponse;
+import com.mariageplus.dto.dashboard.ActivityItemResponse;
 import com.mariageplus.dto.dashboard.CategoryStatisticsResponse;
 import com.mariageplus.dto.dashboard.GuestStatisticsResponse;
 import com.mariageplus.dto.dashboard.InvitationStatisticsResponse;
 import com.mariageplus.dto.dashboard.TableStatisticsResponse;
+import com.mariageplus.dto.dashboard.UpcomingSessionResponse;
 import com.mariageplus.dto.dashboard.WeddingDashboardResponse;
+import com.mariageplus.entity.AuditLog;
+import com.mariageplus.entity.EventSession;
 import com.mariageplus.entity.GuestCategory;
 import com.mariageplus.entity.RsvpStatus;
 import com.mariageplus.entity.Event;
+import com.mariageplus.repository.AuditLogRepository;
 import com.mariageplus.repository.CheckInRepository;
+import com.mariageplus.repository.EventSessionRepository;
 import com.mariageplus.repository.GuestCategoryRepository;
 import com.mariageplus.repository.GuestRepository;
 import com.mariageplus.repository.InvitationRepository;
@@ -18,9 +24,12 @@ import com.mariageplus.repository.TableAssignmentRepository;
 import com.mariageplus.repository.WeddingTableRepository;
 import com.mariageplus.security.SecurityUtils;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -47,6 +56,8 @@ public class WeddingDashboardService {
     private final WeddingTableRepository weddingTableRepository;
     private final TableAssignmentRepository tableAssignmentRepository;
     private final GuestCategoryRepository guestCategoryRepository;
+    private final EventSessionRepository eventSessionRepository;
+    private final AuditLogRepository auditLogRepository;
     private final EventService eventService;
     private final SecurityUtils securityUtils;
 
@@ -156,6 +167,68 @@ public class WeddingDashboardService {
                 .pending(pending)
                 .expectedAttendees(expected)
                 .build();
+    }
+
+    /**
+     * Prochaine session (sous-étape) à venir de l'événement — carte
+     * « Prochain événement » du dashboard. Données réelles : event_sessions
+     * (sessionDate >= aujourd'hui) + invités attendus (RSVP acceptés).
+     *
+     * @return null si aucune session à venir (le contrôleur renverra 204).
+     */
+    @Transactional(readOnly = true)
+    public UpcomingSessionResponse getUpcomingSession(Long weddingId) {
+        securityUtils.assertPermission("DASHBOARD_VIEW");
+        eventService.loadInOrgScope(weddingId);
+
+        LocalDate today = LocalDate.now();
+        EventSession session = eventSessionRepository
+                .findFirstByEventIdAndSessionDateGreaterThanEqualOrderBySessionDateAscStartTimeAscIdAsc(weddingId, today)
+                .orElse(null);
+        if (session == null) {
+            return null;
+        }
+
+        long expected = rsvpRepository.sumAcceptedAttendeesByWedding(weddingId);
+        return UpcomingSessionResponse.builder()
+                .id(session.getId())
+                .name(session.getName())
+                .type(session.getType() == null ? null : session.getType().name())
+                .sessionDate(session.getSessionDate())
+                .startTime(session.getStartTime())
+                .endTime(session.getEndTime())
+                .venueName(session.getVenueName())
+                .city(session.getCity())
+                .expectedAttendees(expected)
+                .build();
+    }
+
+    /**
+     * Activité récente de l'organisation de l'événement — carte
+     * « Activité récente » du dashboard. Source de vérité : les traces
+     * d'audit réelles (audit_logs), les plus récentes d'abord.
+     */
+    @Transactional(readOnly = true)
+    public List<ActivityItemResponse> getRecentActivity(Long weddingId, int limit) {
+        securityUtils.assertPermission("DASHBOARD_VIEW");
+        Event event = eventService.loadInOrgScope(weddingId);
+
+        int safeLimit = Math.min(Math.max(limit, 1), 50);
+        List<AuditLog> logs = auditLogRepository.findByOrganizationId(
+                event.getOrganizationId(),
+                PageRequest.of(0, safeLimit, Sort.by(Sort.Direction.DESC, "performedAt")));
+
+        return logs.stream()
+                .map(a -> ActivityItemResponse.builder()
+                        .id(a.getId())
+                        .action(a.getAction())
+                        .entityType(a.getEntityType())
+                        .entityId(a.getEntityId())
+                        .details(a.getDetails())
+                        .performedAt(a.getPerformedAt())
+                        .userId(a.getUserId())
+                        .build())
+                .collect(Collectors.toList());
     }
 
     private double round2(double value) {
