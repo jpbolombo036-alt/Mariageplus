@@ -24,4 +24,9 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
     int sumCheckedInByWedding(@Param("weddingId") Long weddingId);
 
     List<CheckIn> findByInvitationId(Long invitationId);
+
+    @Query("select c from CheckIn c where c.deletedAt is null and c.invitationId in " +
+            "(select i.id from Invitation i where i.weddingId = :weddingId) " +
+            "order by c.checkedInAt desc")
+    List<CheckIn> findByWeddingIdOrderByCheckedInAtDesc(@Param("weddingId") Long weddingId);
 }

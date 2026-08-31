@@ -1,5 +1,6 @@
 package com.mariageplus.controller;
 
+import com.mariageplus.dto.checkin.CheckInListItemResponse;
 import com.mariageplus.dto.checkin.CheckInRequest;
 import com.mariageplus.dto.checkin.CheckInResponse;
 import com.mariageplus.dto.checkin.CheckInScanResponse;
@@ -12,6 +13,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 /**
  * Check-in : scan QR (état) et enregistrement d'entrées. Accessible aux agents
@@ -42,5 +45,11 @@ public class CheckInController {
     public ResponseEntity<Void> cancel(@PathVariable Long checkInId) {
         checkInService.cancel(checkInId);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/event/{weddingId}")
+    @Operation(summary = "Liste des invités présents dans la salle (avec boisson et table)")
+    public ResponseEntity<List<CheckInListItemResponse>> listPresent(@PathVariable Long weddingId) {
+        return ResponseEntity.ok(checkInService.listPresent(weddingId));
     }
 }

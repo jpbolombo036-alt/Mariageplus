@@ -1,5 +1,6 @@
 package com.mariageplus.service;
 
+import com.mariageplus.dto.checkin.CheckInListItemResponse;
 import com.mariageplus.dto.checkin.CheckInRequest;
 import com.mariageplus.dto.checkin.CheckInResponse;
 import com.mariageplus.dto.checkin.CheckInScanResponse;
@@ -25,6 +26,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Module check-in (Étape 7). Trois valeurs distinctes, jamais confondues :
@@ -242,5 +248,50 @@ public class CheckInService {
 
     private String tableName(Invitation invitation) {
         return tableAssignmentRepository.findTableNameByGuestId(invitation.getGuestId()).orElse(null);
+    }
+
+    /**
+     * Liste des invités présents dans la salle pour un événement : agrégat par
+     * invitation (somme des entrées, dernier horodatage) avec nom, table et
+     * boisson choisie au RSVP. Isolation : permission + accès événement/organisation.
+     */
+    @Transactional(readOnly = true)
+    public List<CheckInListItemResponse> listPresent(Long weddingId) {
+        securityUtils.assertPermission("CHECKIN_SCAN");
+        Event event = eventRepository.findById(weddingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Mariage introuvable"));
+        securityUtils.assertWeddingAccess(event.getId());
+        securityUtils.assertOrganizationAccess(event.getOrganizationId());
+
+        Map<Long, List<CheckIn>> byInvitation = checkInRepository
+                .findByWeddingIdOrderByCheckedInAtDesc(weddingId).stream()
+                .collect(Collectors.groupingBy(CheckIn::getInvitationId));
+
+        List<CheckInListItemResponse> items = new ArrayList<>();
+        for (Map.Entry<Long, List<CheckIn>> e : byInvitation.entrySet()) {
+            Invitation invitation = invitationRepository.findById(e.getKey()).orElse(null);
+            if (invitation == null) {
+                continue;
+            }
+            List<CheckIn> entries = e.getValue();
+            int attendees = entries.stream().mapToInt(CheckIn::getNumberOfAttendees).sum();
+            LocalDateTime lastAt = entries.stream()
+                    .map(CheckIn::getCheckedInAt)
+                    .max(LocalDateTime::compareTo)
+                    .orElse(null);
+            Rsvp rsvp = loadRsvp(invitation);
+            items.add(CheckInListItemResponse.builder()
+                    .invitationId(invitation.getId())
+                    .guestId(invitation.getGuestId())
+                    .guestName(guestName(invitation))
+                    .numberOfAttendees(attendees)
+                    .lastCheckedInAt(lastAt)
+                    .tableName(tableName(invitation))
+                    .drinkChoice(rsvp == null ? null : rsvp.getDrinkChoice())
+                    .build());
+        }
+        items.sort(Comparator.comparing(CheckInListItemResponse::getLastCheckedInAt,
+                Comparator.nullsLast(Comparator.reverseOrder())));
+        return items;
     }
 }
