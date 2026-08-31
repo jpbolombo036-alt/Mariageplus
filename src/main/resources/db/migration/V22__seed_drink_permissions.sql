@@ -3,11 +3,11 @@
 -- ============================================================
 
 INSERT INTO permissions (code, libelle, categorie, created_at, updated_at)
-SELECT * FROM (
-    SELECT 'DRINK_VIEW', 'Voir les boissons', 'DRINKS', NOW() AS created_at, NOW() AS updated_at
-    UNION ALL SELECT 'DRINK_CREATE', 'Créer des boissons', 'DRINKS', NOW() AS created_at, NOW() AS updated_at
-    UNION ALL SELECT 'DRINK_UPDATE', 'Modifier des boissons', 'DRINKS', NOW() AS created_at, NOW() AS updated_at
-    UNION ALL SELECT 'DRINK_DELETE', 'Supprimer des boissons', 'DRINKS', NOW() AS created_at, NOW() AS updated_at
+SELECT v.code, v.libelle, v.categorie, v.created_at, v.updated_at FROM (
+    SELECT 'DRINK_VIEW' AS code, 'Voir les boissons' AS libelle, 'DRINKS' AS categorie, NOW() AS created_at, NOW() AS updated_at
+    UNION ALL SELECT 'DRINK_CREATE', 'Créer des boissons', 'DRINKS', NOW(), NOW()
+    UNION ALL SELECT 'DRINK_UPDATE', 'Modifier des boissons', 'DRINKS', NOW(), NOW()
+    UNION ALL SELECT 'DRINK_DELETE', 'Supprimer des boissons', 'DRINKS', NOW(), NOW()
 ) AS v
 WHERE NOT EXISTS (SELECT 1 FROM permissions WHERE code IN ('DRINK_VIEW', 'DRINK_CREATE', 'DRINK_UPDATE', 'DRINK_DELETE'));
 
