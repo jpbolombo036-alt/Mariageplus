@@ -35,4 +35,9 @@ public class CheckInScanResponse {
     private String invitationCode;
     private boolean hasCard;
     private LocalDateTime checkedInAt;
+
+    // Contexte événement (affichage agent : QUEL ÉVÉNEMENT / QUAND / OÙ)
+    private String eventDate;
+    private String eventTime;
+    private String eventVenue;
 }

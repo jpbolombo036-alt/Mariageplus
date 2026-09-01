@@ -66,6 +66,10 @@ public class CheckInService {
     private final AuditService auditService;
     private final StorageService storageService;
 
+    /** Formats français pour l'affichage agent (date / heure de l'événement). */
+    private static final DateTimeFormatter DATE_FR = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.FRENCH);
+    private static final DateTimeFormatter TIME_FR = DateTimeFormatter.ofPattern("HH:mm");
+
     /** Scan : résout le QR et retourne l'état (sans inscription). */
     public CheckInScanResponse scan(ScanCheckInRequest request) {
         securityUtils.assertPermission("CHECKIN_SCAN");
@@ -237,6 +241,9 @@ public class CheckInService {
                 .invitationCode(invitation.getInvitationCode())
                 .hasCard(hasCard(invitation))
                 .checkedInAt(lastCheckIn == null ? null : lastCheckIn.getCheckedInAt())
+                .eventDate(wedding.getEventDate() != null ? DATE_FR.format(wedding.getEventDate()) : null)
+                .eventTime(wedding.getStartTime() != null ? TIME_FR.format(wedding.getStartTime()) : null)
+                .eventVenue(venueOf(wedding))
                 .build();
     }
 
@@ -259,6 +266,9 @@ public class CheckInService {
                 .publicToken(invitation.getPublicToken())
                 .invitationCode(invitation.getInvitationCode())
                 .hasCard(hasCard(invitation))
+                .eventDate(wedding.getEventDate() != null ? DATE_FR.format(wedding.getEventDate()) : null)
+                .eventTime(wedding.getStartTime() != null ? TIME_FR.format(wedding.getStartTime()) : null)
+                .eventVenue(venueOf(wedding))
                 .build();
     }
 
@@ -339,9 +349,6 @@ public class CheckInService {
         // 2. Recherche par fragment de code d'invitation
         invitationRepository.findByWeddingIdAndInvitationCodeContainingIgnoreCase(weddingId, q)
                 .forEach(inv -> byGuest.putIfAbsent(inv.getGuestId(), inv));
-
-        DateTimeFormatter DATE_FR = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.FRENCH);
-        DateTimeFormatter TIME_FR = DateTimeFormatter.ofPattern("HH:mm");
 
         List<CheckInSearchItemResponse> items = new ArrayList<>();
         for (Invitation invitation : byGuest.values()) {

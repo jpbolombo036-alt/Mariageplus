@@ -33,4 +33,9 @@ public class CheckInResponse {
     private String publicToken;
     private String invitationCode;
     private boolean hasCard;
+
+    // Contexte événement (affichage agent)
+    private String eventDate;
+    private String eventTime;
+    private String eventVenue;
 }
