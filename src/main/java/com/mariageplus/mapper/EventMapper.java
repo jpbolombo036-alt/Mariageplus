@@ -25,13 +25,23 @@ public interface EventMapper {
 
     default EventResponse toResponse(Event event, WeddingDetails details, List<EventSession> sessions) {
         EventResponse response = toResponse(event);
-        response.setWeddingDetails(details == null ? null : toDetailsResponse(details));
+        response.setWeddingDetails(details == null ? null : toDetailsResponse(event.getId(), details));
         response.setSessions(sessions == null ? null : toSessionResponseList(sessions));
         return response;
     }
 
     @Mapping(target = "displayName", expression = "java(details.getDisplayName())")
-    WeddingDetailsResponse toDetailsResponse(WeddingDetails details);
+    @Mapping(target = "groomPhotoUrl", expression = "java(resolvePhotoUrl(eventId, details.getGroomPhotoUrl(), \"groom\"))")
+    @Mapping(target = "bridePhotoUrl", expression = "java(resolvePhotoUrl(eventId, details.getBridePhotoUrl(), \"bride\"))")
+    @Mapping(target = "couplePhotoUrl", expression = "java(resolvePhotoUrl(eventId, details.getCouplePhotoUrl(), \"couple\"))")
+    WeddingDetailsResponse toDetailsResponse(Long eventId, WeddingDetails details);
+
+    /** Transforme une clé S3 stockée en URL d'API affichable (les URL http restent telles quelles). */
+    default String resolvePhotoUrl(Long eventId, String stored, String kind) {
+        if (stored == null || stored.isBlank()) return null;
+        if (stored.startsWith("http://") || stored.startsWith("https://")) return stored;
+        return eventId == null ? null : "/api/events/" + eventId + "/photos/" + kind;
+    }
 
     @Mapping(target = "type", expression = "java(session.getType() == null ? null : session.getType().name())")
     EventSessionResponse toSessionResponse(EventSession session);
