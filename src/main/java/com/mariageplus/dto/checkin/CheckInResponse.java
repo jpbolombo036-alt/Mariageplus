@@ -30,4 +30,7 @@ public class CheckInResponse {
     private int remainingAttendees;
     private String tableName;
     private String drinkChoice;
+    private String publicToken;
+    private String invitationCode;
+    private boolean hasCard;
 }

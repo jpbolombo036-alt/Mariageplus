@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Repository des check-ins. La somme des présences d'une invitation est calculée
@@ -29,4 +30,7 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
             "(select i.id from Invitation i where i.weddingId = :weddingId) " +
             "order by c.checkedInAt desc")
     List<CheckIn> findByWeddingIdOrderByCheckedInAtDesc(@Param("weddingId") Long weddingId);
+
+    /** Dernier check-in d'une invitation (horodatage affiché à l'agent d'accueil). */
+    Optional<CheckIn> findTopByInvitationIdOrderByCheckedInAtDesc(Long invitationId);
 }

@@ -4,6 +4,7 @@ import com.mariageplus.dto.checkin.CheckInListItemResponse;
 import com.mariageplus.dto.checkin.CheckInRequest;
 import com.mariageplus.dto.checkin.CheckInResponse;
 import com.mariageplus.dto.checkin.CheckInScanResponse;
+import com.mariageplus.dto.checkin.CheckInSearchItemResponse;
 import com.mariageplus.dto.checkin.ScanCheckInRequest;
 import com.mariageplus.entity.CheckIn;
 import com.mariageplus.entity.Guest;
@@ -22,13 +23,17 @@ import com.mariageplus.repository.TableAssignmentRepository;
 import com.mariageplus.repository.EventRepository;
 import com.mariageplus.security.SecurityUtils;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -59,6 +64,7 @@ public class CheckInService {
     private final TableAssignmentRepository tableAssignmentRepository;
     private final SecurityUtils securityUtils;
     private final AuditService auditService;
+    private final StorageService storageService;
 
     /** Scan : résout le QR et retourne l'état (sans inscription). */
     public CheckInScanResponse scan(ScanCheckInRequest request) {
@@ -76,7 +82,9 @@ public class CheckInService {
                 && rsvp.getStatus() == RsvpStatus.ACCEPTED
                 && expected > 0
                 && remaining > 0;
-        return toScanResponse(invitation, event, rsvp, expected, checkedIn, remaining, canCheckIn);
+        CheckIn lastCheckIn = checkInRepository
+                .findTopByInvitationIdOrderByCheckedInAtDesc(invitation.getId()).orElse(null);
+        return toScanResponse(invitation, event, rsvp, expected, checkedIn, remaining, canCheckIn, lastCheckIn);
     }
 
     /** Check-in : enregistre une entrée dans la limite du RSVP (verrou pessimiste). */
@@ -212,7 +220,8 @@ public class CheckInService {
     }
 
     private CheckInScanResponse toScanResponse(Invitation invitation, Event wedding, Rsvp rsvp,
-                                               int expected, int checkedIn, int remaining, boolean canCheckIn) {
+                                               int expected, int checkedIn, int remaining, boolean canCheckIn,
+                                               CheckIn lastCheckIn) {
         return CheckInScanResponse.builder()
                 .guestName(guestName(invitation))
                 .weddingDisplayName(wedding.getName())
@@ -224,6 +233,10 @@ public class CheckInService {
                 .canCheckIn(canCheckIn)
                 .tableName(tableName(invitation))
                 .drinkChoice(rsvp == null ? null : rsvp.getDrinkChoice())
+                .publicToken(invitation.getPublicToken())
+                .invitationCode(invitation.getInvitationCode())
+                .hasCard(hasCard(invitation))
+                .checkedInAt(lastCheckIn == null ? null : lastCheckIn.getCheckedInAt())
                 .build();
     }
 
@@ -243,6 +256,9 @@ public class CheckInService {
                 .remainingAttendees(remaining)
                 .tableName(tableName(invitation))
                 .drinkChoice(rsvp == null ? null : rsvp.getDrinkChoice())
+                .publicToken(invitation.getPublicToken())
+                .invitationCode(invitation.getInvitationCode())
+                .hasCard(hasCard(invitation))
                 .build();
     }
 
@@ -293,5 +309,96 @@ public class CheckInService {
         items.sort(Comparator.comparing(CheckInListItemResponse::getLastCheckedInAt,
                 Comparator.nullsLast(Comparator.reverseOrder())));
         return items;
+    }
+
+    /**
+     * Recherche invité pour l'agent d'accueil : nom, prénom, téléphone, email ou
+     * code d'invitation. Retourne l'état invitation + RSVP + check-in de chaque
+     * résultat (max 20), avec le publicToken (donnée publique) permettant
+     * d'afficher la carte d'invitation confirmée enregistrée. Isolation :
+     * permission + accès événement/organisation.
+     */
+    @Transactional(readOnly = true)
+    public List<CheckInSearchItemResponse> searchGuests(Long weddingId, String query) {
+        securityUtils.assertPermission("CHECKIN_SCAN");
+        Event event = eventRepository.findById(weddingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Mariage introuvable"));
+        securityUtils.assertWeddingAccess(event.getId());
+        securityUtils.assertOrganizationAccess(event.getOrganizationId());
+
+        String q = query == null ? "" : query.trim();
+        if (q.length() < 2) {
+            return List.of();
+        }
+
+        Map<Long, Invitation> byGuest = new LinkedHashMap<>();
+        // 1. Recherche par nom / prénom / téléphone / email
+        guestRepository.searchByWeddingIdAndQuery(weddingId, q, PageRequest.of(0, 20)).forEach(g ->
+                invitationRepository.findByGuestIdAndWeddingId(g.getId(), weddingId)
+                        .ifPresent(inv -> byGuest.put(g.getId(), inv)));
+        // 2. Recherche par fragment de code d'invitation
+        invitationRepository.findByWeddingIdAndInvitationCodeContainingIgnoreCase(weddingId, q)
+                .forEach(inv -> byGuest.putIfAbsent(inv.getGuestId(), inv));
+
+        DateTimeFormatter DATE_FR = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.FRENCH);
+        DateTimeFormatter TIME_FR = DateTimeFormatter.ofPattern("HH:mm");
+
+        List<CheckInSearchItemResponse> items = new ArrayList<>();
+        for (Invitation invitation : byGuest.values()) {
+            if (items.size() >= 20) {
+                break;
+            }
+            Guest guest = guestRepository.findById(invitation.getGuestId()).orElse(null);
+            Rsvp rsvp = loadRsvp(invitation);
+            int expected = expectedAttendees(rsvp);
+            int checkedIn = checkInRepository.sumByInvitationId(invitation.getId());
+            int remaining = Math.max(0, expected - checkedIn);
+            boolean canCheckIn = rsvp != null
+                    && rsvp.getStatus() == RsvpStatus.ACCEPTED
+                    && expected > 0
+                    && remaining > 0;
+            CheckIn lastCheckIn = checkInRepository
+                    .findTopByInvitationIdOrderByCheckedInAtDesc(invitation.getId()).orElse(null);
+            items.add(CheckInSearchItemResponse.builder()
+                    .guestName(guestName(invitation))
+                    .phone(guest == null ? null : guest.getPhone())
+                    .invitationCode(invitation.getInvitationCode())
+                    .invitationStatus(invitation.getStatus().name())
+                    .rsvpStatus(rsvp == null ? null : rsvp.getStatus().name())
+                    .expectedAttendees(expected)
+                    .checkedInAttendees(checkedIn)
+                    .remainingAttendees(remaining)
+                    .canCheckIn(canCheckIn)
+                    .checkedInAt(lastCheckIn == null ? null : lastCheckIn.getCheckedInAt())
+                    .tableName(tableName(invitation))
+                    .drinkChoice(rsvp == null ? null : rsvp.getDrinkChoice())
+                    .publicToken(invitation.getPublicToken())
+                    .hasCard(hasCard(invitation))
+                    .eventName(event.getName())
+                    .eventDate(event.getEventDate() != null ? DATE_FR.format(event.getEventDate()) : null)
+                    .eventTime(event.getStartTime() != null ? TIME_FR.format(event.getStartTime()) : null)
+                    .eventVenue(venueOf(event))
+                    .build());
+        }
+        return items;
+    }
+
+    private boolean hasCard(Invitation invitation) {
+        return (invitation.getCardKey() != null && storageService.isEnabled())
+                || (invitation.getCardImage() != null && invitation.getCardImage().length > 0);
+    }
+
+    private String venueOf(Event event) {
+        StringBuilder sb = new StringBuilder();
+        if (event.getVenueName() != null && !event.getVenueName().isBlank()) {
+            sb.append(event.getVenueName());
+        }
+        if (event.getCity() != null && !event.getCity().isBlank()) {
+            if (sb.length() > 0) {
+                sb.append(", ");
+            }
+            sb.append(event.getCity());
+        }
+        return sb.length() > 0 ? sb.toString() : null;
     }
 }

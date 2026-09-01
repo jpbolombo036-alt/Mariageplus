@@ -4,6 +4,7 @@ import com.mariageplus.dto.checkin.CheckInListItemResponse;
 import com.mariageplus.dto.checkin.CheckInRequest;
 import com.mariageplus.dto.checkin.CheckInResponse;
 import com.mariageplus.dto.checkin.CheckInScanResponse;
+import com.mariageplus.dto.checkin.CheckInSearchItemResponse;
 import com.mariageplus.dto.checkin.ScanCheckInRequest;
 import com.mariageplus.service.CheckInService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -51,5 +52,12 @@ public class CheckInController {
     @Operation(summary = "Liste des invités présents dans la salle (avec boisson et table)")
     public ResponseEntity<List<CheckInListItemResponse>> listPresent(@PathVariable Long weddingId) {
         return ResponseEntity.ok(checkInService.listPresent(weddingId));
+    }
+
+    @GetMapping("/event/{weddingId}/search")
+    @Operation(summary = "Recherche invité pour l'agent d'accueil (nom, téléphone, email, code d'invitation)")
+    public ResponseEntity<List<CheckInSearchItemResponse>> searchGuests(@PathVariable Long weddingId,
+                                                                        @RequestParam("q") String q) {
+        return ResponseEntity.ok(checkInService.searchGuests(weddingId, q));
     }
 }

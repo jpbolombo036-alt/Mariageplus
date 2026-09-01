@@ -58,4 +58,11 @@ public class Invitation extends BaseEntity {
     /** Première ouverture du lien public (suivi). Null tant que l'invité n'a pas ouvert. */
     @Column(name = "opened_at")
     private LocalDateTime openedAt;
+
+    /** Carte d'invitation confirmée (PNG généré côté invité) : clé objet S3 (prioritaire) / fallback en base. */
+    @Column(name = "card_key", length = 500)
+    private String cardKey;
+
+    @Column(name = "card_image")
+    private byte[] cardImage;
 }

@@ -73,4 +73,10 @@ public interface InvitationRepository extends JpaRepository<Invitation, Long> {
 
     /** Compte les invitations NON supprimées d'un invité (filtre soft-delete). */
     boolean existsByGuestId(Long guestId);
+
+    /** Invitation d'un invité pour un mariage donné (recherche agent d'accueil). */
+    Optional<Invitation> findByGuestIdAndWeddingId(Long guestId, Long weddingId);
+
+    /** Recherche par fragment de code d'invitation (recherche agent d'accueil). */
+    List<Invitation> findByWeddingIdAndInvitationCodeContainingIgnoreCase(Long weddingId, String code);
 }
