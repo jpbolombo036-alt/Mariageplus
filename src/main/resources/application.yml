@@ -83,6 +83,12 @@ app:
     reminder-days-before: ${INVITATION_REMINDER_DAYS_BEFORE:7}
     reminder-cron: ${INVITATION_REMINDER_CRON:0 0 8 * * *}
 
+  event:
+    # Cycle de vie automatique des événements passés (désactivé par défaut).
+    # Quand la date est dépassée : PUBLISHED -> ACTIVE (jour J), ACTIVE -> COMPLETED.
+    autocomplete-enabled: ${EVENT_AUTOCOMPLETE_ENABLED:false}
+    autocomplete-cron: ${EVENT_AUTOCOMPLETE_CRON:0 15 0 * * *}
+
   admin:
     init-enabled: ${ADMIN_INIT_ENABLED:false}
     init-email: ${ADMIN_INIT_EMAIL:}
