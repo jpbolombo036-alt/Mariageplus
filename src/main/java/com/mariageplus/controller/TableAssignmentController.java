@@ -10,16 +10,24 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 /**
- * Déplacement et retrait des affectations table/invité.
+ * Consultation, déplacement et retrait des affectations table/invité.
  */
 @RestController
 @RequestMapping({"/api/weddings/{weddingId}/assignments", "/api/events/{weddingId}/assignments"})
 @RequiredArgsConstructor
-@Tag(name = "Affectations de tables", description = "Déplacer ou retirer un invité d'une table")
+@Tag(name = "Affectations de tables", description = "Consulter, déplacer ou retirer un invité d'une table")
 public class TableAssignmentController {
 
     private final WeddingTableService weddingTableService;
+
+    @GetMapping
+    @Operation(summary = "Liste des affectations table/invité d'un mariage")
+    public ResponseEntity<List<TableAssignmentResponse>> list(@PathVariable Long weddingId) {
+        return ResponseEntity.ok(weddingTableService.listAssignments(weddingId));
+    }
 
     @PutMapping("/{assignmentId}")
     @Operation(summary = "Déplacer un invité vers une autre table")

@@ -21,6 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -196,6 +197,24 @@ public class WeddingTableService {
         tableAssignmentRepository.delete(assignment);
         auditService.record("TABLE_UNASSIGN", assignmentId, "TableAssignment",
                 securityUtils.getCurrentUserId(), event.getOrganizationId(), "Retrait d'un invité d'une table");
+    }
+
+    /**
+     * Liste toutes les affectations d'un mariage (au plus une par invité), avec le
+     * nom de l'invité et de la table résolus par le backend.
+     */
+    public List<TableAssignmentResponse> listAssignments(Long weddingId) {
+        securityUtils.assertPermission("TABLE_VIEW");
+        eventService.loadInOrgScope(weddingId);
+        Map<Long, WeddingTable> tables = weddingTableRepository.findByWeddingId(weddingId).stream()
+                .collect(Collectors.toMap(WeddingTable::getId, t -> t));
+        Map<Long, Guest> guests = guestRepository.findByWeddingId(weddingId).stream()
+                .collect(Collectors.toMap(Guest::getId, g -> g));
+        return tableAssignmentRepository.findAllByWeddingId(weddingId).stream()
+                .map(a -> toAssignmentResponse(a,
+                        guests.get(a.getGuestId()),
+                        tables.get(a.getWeddingTableId())))
+                .collect(Collectors.toList());
     }
 
     /** Sauvegarde en traduisant la contrainte UNIQUE(guest_id) en erreur métier 409. */
