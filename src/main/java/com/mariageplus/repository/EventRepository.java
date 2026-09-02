@@ -27,6 +27,11 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 
     List<Event> findByOrganizationId(Long organizationId);
 
+    /** Scoping agent : événements assignés (weddingIds) dans l'organisation courante. */
+    Page<Event> findByOrganizationIdAndIdIn(Long organizationId, Collection<Long> ids, Pageable pageable);
+
+    Page<Event> findByOrganizationIdAndTypeAndIdIn(Long organizationId, EventType type, Collection<Long> ids, Pageable pageable);
+
     /** Événements dans un statut donné dont la date est strictement antérieure à aujourd'hui. */
     List<Event> findByStatusInAndEventDateBefore(Collection<EventStatus> statuses, LocalDate date);
 }

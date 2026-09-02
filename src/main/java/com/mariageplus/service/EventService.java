@@ -19,6 +19,7 @@ import com.mariageplus.repository.WeddingDetailsRepository;
 import com.mariageplus.security.SecurityUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -120,6 +121,18 @@ public class EventService {
             eventPage = (type == null)
                     ? eventRepository.findAll(pageable)
                     : eventRepository.findByType(type, pageable);
+        } else if (securityUtils.isAgentRole()) {
+            // Scoping agent : GESTIONNAIRE_INVITES / AGENT_ACCUEIL ne voient QUE les
+            // événements qui leur sont assignés (weddingIds), pas toute l'organisation.
+            List<Long> scopedIds = securityUtils.getCurrentWeddingIds();
+            if (scopedIds.isEmpty()) {
+                eventPage = new PageImpl<>(List.of(), pageable, 0);
+            } else {
+                Long organizationId = securityUtils.requireOrganizationId();
+                eventPage = (type == null)
+                        ? eventRepository.findByOrganizationIdAndIdIn(organizationId, scopedIds, pageable)
+                        : eventRepository.findByOrganizationIdAndTypeAndIdIn(organizationId, type, scopedIds, pageable);
+            }
         } else {
             Long organizationId = securityUtils.requireOrganizationId();
             eventPage = (type == null)

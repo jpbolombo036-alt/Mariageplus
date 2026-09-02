@@ -110,9 +110,24 @@ public class SecurityUtils {
         }
     }
 
-    private boolean isAgent() {
+    public boolean isAgentRole() {
         return getCurrentRoles().stream().anyMatch(r ->
                 r.equals("GESTIONNAIRE_INVITES") || r.equals("AGENT_ACCUEIL"));
+    }
+
+    /**
+     * Identifiants des événements assignés à l'utilisateur connecté (scoping agent).
+     * Vide pour SUPER_ADMIN / ORGANISATEUR (accès org-wide).
+     */
+    public List<Long> getCurrentWeddingIds() {
+        UserPrincipal principal = currentPrincipal();
+        return principal != null && principal.getWeddingIds() != null
+                ? principal.getWeddingIds()
+                : List.of();
+    }
+
+    private boolean isAgent() {
+        return isAgentRole();
     }
 
     private UserPrincipal currentPrincipal() {
