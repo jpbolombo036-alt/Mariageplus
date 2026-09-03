@@ -15,7 +15,7 @@ public class OpenApiConfig {
         final String schemeName = "bearerAuth";
         return new OpenAPI()
                 .info(new Info()
-                        .title("MariagePlus")
+                        .title("EventiaEasy")
                         .description("Backend")
                         .version("1.0.0"))
                 .addSecurityItem(new SecurityRequirement().addList(schemeName))

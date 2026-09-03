@@ -14,7 +14,7 @@
     <groupId>com.mariageplus</groupId>
     <artifactId>mariageplus-backend</artifactId>
     <version>1.0.0</version>
-    <name>MariagePlus</name>
+    <name>EventiaEasy</name>
     <description>Plateforme de gestion des mariages et invitations</description>
 
     <properties>

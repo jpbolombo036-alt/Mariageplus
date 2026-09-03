@@ -169,7 +169,7 @@ public class ExportService {
         Font titleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 18);
         Font headingFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 14);
 
-        document.add(new Paragraph("MariagePlus - Rapport", titleFont));
+        document.add(new Paragraph("EventiaEasy - Rapport", titleFont));
         document.add(new Paragraph("Mariage : " + dashboard.getWeddingName(), headingFont));
         document.add(new Paragraph(" "));
 

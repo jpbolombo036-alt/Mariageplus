@@ -73,7 +73,7 @@ public class DataInitializer implements CommandLineRunner {
         }
         User user = User.builder()
                 .firstName("Admin")
-                .lastName("MariagePlus")
+                .lastName("EventiaEasy")
                 .email(adminEmail)
                 .passwordHash(passwordEncoder.encode(adminPassword))
                 .active(true)
