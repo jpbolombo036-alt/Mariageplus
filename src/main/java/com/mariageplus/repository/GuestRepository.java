@@ -21,6 +21,8 @@ public interface GuestRepository extends JpaRepository<Guest, Long> {
 
     List<Guest> findByWeddingId(Long weddingId);
 
+    List<Guest> findByWeddingIdAndCategoryId(Long weddingId, Long categoryId);
+
     Optional<Guest> findByIdAndWeddingId(Long id, Long weddingId);
 
     boolean existsByEmailAndWeddingId(String email, Long weddingId);

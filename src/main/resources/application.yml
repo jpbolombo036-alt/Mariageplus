@@ -83,10 +83,27 @@ app:
     reminder-days-before: ${INVITATION_REMINDER_DAYS_BEFORE:7}
     reminder-cron: ${INVITATION_REMINDER_CRON:0 0 8 * * *}
 
+  whatsapp:
+    # Cloud API Meta — actif si WHATSAPP_TOKEN et WHATSAPP_PHONE_NUMBER_ID définis.
+    # Sinon l'envoi en masse est refusé (400) et le lien reste partageable à la main.
+    api-version: ${WHATSAPP_API_VERSION:v23.0}
+    token: ${WHATSAPP_TOKEN:}
+    phone-number-id: ${WHATSAPP_PHONE_NUMBER_ID:}
+    template-name: ${WHATSAPP_TEMPLATE_NAME:invitation_mariage}
+    template-language: ${WHATSAPP_TEMPLATE_LANGUAGE:fr}
+    # Indicatif pays par défaut pour normaliser les numéros locaux (ex : 225).
+    default-country-code: ${WHATSAPP_DEFAULT_COUNTRY_CODE:}
+    # URL publique de CETTE API (ex : https://mariageplus-prod.up.railway.app) :
+    # sert à exposer /api/events/{id}/image (en-tête du template WhatsApp).
+    public-api-base-url: ${PUBLIC_API_BASE_URL:}
+    bulk:
+      # Cadencement entre deux messages (ms) — 2000 = 30 msg/min.
+      delay-ms: ${WHATSAPP_BULK_DELAY_MS:2000}
+
   event:
     # Cycle de vie automatique des événements passés (désactivé par défaut).
     # Quand la date est dépassée : PUBLISHED -> ACTIVE (jour J), ACTIVE -> COMPLETED.
-    autocomplete-enabled: ${EVENT_AUTOCOMPLETE_ENABLED:false}
+    autocomplete-enabled: ${EVENT_AUTOCOMPLETE_ENABLED:true}
     autocomplete-cron: ${EVENT_AUTOCOMPLETE_CRON:0 15 0 * * *}
 
   admin:
@@ -96,8 +113,13 @@ app:
 
   frontend:
     # URL publique du front web (liens d'invitation email/QR, redirections RSVP).
-    # Surchargeable via la variable d'environnement FRONTEND_URL.
-    url: ${FRONTEND_URL:https://mariaplus-web.vercel.app}
+    # Surchargeable via APP_FRONTEND_URL ou FRONTEND_URL.
+    url: ${APP_FRONTEND_URL:${FRONTEND_URL:https://mariaplus-web.vercel.app}}
+
+  public:
+    # URL publique de base des liens d'invitation (PRIORITAIRE sur app.frontend.url
+    # si définie) — utile si les pages /invitations/{token} sont servies par cette API.
+    url: ${APP_PUBLIC_URL:}
 
   upload:
     dir: ${UPLOAD_DIR:}

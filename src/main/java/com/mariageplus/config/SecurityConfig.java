@@ -77,6 +77,9 @@ public class SecurityConfig {
                     auth.requestMatchers("/auth/**").permitAll();
                     auth.requestMatchers("/api/public/**").permitAll();
                     auth.requestMatchers(org.springframework.http.HttpMethod.GET, "/api/events/*/photos/*").permitAll();
+                    // Image de couverture d'événement : utilisée comme en-tête
+                    // publique des templates WhatsApp (server-to-server Meta).
+                    auth.requestMatchers(org.springframework.http.HttpMethod.GET, "/api/events/*/image").permitAll();
                     // Page web publique d'invitation (lien envoyé à l'invité).
                     auth.requestMatchers("/invitations/**").permitAll();
                     auth.requestMatchers("/health").permitAll();

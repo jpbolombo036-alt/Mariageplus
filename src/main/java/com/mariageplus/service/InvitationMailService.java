@@ -45,16 +45,23 @@ public class InvitationMailService {
     @Value("${spring.mail.from:noreply@mariageplus.local}")
     private String mailFrom;
 
-    @Value("${app.frontend.url:http://localhost:3000}")
+    @Value("${app.frontend.url:}")
     private String frontendUrl;
+
+    @Value("${app.public.url:}")
+    private String publicBaseUrl;
 
     @jakarta.annotation.PostConstruct
     void warnIfLocalFrontendUrl() {
-        if (frontendUrl != null && frontendUrl.contains("localhost")) {
+        if (StringUtils.hasText(frontendUrl) && frontendUrl.contains("localhost")) {
             log.warn("app.frontend.url pointe vers localhost ({}). Les liens d'invitation envoyés aux "
-                    + "invités ne fonctionneront pas hors de cette machine. Définissez FRONTEND_URL avec "
-                    + "l'URL publique du front (ex. https://mariaplus-web.vercel.app) en production.",
-                    frontendUrl);
+                    + "invités ne fonctionneront pas hors de cette machine. Définissez APP_PUBLIC_URL ou "
+                    + "APP_FRONTEND_URL avec l'URL publique du front (ex. https://mariageplus-web.vercel.app) "
+                    + "en production.", frontendUrl);
+        }
+        if (!StringUtils.hasText(publicBaseUrl) && !StringUtils.hasText(frontendUrl)) {
+            log.warn("Aucune URL publique configurée (APP_PUBLIC_URL ou APP_FRONTEND_URL). "
+                    + "Les liens d'invitation seront invalides.");
         }
     }
 
@@ -63,11 +70,21 @@ public class InvitationMailService {
     }
 
     public String publicInviteUrl(String publicToken) {
-        String base = frontendUrl == null ? "" : frontendUrl.trim();
+        String base = resolvePublicBaseUrl();
         if (base.endsWith("/")) {
             base = base.substring(0, base.length() - 1);
         }
         return base + "/invitations/" + publicToken;
+    }
+
+    private String resolvePublicBaseUrl() {
+        if (StringUtils.hasText(publicBaseUrl)) {
+            return publicBaseUrl.trim();
+        }
+        if (StringUtils.hasText(frontendUrl)) {
+            return frontendUrl.trim();
+        }
+        return "";
     }
 
     /**

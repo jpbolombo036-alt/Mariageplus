@@ -38,6 +38,15 @@ app:
     reminder-enabled: ${INVITATION_REMINDER_ENABLED:false}
     reminder-days-before: 7
     reminder-cron: 0 0 8 * * *
+  whatsapp:
+    # Local : non configuré par défaut (l'envoi en masse répond 400 tant que
+    # WHATSAPP_TOKEN / WHATSAPP_PHONE_NUMBER_ID ne sont pas définis).
+    template-name: invitation_mariage
+    template-language: fr
+    # Indicatif pays par défaut des invités (RDC : 243).
+    default-country-code: ${WHATSAPP_DEFAULT_COUNTRY_CODE:243}
+    bulk:
+      delay-ms: ${WHATSAPP_BULK_DELAY_MS:200}
   cors:
     allowed-origins: http://localhost:3000,http://localhost:5173,http://localhost:8080
   admin:
