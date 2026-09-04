@@ -31,6 +31,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Optional;
+import java.time.LocalDate;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -329,6 +330,25 @@ class CheckInServiceTest {
         doThrow(new SecurityException("hors périmètre")).when(securityUtils).assertOrganizationAccess(100L);
 
         assertThrows(SecurityException.class, () -> checkInService.cancel(9L));
+        verify(checkInRepository, never()).save(any(CheckIn.class));
+    }
+
+    @Test
+    void scan_expiredEvent_404() {
+        wedding.setEventDate(LocalDate.now().minusDays(1));
+        when(invitationRepository.findByPublicToken("tok")).thenReturn(Optional.of(invitation));
+        when(eventRepository.findById(1L)).thenReturn(Optional.of(wedding));
+
+        assertThrows(ResourceNotFoundException.class, () -> checkInService.scan(scanRequest()));
+    }
+
+    @Test
+    void checkIn_expiredEvent_404() {
+        wedding.setEventDate(LocalDate.now().minusDays(1));
+        when(invitationRepository.findByPublicTokenForUpdate("tok")).thenReturn(Optional.of(invitation));
+        when(eventRepository.findById(1L)).thenReturn(Optional.of(wedding));
+
+        assertThrows(ResourceNotFoundException.class, () -> checkInService.checkIn(checkInRequest(1)));
         verify(checkInRepository, never()).save(any(CheckIn.class));
     }
 }

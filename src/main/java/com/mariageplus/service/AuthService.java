@@ -152,9 +152,12 @@ public class AuthService {
         refreshTokenEntity.softDelete();
         refreshTokenRepository.save(refreshTokenEntity);
 
-        Long organizationId = organizationMemberRepository.findByUser_IdAndActiveTrue(user.getId())
-                .map(m -> m.getOrganization().getId())
-                .orElse(null);
+        Long organizationId = refreshTokenEntity.getOrganizationId();
+        if (organizationId == null) {
+            organizationId = organizationMemberRepository.findByUser_IdAndActiveTrue(user.getId())
+                    .map(m -> m.getOrganization().getId())
+                    .orElse(null);
+        }
 
         UserPrincipal principal = UserPrincipal.create(
                 user.getId(), user.getEmail(), user.getPasswordHash(),

@@ -27,6 +27,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -103,6 +104,7 @@ public class CheckInService {
         assertSameWedding(invitation, request.getWeddingId());
 
         Event event = loadWedding(invitation);
+        assertNotExpired(event);
         securityUtils.assertWeddingAccess(event.getId());
         securityUtils.assertOrganizationAccess(event.getOrganizationId());
 
@@ -181,6 +183,7 @@ public class CheckInService {
         Invitation invitation = invitationRepository.findByPublicToken(qrToken)
                 .orElseThrow(() -> new ResourceNotFoundException("Invitation introuvable"));
         assertActive(invitation);
+        assertNotExpired(eventRepository.findById(invitation.getWeddingId()).orElse(null));
         return invitation;
     }
 
@@ -196,6 +199,18 @@ public class CheckInService {
                 || invitation.getStatus() == InvitationStatus.EXPIRED) {
             throw new ResourceNotFoundException("Invitation introuvable");
         }
+    }
+
+    private void assertNotExpired(Event event) {
+        if (isEventDatePassed(event)) {
+
+            throw new ResourceNotFoundException("Invitation introuvable");
+        }
+    }
+
+    private boolean isEventDatePassed(Event event) {
+        return event != null && event.getEventDate() != null
+                && event.getEventDate().isBefore(LocalDate.now());
     }
 
     private Event loadWedding(Invitation invitation) {
@@ -363,7 +378,8 @@ public class CheckInService {
             boolean canCheckIn = rsvp != null
                     && rsvp.getStatus() == RsvpStatus.ACCEPTED
                     && expected > 0
-                    && remaining > 0;
+                    && remaining > 0
+                    && !isEventDatePassed(event);
             CheckIn lastCheckIn = checkInRepository
                     .findTopByInvitationIdOrderByCheckedInAtDesc(invitation.getId()).orElse(null);
             items.add(CheckInSearchItemResponse.builder()
