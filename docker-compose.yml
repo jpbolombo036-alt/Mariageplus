@@ -27,8 +27,8 @@ services:
       JWT_SECRET: change-this-mariageplus-secret-key-32-bytes-min
       SERVER_PORT: 8000
       # URL publique du front web (liens d'invitation envoyés aux invités)
-      FRONTEND_URL: ${FRONTEND_URL:-https://mariaplus-web.vercel.app}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://mariaplus-web.vercel.app}
+      FRONTEND_URL: ${FRONTEND_URL:-https://eventiaeasy.vercel.app}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://eventiaeasy.vercel.app}
     ports:
       - "8000:8000"
 

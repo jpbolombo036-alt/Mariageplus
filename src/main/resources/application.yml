@@ -114,7 +114,7 @@ app:
   frontend:
     # URL publique du front web (liens d'invitation email/QR, redirections RSVP).
     # Surchargeable via APP_FRONTEND_URL ou FRONTEND_URL.
-    url: ${APP_FRONTEND_URL:${FRONTEND_URL:https://mariaplus-web.vercel.app}}
+    url: ${APP_FRONTEND_URL:${FRONTEND_URL:https://eventiaeasy.vercel.app}}
 
   public:
     # URL publique de base des liens d'invitation (PRIORITAIRE sur app.frontend.url
