@@ -41,6 +41,9 @@ public class PublicInvitationResponse {
     private Integer rsvpNumberOfAttendees;
     private String rsvpDrinkChoice;
 
+    /** Choix multiples de boissons du RSVP (pré-remplissage du formulaire invité). */
+    private java.util.List<String> rsvpDrinkChoices;
+
     /** Token public de l'invitation, nécessaire pour afficher le QR code côté front. */
     private String publicToken;
 }

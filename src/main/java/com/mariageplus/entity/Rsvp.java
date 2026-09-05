@@ -38,6 +38,14 @@ public class Rsvp extends BaseEntity {
     @Column(name = "drink_choice", length = 100)
     private String drinkChoice;
 
+    /**
+     * Choix multiples de boissons (jusqu'à 3), stockés en JSON (ex. ["Coca-Cola"]).
+     * Le champ historique {@link #drinkChoice} reste alimenté (jointure des noms)
+     * pour compatibilité check-in / dashboard.
+     */
+    @Column(name = "drink_choices")
+    private String drinkChoices;
+
     @Column(name = "responded_at")
     private LocalDateTime respondedAt;
 }

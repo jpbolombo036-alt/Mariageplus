@@ -22,4 +22,7 @@ public class PublicRsvpResponse {
     private Integer numberOfAttendees;
     private LocalDateTime respondedAt;
     private String drinkChoice;
+
+    /** Choix multiples de boissons retenus (jusqu'à 3). */
+    private java.util.List<String> drinkChoices;
 }

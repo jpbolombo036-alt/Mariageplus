@@ -17,4 +17,7 @@ public class DrinkResponse {
     private String description;
     private Integer displayOrder;
     private boolean active;
+
+    /** URL publique de la photo (CDN S3 ou endpoint API) ; null si aucune. */
+    private String imageUrl;
 }

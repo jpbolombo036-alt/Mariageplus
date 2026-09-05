@@ -1,9 +1,12 @@
 package com.mariageplus.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mariageplus.dto.invitation.PublicInvitationPage;
 import com.mariageplus.dto.invitation.PublicInvitationResponse;
 import com.mariageplus.dto.rsvp.PublicRsvpResponse;
 import com.mariageplus.dto.rsvp.SubmitRsvpRequest;
+import com.mariageplus.entity.Drink;
 import com.mariageplus.entity.Guest;
 import com.mariageplus.entity.Invitation;
 import com.mariageplus.entity.Rsvp;
@@ -11,6 +14,7 @@ import com.mariageplus.entity.RsvpStatus;
 import com.mariageplus.entity.Event;
 import com.mariageplus.entity.WeddingDetails;
 import com.mariageplus.exception.ResourceNotFoundException;
+import com.mariageplus.repository.DrinkRepository;
 import com.mariageplus.repository.GuestRepository;
 import com.mariageplus.repository.RsvpRepository;
 import com.mariageplus.repository.WeddingDetailsRepository;
@@ -21,7 +25,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Module RSVP public.
@@ -40,6 +48,8 @@ public class RsvpService {
     private final GuestRepository guestRepository;
     private final EventRepository eventRepository;
     private final WeddingDetailsRepository weddingDetailsRepository;
+    private final DrinkRepository drinkRepository;
+    private final ObjectMapper objectMapper;
 
     private static final DateTimeFormatter DATE_FR =
             DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.FRENCH);
@@ -146,6 +156,7 @@ public class RsvpService {
                 .rsvpStatus(rsvp != null ? rsvp.getStatus().name() : null)
                 .rsvpNumberOfAttendees(rsvp != null ? rsvp.getNumberOfAttendees() : null)
                 .rsvpDrinkChoice(rsvp != null ? rsvp.getDrinkChoice() : null)
+                .rsvpDrinkChoices(rsvpDrinkChoices(rsvp))
                 .publicToken(invitation.getPublicToken())
                 .build();
     }
@@ -173,11 +184,13 @@ public class RsvpService {
         int maximum = maximumAllowed(guest);
         validate(status, attendees, maximum);
 
+        List<String> choices = resolveChoices(request, invitation.getWeddingId());
+
         Rsvp rsvp = rsvpRepository.findByInvitationId(invitation.getId())
                 .orElseGet(() -> Rsvp.builder().invitationId(invitation.getId()).build());
         rsvp.setStatus(status);
         rsvp.setNumberOfAttendees(attendees);
-        rsvp.setDrinkChoice(request.getDrinkChoice());
+        applyDrinkChoices(rsvp, choices, request.getDrinkChoice());
         rsvp.setRespondedAt(LocalDateTime.now());
         Rsvp saved = rsvpRepository.save(rsvp);
 
@@ -187,7 +200,102 @@ public class RsvpService {
                 .numberOfAttendees(saved.getNumberOfAttendees())
                 .respondedAt(saved.getRespondedAt())
                 .drinkChoice(saved.getDrinkChoice())
+                .drinkChoices(rsvpDrinkChoices(saved))
                 .build();
+    }
+
+    /** Maximum de boissons sélectionnables au RSVP. */
+    private static final int MAX_DRINK_CHOICES = 3;
+
+    /**
+     * Normalise les choix de boissons : trim, dédoublonnage (insensible à la
+     * casse), existence parmi les boissons ACTIVES de l'événement, 3 maximum.
+     */
+    private List<String> resolveChoices(SubmitRsvpRequest request, Long weddingId) {
+        List<String> raw = request.getDrinkChoices();
+        if (raw == null || raw.isEmpty()) {
+            return List.of();
+        }
+        if (raw.size() > MAX_DRINK_CHOICES) {
+            throw new IllegalArgumentException(
+                    "Vous pouvez choisir au maximum " + MAX_DRINK_CHOICES + " boissons");
+        }
+        Set<String> activeNames = drinkRepository.findByWeddingIdAndActiveTrue(weddingId).stream()
+                .map(Drink::getName)
+                .collect(Collectors.toSet());
+        List<String> result = new ArrayList<>();
+        for (String item : raw) {
+            if (item == null || item.isBlank()) {
+                continue;
+            }
+            String name = item.trim();
+            boolean duplicate = result.stream().anyMatch(r -> r.equalsIgnoreCase(name));
+            if (!duplicate) {
+                if (!activeNames.contains(name)) {
+                    throw new IllegalArgumentException("Boisson inconnue : " + name);
+                }
+                result.add(name);
+            }
+        }
+        return result;
+    }
+
+    /** Applique les choix au RSVP (JSON + colonne legacy) ; vide tout si aucun. */
+    private void applyDrinkChoices(Rsvp rsvp, List<String> choices, String legacySingle) {
+        if (!choices.isEmpty()) {
+            rsvp.setDrinkChoices(toJson(choices));
+            rsvp.setDrinkChoice(truncate(String.join(", ", choices)));
+        } else if (legacySingle != null && !legacySingle.isBlank()) {
+            // Compat ancien client : choix unique en texte libre.
+            rsvp.setDrinkChoices(null);
+            rsvp.setDrinkChoice(truncate(legacySingle.trim()));
+        } else {
+            rsvp.setDrinkChoices(null);
+            rsvp.setDrinkChoice(null);
+        }
+    }
+
+    /** Choix du RSVP pour l'affichage : JSON d'abord, fallback choix unique historique. */
+    private List<String> rsvpDrinkChoices(Rsvp rsvp) {
+        if (rsvp == null) {
+            return List.of();
+        }
+        List<String> fromJson = parseChoices(rsvp.getDrinkChoices());
+        if (!fromJson.isEmpty()) {
+            return fromJson;
+        }
+        if (rsvp.getDrinkChoice() != null && !rsvp.getDrinkChoice().isBlank()) {
+            return List.of(rsvp.getDrinkChoice());
+        }
+        return List.of();
+    }
+
+    private String toJson(List<String> choices) {
+        try {
+            return objectMapper.writeValueAsString(choices);
+        } catch (Exception e) {
+            // Ne se produit pas pour une liste de chaînes ; sérialisation de secours.
+            return "[" + choices.stream()
+                    .map(c -> "\"" + c.replace("\"", "'") + "\"")
+                    .collect(Collectors.joining(",")) + "]";
+        }
+    }
+
+    private List<String> parseChoices(String json) {
+        if (json == null || json.isBlank()) {
+            return List.of();
+        }
+        try {
+            List<String> values = objectMapper.readValue(json, new TypeReference<List<String>>() {});
+            return values == null ? List.of() : values;
+        } catch (Exception e) {
+            return List.of();
+        }
+    }
+
+    /** Le champ legacy est limité à 100 caractères. */
+    private String truncate(String value) {
+        return value.length() <= 100 ? value : value.substring(0, 97) + "...";
     }
 
     /** Maximum autorisé, déterminé exclusivement côté backend : 1 + acompanants. */

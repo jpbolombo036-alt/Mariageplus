@@ -26,6 +26,14 @@ public class Drink extends BaseEntity {
     @Column(name = "display_order")
     private Integer displayOrder;
 
+    /** Clé S3 de la photo de la boisson (si le stockage objet est actif). */
+    @Column(name = "image_key", length = 500)
+    private String imageKey;
+
+    /** Photo en fallback (base de données) quand le stockage objet n'est pas configuré. */
+    @Column
+    private byte[] image;
+
     @Builder.Default
     @Column(nullable = false)
     private boolean active = true;

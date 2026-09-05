@@ -3,6 +3,7 @@ package com.mariageplus.dto.rsvp;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 /**
@@ -21,4 +22,11 @@ public class SubmitRsvpRequest {
     private Integer numberOfAttendees;
 
     private String drinkChoice;
+
+    /**
+     * Choix multiples de boissons (noms des boissons actives de l'événement,
+     * 3 au maximum — validés côté backend).
+     */
+    @Size(max = 3, message = "Vous pouvez choisir au maximum 3 boissons")
+    private java.util.List<String> drinkChoices;
 }
