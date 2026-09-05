@@ -59,8 +59,14 @@ public class WhatsAppService {
     @Value("${app.whatsapp.api-version:v23.0}")
     private String apiVersion;
 
-    public WhatsAppService(RestClient.Builder restClientBuilder, ObjectMapper objectMapper) {
-        this.restClient = restClientBuilder.build();
+    /**
+     * @param apiBaseUrl base de l'API Graph Meta (ex : https://graph.facebook.com) ;
+     *                   obligatoire pour rendre l'URI de requête absolue en production.
+     */
+    public WhatsAppService(RestClient.Builder restClientBuilder,
+                           ObjectMapper objectMapper,
+                           @Value("${app.whatsapp.api-base-url:https://graph.facebook.com}") String apiBaseUrl) {
+        this.restClient = restClientBuilder.baseUrl(apiBaseUrl).build();
         this.objectMapper = objectMapper;
     }
 

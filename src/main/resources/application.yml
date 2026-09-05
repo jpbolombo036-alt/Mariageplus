@@ -87,6 +87,8 @@ app:
     # Cloud API Meta — actif si WHATSAPP_TOKEN et WHATSAPP_PHONE_NUMBER_ID définis.
     # Sinon l'envoi en masse est refusé (400) et le lien reste partageable à la main.
     api-version: ${WHATSAPP_API_VERSION:v23.0}
+    # Base de l'API Graph Meta (surchargeable via WHATSAPP_API_BASE_URL pour les tests).
+    api-base-url: ${WHATSAPP_API_BASE_URL:https://graph.facebook.com}
     token: ${WHATSAPP_TOKEN:}
     phone-number-id: ${WHATSAPP_PHONE_NUMBER_ID:}
     template-name: ${WHATSAPP_TEMPLATE_NAME:invitation_mariage}

@@ -12,6 +12,9 @@ import org.springframework.mock.http.client.MockClientHttpResponse;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.RestClient;
 
+import java.net.URI;
+import java.util.concurrent.atomic.AtomicReference;
+
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -23,7 +26,8 @@ class WhatsAppServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new WhatsAppService(RestClient.builder(), new ObjectMapper());
+        service = new WhatsAppService(RestClient.builder(), new ObjectMapper(),
+                "https://graph.facebook.com");
         ReflectionTestUtils.setField(service, "token", "test-token");
         ReflectionTestUtils.setField(service, "phoneNumberId", "123456789");
         ReflectionTestUtils.setField(service, "templateName", "invitation_mariage");
@@ -41,12 +45,20 @@ class WhatsAppServiceTest {
 
     /** Construit un service branché sur une fausse API renvoyant la réponse donnée. */
     private WhatsAppService wired(int status, String body) {
+        return wired(status, body, null);
+    }
+
+    private WhatsAppService wired(int status, String body, AtomicReference<URI> capturedUri) {
         RestClient.Builder builder = RestClient.builder().requestFactory((uri, method) -> {
+            if (capturedUri != null) {
+                capturedUri.set(uri);
+            }
             MockClientHttpRequest request = new MockClientHttpRequest(method, uri);
             request.setResponse(new MockClientHttpResponse(body.getBytes(), HttpStatus.valueOf(status)));
             return request;
         });
-        WhatsAppService w = new WhatsAppService(builder, new ObjectMapper());
+        WhatsAppService w = new WhatsAppService(builder, new ObjectMapper(),
+                "https://graph.facebook.com");
         ReflectionTestUtils.setField(w, "token", "test-token");
         ReflectionTestUtils.setField(w, "phoneNumberId", "123456789");
         ReflectionTestUtils.setField(w, "templateName", "invitation_mariage");
@@ -56,13 +68,15 @@ class WhatsAppServiceTest {
 
     @Test
     void isConfigured_dependsOnCredentials() {
-        assertFalse(new WhatsAppService(RestClient.builder(), new ObjectMapper()).isConfigured());
+        assertFalse(new WhatsAppService(RestClient.builder(), new ObjectMapper(),
+                "https://graph.facebook.com").isConfigured());
         assertTrue(service.isConfigured());
     }
 
     @Test
     void notConfigured_returnsFalseWithoutHttpCall() {
-        assertFalse(new WhatsAppService(RestClient.builder(), new ObjectMapper())
+        assertFalse(new WhatsAppService(RestClient.builder(), new ObjectMapper(),
+                "https://graph.facebook.com")
                 .sendInvitationTemplate("2250701020304", guest(), event(),
                         "https://front/invitations/tok", null));
     }
@@ -72,6 +86,21 @@ class WhatsAppServiceTest {
         assertTrue(wired(200, "{\"messages\":[{\"id\":\"wamid.123\"}]}")
                 .sendInvitationTemplate("2250701020304", guest(), event(),
                         "https://front/invitations/tok123", null));
+    }
+
+    @Test
+    void apiSuccess_usesAbsoluteGraphApiUri() {
+        // Garde-fou : l'URI appelée doit être ABSOLUE (baseUrl configurée),
+        // sinon l'appel échoue en production avec une exception générique.
+        AtomicReference<URI> captured = new AtomicReference<>();
+        boolean sent = wired(200, "{\"messages\":[{\"id\":\"wamid.123\"}]}", captured)
+                .sendInvitationTemplate("2250701020304", guest(), event(),
+                        "https://front/invitations/tok123", null);
+        assertTrue(sent);
+        assertTrue(captured.get().isAbsolute(),
+                "L'URI de l'API Meta doit être absolue : " + captured.get());
+        assertTrue(captured.get().getPath().endsWith("/123456789/messages"),
+                "Le chemin doit contenir le phone number id : " + captured.get());
     }
 
     @Test
