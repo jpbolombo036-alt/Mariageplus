@@ -46,4 +46,7 @@ public class PublicInvitationResponse {
 
     /** Token public de l'invitation, nécessaire pour afficher le QR code côté front. */
     private String publicToken;
+
+    /** Programme de la journée : sessions actives de l'événement, triées (additif — peut être vide). */
+    private java.util.List<PublicEventSessionResponse> sessions;
 }

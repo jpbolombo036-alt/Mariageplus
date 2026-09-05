@@ -20,6 +20,9 @@ public interface EventSessionRepository extends JpaRepository<EventSession, Long
 
     List<EventSession> findByEventId(Long eventId);
 
+    /** Sessions actives d'un événement, triées pour le programme public (date, heure, ordre). */
+    List<EventSession> findByEventIdAndActiveTrueOrderBySessionDateAscStartTimeAscDisplayOrderAscIdAsc(Long eventId);
+
     List<EventSession> findBySessionDateAndActiveTrue(java.time.LocalDate date);
 
     Optional<EventSession> findByIdAndEventId(Long id, Long eventId);

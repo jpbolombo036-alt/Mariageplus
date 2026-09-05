@@ -3,6 +3,7 @@ package com.mariageplus.service;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mariageplus.dto.invitation.PublicInvitationPage;
+import com.mariageplus.dto.invitation.PublicEventSessionResponse;
 import com.mariageplus.dto.invitation.PublicInvitationResponse;
 import com.mariageplus.dto.rsvp.PublicRsvpResponse;
 import com.mariageplus.dto.rsvp.SubmitRsvpRequest;
@@ -15,6 +16,7 @@ import com.mariageplus.entity.Event;
 import com.mariageplus.entity.WeddingDetails;
 import com.mariageplus.exception.ResourceNotFoundException;
 import com.mariageplus.repository.DrinkRepository;
+import com.mariageplus.repository.EventSessionRepository;
 import com.mariageplus.repository.GuestRepository;
 import com.mariageplus.repository.RsvpRepository;
 import com.mariageplus.repository.WeddingDetailsRepository;
@@ -49,6 +51,7 @@ public class RsvpService {
     private final EventRepository eventRepository;
     private final WeddingDetailsRepository weddingDetailsRepository;
     private final DrinkRepository drinkRepository;
+    private final EventSessionRepository eventSessionRepository;
     private final ObjectMapper objectMapper;
 
     private static final DateTimeFormatter DATE_FR =
@@ -158,7 +161,34 @@ public class RsvpService {
                 .rsvpDrinkChoice(rsvp != null ? rsvp.getDrinkChoice() : null)
                 .rsvpDrinkChoices(rsvpDrinkChoices(rsvp))
                 .publicToken(invitation.getPublicToken())
+                .sessions(publicSessions(invitation.getWeddingId()))
                 .build();
+    }
+
+    /**
+     * Programme public de l'événement : sessions actives triées (date, heure, ordre).
+     * Liste vide si l'événement n'a aucune session — champ purement additif.
+     */
+    private List<PublicEventSessionResponse> publicSessions(Long eventId) {
+        if (eventId == null) {
+            return List.of();
+        }
+        return eventSessionRepository
+                .findByEventIdAndActiveTrueOrderBySessionDateAscStartTimeAscDisplayOrderAscIdAsc(eventId)
+                .stream()
+                .map(s -> PublicEventSessionResponse.builder()
+                        .name(s.getName())
+                        .type(s.getType() != null ? s.getType().name() : null)
+                        .description(s.getDescription())
+                        .sessionDate(s.getSessionDate())
+                        .startTime(s.getStartTime())
+                        .endTime(s.getEndTime())
+                        .venueName(s.getVenueName())
+                        .venueAddress(s.getVenueAddress())
+                        .city(s.getCity())
+                        .mapUrl(s.getMapUrl())
+                        .build())
+                .toList();
     }
 
     /**

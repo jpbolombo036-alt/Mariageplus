@@ -15,6 +15,7 @@ import com.mariageplus.repository.GuestRepository;
 import com.mariageplus.repository.RsvpRepository;
 import com.mariageplus.repository.WeddingDetailsRepository;
 import com.mariageplus.repository.EventRepository;
+import com.mariageplus.repository.EventSessionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -37,6 +38,7 @@ class RsvpServiceTest {
     @Mock private GuestRepository guestRepository;
     @Mock private EventRepository eventRepository;
     @Mock private WeddingDetailsRepository weddingDetailsRepository;
+    @Mock private EventSessionRepository eventSessionRepository;
 
     @InjectMocks private RsvpService rsvpService;
 
