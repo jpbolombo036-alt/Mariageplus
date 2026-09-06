@@ -10,6 +10,7 @@ import com.mariageplus.entity.Guest;
 import com.mariageplus.entity.Invitation;
 import com.mariageplus.entity.InvitationStatus;
 import com.mariageplus.entity.NotificationLog;
+import com.mariageplus.exception.ForbiddenException;
 import com.mariageplus.exception.ResourceNotFoundException;
 import com.mariageplus.repository.BulkSendBatchRepository;
 import com.mariageplus.repository.GuestRepository;
@@ -50,6 +51,7 @@ public class BulkSendService {
     private final NotificationLogRepository notificationLogRepository;
     private final SecurityUtils securityUtils;
     private final WhatsAppService whatsAppService;
+    private final AppSettingService appSettingService;
     private final BulkSendWorker worker;
 
     @Value("${app.invitation.max-reminders:3}")
@@ -76,6 +78,11 @@ public class BulkSendService {
         if (!whatsAppService.isConfigured()) {
             throw new IllegalArgumentException(
                     "WhatsApp non configuré : définissez WHATSAPP_TOKEN et WHATSAPP_PHONE_NUMBER_ID");
+        }
+        // Interrupteur global SUPER_ADMIN : coupe l'envoi WhatsApp plateforme.
+        if (!appSettingService.isWhatsappSendingEnabled()) {
+            throw new ForbiddenException(
+                    "L'envoi WhatsApp est désactivé par l'administrateur de la plateforme");
         }
 
         List<Invitation> invitations = selectInvitations(weddingId, request);
