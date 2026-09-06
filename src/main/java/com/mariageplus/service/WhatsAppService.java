@@ -32,7 +32,13 @@ import java.util.Map;
  *
  * Template attendu (variables positionnelles) :
  *   {{1}} = prénom invité, {{2}} = nom de l'événement (couple),
- *   {{3}} = message + date, bouton URL index 0 = {{1}} → publicToken.
+ *   {{3}} = date, {{4}} = heure, {{5}} = lieu,
+ *   bouton URL index 0 = {{1}} → publicToken.
+ *
+ * L'image d'en-tête n'est PAS envoyée par défaut (app.whatsapp.send-header-image /
+ * env WHATSAPP_SEND_HEADER_IMAGE) : le modèle texte + bouton reste identique
+ * quel que soit l'événement. Une future variante « média header » (créée via API)
+ * permettra de réactiver l'image par message.
  */
 @Service
 @Slf4j
@@ -40,6 +46,12 @@ public class WhatsAppService {
 
     private static final DateTimeFormatter DATE_FR =
             DateTimeFormatter.ofPattern("dd.MM.yyyy", Locale.FRENCH);
+
+    private static final DateTimeFormatter TIME_FR =
+            DateTimeFormatter.ofPattern("HH'h'mm", Locale.FRENCH);
+
+    /** Libellé utilisé quand une information (date, heure, lieu) n'est pas renseignée. */
+    private static final String A_CONFIRMER = "à confirmer";
 
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
@@ -58,6 +70,14 @@ public class WhatsAppService {
 
     @Value("${app.whatsapp.api-version:v23.0}")
     private String apiVersion;
+
+    /**
+     * Faux (défaut) = aucun composant header dans le payload — modèle texte + bouton,
+     * identique pour tous les événements. Vrai = ajoute l'image de couverture en
+     * en-tête si fournie (à n'activer qu'avec un modèle à en-tête média variable).
+     */
+    @Value("${app.whatsapp.send-header-image:false}")
+    private boolean sendHeaderImage;
 
     /**
      * @param apiBaseUrl base de l'API Graph Meta (ex : https://graph.facebook.com) ;
@@ -82,7 +102,8 @@ public class WhatsAppService {
      * @param guest           invité destinataire (prénom → variable {{1}})
      * @param event           événement (nom → {{2}}, message + date → {{3}})
      * @param publicInviteUrl lien public complet (le publicToken alimente le bouton URL)
-     * @param imageUrl        URL publique de la photo de couverture (en-tête) ; null = sans image
+     * @param imageUrl        URL publique de la photo de couverture (en-tête, si
+     *                        {@code send-header-image} est actif) ; null = sans image
      * @return true si l'API a accepté le message (identifiant de message reçu)
      * @throws WhatsAppDeliveryException si l'API rejette le message
      */
@@ -145,7 +166,7 @@ public class WhatsAppService {
     private Map<String, Object> buildPayload(String whatsAppId, Guest guest, Event event,
                                              String publicInviteUrl, String imageUrl) {
         List<Map<String, Object>> components = new ArrayList<>();
-        if (StringUtils.hasText(imageUrl)) {
+        if (sendHeaderImage && StringUtils.hasText(imageUrl)) {
             components.add(Map.of(
                     "type", "header",
                     "parameters", List.of(Map.of("type", "image", "image", Map.of("link", imageUrl)))));
@@ -153,7 +174,11 @@ public class WhatsAppService {
         List<Map<String, Object>> bodyParams = new ArrayList<>();
         bodyParams.add(Map.of("type", "text", "text", safe(guest.getFirstName())));
         bodyParams.add(Map.of("type", "text", "text", safe(event.getName())));
-        bodyParams.add(Map.of("type", "text", "text", safe(buildPersonalMessage(event))));
+        bodyParams.add(Map.of("type", "text", "text", event.getEventDate() != null
+                ? DATE_FR.format(event.getEventDate()) : A_CONFIRMER));
+        bodyParams.add(Map.of("type", "text", "text", event.getStartTime() != null
+                ? TIME_FR.format(event.getStartTime()) : A_CONFIRMER));
+        bodyParams.add(Map.of("type", "text", "text", buildVenueLabel(event)));
         components.add(Map.of("type", "body", "parameters", bodyParams));
         // Bouton URL (index 0) : variable = publicToken (dernier segment du lien public).
         String tokenPart = extractToken(publicInviteUrl);
@@ -177,6 +202,16 @@ public class WhatsAppService {
         payload.put("type", "template");
         payload.put("template", template);
         return payload;
+    }
+
+    /** Lieu lisible : nom de salle + adresse + ville (seuls les champs renseignés). */
+    private String buildVenueLabel(Event event) {
+        String label = java.util.stream.Stream.of(
+                        event.getVenueName(), event.getVenueAddress(), event.getCity())
+                .filter(v -> v != null && StringUtils.hasText(v.trim()))
+                .map(String::trim)
+                .collect(java.util.stream.Collectors.joining(", "));
+        return StringUtils.hasText(label) ? label : "lieu " + A_CONFIRMER;
     }
 
     private String extractApiError(RestClientResponseException ex) {

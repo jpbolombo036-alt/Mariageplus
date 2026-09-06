@@ -93,6 +93,8 @@ app:
     phone-number-id: ${WHATSAPP_PHONE_NUMBER_ID:}
     template-name: ${WHATSAPP_TEMPLATE_NAME:invitation_mariage}
     template-language: ${WHATSAPP_TEMPLATE_LANGUAGE:fr}
+    # Faux = modèle texte + bouton sans composant header (recommandé).
+    send-header-image: ${WHATSAPP_SEND_HEADER_IMAGE:false}
     # Indicatif pays par défaut pour normaliser les numéros locaux (ex : 225).
     default-country-code: ${WHATSAPP_DEFAULT_COUNTRY_CODE:}
     # URL publique de CETTE API (ex : https://mariageplus-prod.up.railway.app) :

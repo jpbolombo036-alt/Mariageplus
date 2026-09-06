@@ -1,5 +1,6 @@
 package com.mariageplus.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mariageplus.entity.Event;
 import com.mariageplus.entity.Guest;
@@ -16,6 +17,7 @@ import java.net.URI;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -129,5 +131,66 @@ class WhatsAppServiceTest {
         String message = assertDoesNotThrow(() -> service.buildPersonalMessage(wedding));
         assertTrue(message.contains("Votre présence sera le plus beau des cadeaux"));
         assertTrue(message.contains("11.04.2026"));
+    }
+
+    @Test
+    void payload_matchesFiveVariableTemplateWithoutHeader() throws Exception {
+        AtomicReference<MockClientHttpRequest> capturedRequest = new AtomicReference<>();
+        RestClient.Builder builder = RestClient.builder().requestFactory((uri, method) -> {
+            MockClientHttpRequest request = new MockClientHttpRequest(method, uri);
+            request.setResponse(new MockClientHttpResponse(
+                    "{\"messages\":[{\"id\":\"wamid.1\"}]}".getBytes(), HttpStatus.OK));
+            capturedRequest.set(request);
+            return request;
+        });
+        WhatsAppService w = new WhatsAppService(builder, new ObjectMapper(),
+                "https://graph.facebook.com");
+        ReflectionTestUtils.setField(w, "token", "test-token");
+        ReflectionTestUtils.setField(w, "phoneNumberId", "123456789");
+        ReflectionTestUtils.setField(w, "templateName", "invitation_mariage");
+        ReflectionTestUtils.setField(w, "templateLanguage", "fr");
+        ReflectionTestUtils.setField(w, "sendHeaderImage", false);
+
+        Event wedding = Event.builder()
+                .name("Josué & Eunice")
+                .message("Nous avons la joie de vous inviter")
+                .eventDate(java.time.LocalDate.of(2026, 4, 11))
+                .startTime(java.time.LocalTime.of(10, 0))
+                .venueName("Salle des Fêtes")
+                .venueAddress("123 av. Kasa-Vubu")
+                .city("Kinshasa")
+                .build();
+
+        assertTrue(w.sendInvitationTemplate("2250701020304", guest(), wedding,
+                "https://front/invitations/tok123", "https://api.example.com/cover.jpg"));
+
+        JsonNode payload = new ObjectMapper().readTree(capturedRequest.get().getBodyAsString());
+        JsonNode components = payload.path("template").path("components");
+
+        JsonNode header = null;
+        JsonNode bodyComp = null;
+        JsonNode button = null;
+        for (JsonNode c : components) {
+            String type = c.path("type").asText();
+            if ("header".equals(type)) {
+                header = c;
+            } else if ("body".equals(type)) {
+                bodyComp = c;
+            } else if ("button".equals(type)) {
+                button = c;
+            }
+        }
+        assertTrue(header == null, "Aucun composant header attendu (modèle texte + bouton)");
+        assertTrue(bodyComp != null, "Composant body requis");
+        assertEquals(5, bodyComp.path("parameters").size(),
+                "5 variables : prénom, couple, date, heure, lieu");
+        assertEquals("Tantine Claire", bodyComp.path("parameters").get(0).path("text").asText());
+        assertEquals("Josué & Eunice", bodyComp.path("parameters").get(1).path("text").asText());
+        assertEquals("11.04.2026", bodyComp.path("parameters").get(2).path("text").asText());
+        assertEquals("10h00", bodyComp.path("parameters").get(3).path("text").asText());
+        assertEquals("Salle des Fêtes, 123 av. Kasa-Vubu, Kinshasa",
+                bodyComp.path("parameters").get(4).path("text").asText());
+        assertTrue(button != null, "Bouton URL requis");
+        assertEquals("tok123", button.path("parameters").get(0).path("text").asText());
     }
 }
