@@ -202,7 +202,7 @@ public class ExportService {
                             i.getStatus() == null ? "" : i.getStatus().name(),
                             i.getSentAt() == null ? "" : i.getSentAt().toString(),
                             i.getLastSentAt() == null ? "" : i.getLastSentAt().toString(),
-                            i.getReminderCount() == null ? 0 : i.getReminderCount(),
+                            i.getReminderCount(),
                             i.getOpenedAt() == null ? "" : i.getOpenedAt().toString(),
                             rsvp == null || rsvp.getStatus() == null ? "" : rsvp.getStatus().name(),
                             rsvp == null || rsvp.getNumberOfAttendees() == null ? "" : rsvp.getNumberOfAttendees());
