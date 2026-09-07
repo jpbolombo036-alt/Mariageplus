@@ -7,6 +7,7 @@ import com.mariageplus.entity.Invitation;
 import com.mariageplus.entity.Rsvp;
 import com.mariageplus.entity.RsvpStatus;
 import com.mariageplus.entity.Event;
+import com.mariageplus.entity.TableAssignment;
 import com.mariageplus.entity.WeddingTable;
 import com.mariageplus.repository.CheckInRepository;
 import com.mariageplus.repository.GuestCategoryRepository;
@@ -149,19 +150,36 @@ public class ExportService {
 
         StringWriter sw = new StringWriter();
         PrintWriter pw = new PrintWriter(sw);
-        pw.println("tableId,tableName,capacity,assignedGuests,remaining");
+        pw.println("tableId,tableName,capacity,assignedGuests,assignedSeats,remainingSeats");
         tables.stream()
                 .sorted(Comparator.comparing(WeddingTable::getName))
                 .forEach(t -> {
                     long assigned = tableAssignmentRepository.countByWeddingTableId(t.getId());
-                    pw.printf("%d,%s,%d,%d,%d%n",
+                    long seats = seatsOccupied(t.getId());
+                    pw.printf("%d,%s,%d,%d,%d,%d%n",
                             t.getId(),
                             csv(t.getName()),
                             t.getCapacity(),
                             assigned,
-                            Math.max(0, t.getCapacity() - assigned));
+                            seats,
+                            Math.max(0, t.getCapacity() - seats));
                 });
         return sw.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    /** Places occupées d'une table = 1 + accompagnants déclarés par invité affecté. */
+    private long seatsOccupied(Long tableId) {
+        List<TableAssignment> assignments = tableAssignmentRepository.findByWeddingTableId(tableId);
+        if (assignments.isEmpty()) {
+            return 0L;
+        }
+        Map<Long, Integer> companionsByGuest = guestRepository
+                .findAllById(assignments.stream().map(com.mariageplus.entity.TableAssignment::getGuestId).toList()).stream()
+                .collect(Collectors.toMap(com.mariageplus.entity.Guest::getId,
+                        g -> g.getAllowedCompanions() == null ? 0 : g.getAllowedCompanions(), (a, b) -> a));
+        return assignments.stream()
+                .mapToLong(a -> 1L + companionsByGuest.getOrDefault(a.getGuestId(), 0))
+                .sum();
     }
 
     /** Export Excel (.xlsx) des invités — mêmes colonnes que le CSV. */
@@ -242,10 +260,11 @@ public class ExportService {
                 .sorted(Comparator.comparing(WeddingTable::getName))
                 .map(t -> {
                     long assigned = tableAssignmentRepository.countByWeddingTableId(t.getId());
-                    return List.<Object>of(t.getId(), nz(t.getName()), t.getCapacity(), assigned, Math.max(0, t.getCapacity() - assigned));
+                    long seats = seatsOccupied(t.getId());
+                    return List.<Object>of(t.getId(), nz(t.getName()), t.getCapacity(), assigned, seats, Math.max(0, t.getCapacity() - seats));
                 })
                 .toList();
-        return workbook("Tables", List.of("tableId", "tableName", "capacity", "assignedGuests", "remaining"), rows);
+        return workbook("Tables", List.of("tableId", "tableName", "capacity", "assignedGuests", "assignedSeats", "remainingSeats"), rows);
     }
 
     /** Construit un classeur .xlsx : en-tête gris gras, colonnes auto-dimensionnées, 1re ligne figée. */

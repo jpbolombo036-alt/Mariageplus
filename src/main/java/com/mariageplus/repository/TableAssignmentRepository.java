@@ -23,6 +23,9 @@ public interface TableAssignmentRepository extends JpaRepository<TableAssignment
 
     long countByWeddingTableId(Long weddingTableId);
 
+    /** Affectations d'une table (pour le calcul des places réelles avec accompagnants). */
+    List<TableAssignment> findByWeddingTableId(Long weddingTableId);
+
     @Query("select t.name from TableAssignment a join WeddingTable t on t.id = a.weddingTableId where a.guestId = :guestId")
     java.util.Optional<String> findTableNameByGuestId(@Param("guestId") Long guestId);
 

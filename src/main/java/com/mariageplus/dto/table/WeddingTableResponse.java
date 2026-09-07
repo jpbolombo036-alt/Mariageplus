@@ -19,6 +19,9 @@ public class WeddingTableResponse {
     private String name;
     private String description;
     private int capacity;
+    /** Nombre d'invités affectés (1 ligne par invité). */
+    private long assignedGuests;
+    /** Places réellement occupées : 1 + accompagnants déclarés par invité affecté. */
     private long assignedCount;
     private long remainingCapacity;
 }

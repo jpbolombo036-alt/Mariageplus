@@ -21,6 +21,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -88,7 +89,7 @@ class WeddingTableServiceTest {
     void assign_usesLockedQuery_forConcurrency() {
         stubScopeAndTableAndGuest();
         when(tableAssignmentRepository.findByGuestId(5L)).thenReturn(Optional.empty());
-        when(tableAssignmentRepository.countByWeddingTableId(10L)).thenReturn(1L);
+        when(tableAssignmentRepository.findByWeddingTableId(10L)).thenReturn(List.of());
         when(tableAssignmentRepository.save(any(TableAssignment.class))).thenAnswer(a -> a.getArgument(0));
 
         weddingTableService.assign(1L, 10L, assignRequest(5L));
@@ -101,7 +102,26 @@ class WeddingTableServiceTest {
     void assign_tableFull_throwsConflict() {
         stubScopeAndTableAndGuest();
         when(tableAssignmentRepository.findByGuestId(5L)).thenReturn(Optional.empty());
-        when(tableAssignmentRepository.countByWeddingTableId(10L)).thenReturn(2L);
+        TableAssignment a1 = TableAssignment.builder().guestId(6L).weddingTableId(10L).build();
+        TableAssignment a2 = TableAssignment.builder().guestId(7L).weddingTableId(10L).build();
+        when(tableAssignmentRepository.findByWeddingTableId(10L)).thenReturn(List.of(a1, a2));
+        Guest g6 = Guest.builder().firstName("Ali").lastName("Baba").weddingId(1L).build();
+        g6.setId(6L);
+        Guest g7 = Guest.builder().firstName("Cali").lastName("Dada").weddingId(1L).build();
+        g7.setId(7L);
+        when(guestRepository.findAllById(any())).thenReturn(List.of(g6, g7));
+
+        assertThrows(ConflictException.class,
+                () -> weddingTableService.assign(1L, 10L, assignRequest(5L)));
+        verify(tableAssignmentRepository, never()).save(any(TableAssignment.class));
+    }
+
+    @Test
+    void assign_groupExceedsRemainingSeats_throwsConflict() {
+        stubScopeAndTableAndGuest();
+        guest.setAllowedCompanions(3);
+        when(tableAssignmentRepository.findByGuestId(5L)).thenReturn(Optional.empty());
+        when(tableAssignmentRepository.findByWeddingTableId(10L)).thenReturn(List.of());
 
         assertThrows(ConflictException.class,
                 () -> weddingTableService.assign(1L, 10L, assignRequest(5L)));
@@ -134,7 +154,7 @@ class WeddingTableServiceTest {
     void assign_dbDuplicate_guestMapsToConflict() {
         stubScopeAndTableAndGuest();
         when(tableAssignmentRepository.findByGuestId(5L)).thenReturn(Optional.empty());
-        when(tableAssignmentRepository.countByWeddingTableId(10L)).thenReturn(0L);
+        when(tableAssignmentRepository.findByWeddingTableId(10L)).thenReturn(List.of());
         when(tableAssignmentRepository.save(any(TableAssignment.class)))
                 .thenThrow(new DataIntegrityViolationException("uk_table_assignments_guest"));
 
@@ -153,7 +173,7 @@ class WeddingTableServiceTest {
         target.setId(20L);
         when(weddingTableRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(target));
         when(guestRepository.findById(5L)).thenReturn(Optional.of(guest));
-        when(tableAssignmentRepository.countByWeddingTableId(20L)).thenReturn(0L);
+        when(tableAssignmentRepository.findByWeddingTableId(20L)).thenReturn(List.of());
         when(tableAssignmentRepository.save(existing)).thenReturn(existing);
 
         weddingTableService.move(1L, 1L, moveRequest(20L));
@@ -171,7 +191,11 @@ class WeddingTableServiceTest {
         WeddingTable target = WeddingTable.builder().weddingId(1L).name("Tfull").capacity(1).build();
         target.setId(20L);
         when(weddingTableRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(target));
-        when(tableAssignmentRepository.countByWeddingTableId(20L)).thenReturn(1L);
+        TableAssignment other = TableAssignment.builder().guestId(6L).weddingTableId(20L).build();
+        when(tableAssignmentRepository.findByWeddingTableId(20L)).thenReturn(List.of(other));
+        Guest g6 = Guest.builder().firstName("Ali").lastName("Baba").weddingId(1L).build();
+        g6.setId(6L);
+        when(guestRepository.findAllById(any())).thenReturn(List.of(g6));
 
         assertThrows(ConflictException.class,
                 () -> weddingTableService.move(1L, 1L, moveRequest(20L)));

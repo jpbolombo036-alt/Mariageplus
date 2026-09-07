@@ -20,6 +20,8 @@ public class TableAssignmentResponse {
     private Long assignmentId;
     private Long guestId;
     private String guestName;
+    /** Accompagnants déclarés sur la fiche de l'invité (sont assis à la même table). */
+    private int companions;
     private Long tableId;
     private String tableName;
     private LocalDateTime assignedAt;

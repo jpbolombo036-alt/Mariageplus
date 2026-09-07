@@ -144,9 +144,13 @@ public class WeddingTableService {
         if (tableAssignmentRepository.findByGuestId(guest.getId()).isPresent()) {
             throw new ConflictException("Cet invité est déjà affecté à une table");
         }
-        long assigned = tableAssignmentRepository.countByWeddingTableId(tableId);
-        if (assigned >= table.getCapacity()) {
-            throw new ConflictException("Table '" + table.getName() + "' pleine (capacité " + table.getCapacity() + ")");
+        long occupied = seatsOccupied(tableId);
+        int group = 1 + companionsOf(guest);
+        if (occupied + group > table.getCapacity()) {
+            long free = Math.max(0, table.getCapacity() - occupied);
+            throw new ConflictException("Table '" + table.getName() + "' : " + group
+                    + " place(s) nécessaire(s) pour " + guestName(guest).trim()
+                    + " et ses accompagnants, seulement " + free + " libre(s) (capacité " + table.getCapacity() + ")");
         }
 
         TableAssignment assignment = TableAssignment.builder()
@@ -176,9 +180,13 @@ public class WeddingTableService {
         if (target.getId().equals(assignment.getWeddingTableId())) {
             return toAssignmentResponse(assignment, guest, target);
         }
-        long targetAssigned = tableAssignmentRepository.countByWeddingTableId(target.getId());
-        if (targetAssigned >= target.getCapacity()) {
-            throw new ConflictException("Table '" + target.getName() + "' pleine (capacité " + target.getCapacity() + ")");
+        long targetOccupied = seatsOccupied(target.getId());
+        int group = 1 + companionsOf(guest);
+        if (targetOccupied + group > target.getCapacity()) {
+            long free = Math.max(0, target.getCapacity() - targetOccupied);
+            throw new ConflictException("Table '" + target.getName() + "' : " + group
+                    + " place(s) nécessaire(s) pour " + guestName(guest).trim()
+                    + " et ses accompagnants, seulement " + free + " libre(s) (capacité " + target.getCapacity() + ")");
         }
         assignment.setWeddingTableId(target.getId());
         TableAssignment saved = tableAssignmentRepository.save(assignment);
@@ -264,15 +272,35 @@ public class WeddingTableService {
     }
 
     private WeddingTableResponse toTableResponse(WeddingTable table) {
-        long assigned = tableAssignmentRepository.countByWeddingTableId(table.getId());
+        long guests = tableAssignmentRepository.countByWeddingTableId(table.getId());
+        long seats = seatsOccupied(table.getId());
         return WeddingTableResponse.builder()
                 .id(table.getId())
                 .name(table.getName())
                 .description(table.getDescription())
                 .capacity(table.getCapacity())
-                .assignedCount(assigned)
-                .remainingCapacity(Math.max(0, table.getCapacity() - assigned))
+                .assignedGuests(guests)
+                .assignedCount(seats)
+                .remainingCapacity(Math.max(0, table.getCapacity() - seats))
                 .build();
+    }
+
+    /** Places occupées d'une table = 1 + accompagnants déclarés, pour chaque invité affecté. */
+    private long seatsOccupied(Long tableId) {
+        List<TableAssignment> assignments = tableAssignmentRepository.findByWeddingTableId(tableId);
+        if (assignments.isEmpty()) {
+            return 0L;
+        }
+        Map<Long, Integer> companionsByGuest = guestRepository
+                .findAllById(assignments.stream().map(TableAssignment::getGuestId).toList()).stream()
+                .collect(Collectors.toMap(Guest::getId, this::companionsOf, (a, b) -> a));
+        return assignments.stream()
+                .mapToLong(a -> 1L + companionsByGuest.getOrDefault(a.getGuestId(), 0))
+                .sum();
+    }
+
+    private int companionsOf(Guest guest) {
+        return guest == null || guest.getAllowedCompanions() == null ? 0 : guest.getAllowedCompanions();
     }
 
     private String guestName(Guest guest) {
@@ -288,6 +316,7 @@ public class WeddingTableService {
                 .assignmentId(assignment.getId())
                 .guestId(assignment.getGuestId())
                 .guestName(guestName(guest))
+                .companions(companionsOf(guest))
                 .tableId(table.getId())
                 .tableName(table.getName())
                 .assignedAt(assignment.getCreatedAt())
