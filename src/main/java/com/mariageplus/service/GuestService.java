@@ -25,6 +25,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.DataFormatter;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.usermodel.WorkbookFactory;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -134,7 +140,7 @@ public class GuestService {
     }
 
     /**
-     * Import CSV. Les lignes invalides sont rapportées ; les autres sont créées.
+     * Import CSV ou Excel (.xlsx/.xls). Les lignes invalides sont rapportées ; les autres sont créées.
      * Colonnes : firstName, lastName, email, phone, address, allowedCompanions,
      * categoryName, notes. Catégorie inconnue → invité créé sans catégorie.
      */
@@ -142,18 +148,17 @@ public class GuestService {
         securityUtils.assertPermission("GUEST_IMPORT");
         Event event = eventService.loadInOrgScope(weddingId);
         if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("Fichier CSV requis");
+            throw new IllegalArgumentException("Fichier requis (CSV ou Excel .xlsx)");
         }
 
-        List<String> lines = readLines(file);
-        if (lines.isEmpty()) {
-            throw new IllegalArgumentException("Le fichier CSV est vide");
+        List<List<String>> table = isExcelFile(file) ? readExcelRows(file) : readCsvRows(file);
+        if (table.isEmpty()) {
+            throw new IllegalArgumentException("Le fichier est vide");
         }
 
-        char delimiter = CsvParser.detectDelimiter(lines.get(0));
-        Map<String, Integer> columns = headerMap(CsvParser.parseLine(lines.get(0), delimiter));
+        Map<String, Integer> columns = headerMap(table.get(0));
         if (!columns.containsKey("firstname") || !columns.containsKey("lastname")) {
-            throw new IllegalArgumentException("En-tête CSV invalide : firstName et lastName sont obligatoires");
+            throw new IllegalArgumentException("En-tête invalide : les colonnes firstName et lastName sont obligatoires");
         }
 
         Map<String, Long> categoriesByName = guestCategoryRepository.findByWeddingId(weddingId).stream()
@@ -168,14 +173,13 @@ public class GuestService {
         int imported = 0;
         int skipped = 0;
 
-        for (int i = 1; i < lines.size(); i++) {
+        for (int i = 1; i < table.size(); i++) {
             int lineNumber = i + 1;
-            String raw = lines.get(i);
-            if (!StringUtils.hasText(raw)) {
+            List<String> fields = table.get(i);
+            if (fields == null || fields.stream().allMatch(f -> !StringUtils.hasText(f))) {
                 skipped++;
                 continue;
             }
-            List<String> fields = CsvParser.parseLine(raw, delimiter);
             try {
                 Guest guest = parseGuestRow(weddingId, fields, columns, categoriesByName, emailsInFile);
                 guestRepository.save(guest);
@@ -187,13 +191,55 @@ public class GuestService {
 
         auditService.record("GUEST_IMPORT", weddingId, "Wedding",
                 securityUtils.getCurrentUserId(), event.getOrganizationId(),
-                "Import CSV : " + imported + " importé(s), " + skipped + " ignoré(s), "
-                        + errors.size() + " erreur(s)");
+                "Import : " + imported + " importé(s), " + skipped + " ignoré(s), " + errors.size() + " erreur(s)");
         return GuestImportResponse.builder()
                 .imported(imported)
                 .skipped(skipped)
                 .errors(errors)
                 .build();
+    }
+
+    private boolean isExcelFile(MultipartFile file) {
+        String name = file.getOriginalFilename();
+        if (name == null) {
+            return false;
+        }
+        String lower = name.toLowerCase(Locale.ROOT);
+        return lower.endsWith(".xlsx") || lower.endsWith(".xls");
+    }
+
+    /** Lit un CSV en tableau de lignes (ligne 0 = en-tête, délimiteur détecté automatiquement). */
+    private List<List<String>> readCsvRows(MultipartFile file) {
+        List<String> lines = readLines(file);
+        List<List<String>> table = new ArrayList<>(lines.size());
+        if (!lines.isEmpty()) {
+            char delimiter = CsvParser.detectDelimiter(lines.get(0));
+            for (String line : lines) {
+                table.add(CsvParser.parseLine(line, delimiter));
+            }
+        }
+        return table;
+    }
+
+    /** Lit un classeur Excel (.xlsx/.xls) en tableau de lignes texte (ligne 0 = en-tête). */
+    private List<List<String>> readExcelRows(MultipartFile file) {
+        DataFormatter formatter = new DataFormatter();
+        try (Workbook wb = WorkbookFactory.create(file.getInputStream())) {
+            Sheet sheet = wb.getSheetAt(0);
+            List<List<String>> table = new ArrayList<>();
+            for (Row row : sheet) {
+                List<String> cells = new ArrayList<>();
+                int last = Math.max(row.getLastCellNum(), 0);
+                for (int c = 0; c < last; c++) {
+                    Cell cell = row.getCell(c, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
+                    cells.add(formatter.formatCellValue(cell).trim());
+                }
+                table.add(cells);
+            }
+            return table;
+        } catch (Exception ex) {
+            throw new IllegalArgumentException("Impossible de lire le fichier Excel (.xlsx/.xls attendu)");
+        }
     }
 
     private List<String> readLines(MultipartFile file) {

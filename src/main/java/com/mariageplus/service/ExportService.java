@@ -36,6 +36,13 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.FillPatternType;
+import org.apache.poi.ss.usermodel.IndexedColors;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 @Service
 @RequiredArgsConstructor
@@ -155,6 +162,136 @@ public class ExportService {
                             Math.max(0, t.getCapacity() - assigned));
                 });
         return sw.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    /** Export Excel (.xlsx) des invités — mêmes colonnes que le CSV. */
+    public byte[] exportGuestsXlsx(Long weddingId) {
+        securityUtils.assertPermission("GUEST_EXPORT");
+        Event event = eventService.loadInOrgScope(weddingId);
+        List<Guest> guests = guestRepository.findByWeddingId(weddingId);
+        Map<Long, String> categories = guestCategoryRepository.findByWeddingId(weddingId).stream()
+                .collect(Collectors.toMap(GuestCategory::getId, GuestCategory::getName, (a, b) -> a));
+        List<List<Object>> rows = guests.stream()
+                .sorted(Comparator.comparing(Guest::getLastName).thenComparing(Guest::getFirstName))
+                .map(g -> {
+                    String category = g.getCategoryId() == null ? "" : categories.getOrDefault(g.getCategoryId(), "");
+                    return List.<Object>of(
+                            g.getId(), nz(g.getFirstName()), nz(g.getLastName()), nz(g.getEmail()), nz(g.getPhone()),
+                            nz(g.getAddress()),
+                            g.getAllowedCompanions() == null ? 0 : g.getAllowedCompanions(),
+                            category, g.isActive());
+                })
+                .toList();
+        return workbook("Invités", List.of("id", "firstName", "lastName", "email", "phone", "address", "allowedCompanions", "category", "active"), rows);
+    }
+
+    /** Export Excel (.xlsx) des invitations. */
+    public byte[] exportInvitationsXlsx(Long weddingId) {
+        securityUtils.assertPermission("INVITATION_VIEW");
+        Event event = eventService.loadInOrgScope(weddingId);
+        List<Invitation> invitations = invitationRepository.findByWeddingId(weddingId);
+        Map<Long, Rsvp> rsvps = rsvpRepository.findByInvitationIdIn(
+                invitations.stream().map(Invitation::getId).toList()).stream()
+                .collect(Collectors.toMap(Rsvp::getInvitationId, r -> r, (a, b) -> a));
+        List<List<Object>> rows = invitations.stream()
+                .sorted(Comparator.comparing(Invitation::getId))
+                .map(i -> {
+                    Rsvp rsvp = rsvps.get(i.getId());
+                    return List.<Object>of(
+                            i.getId(), i.getGuestId(), nz(i.getInvitationCode()),
+                            i.getStatus() == null ? "" : i.getStatus().name(),
+                            i.getSentAt() == null ? "" : i.getSentAt().toString(),
+                            i.getLastSentAt() == null ? "" : i.getLastSentAt().toString(),
+                            i.getReminderCount() == null ? 0 : i.getReminderCount(),
+                            i.getOpenedAt() == null ? "" : i.getOpenedAt().toString(),
+                            rsvp == null || rsvp.getStatus() == null ? "" : rsvp.getStatus().name(),
+                            rsvp == null || rsvp.getNumberOfAttendees() == null ? "" : rsvp.getNumberOfAttendees());
+                })
+                .toList();
+        return workbook("Invitations", List.of("id", "guestId", "invitationCode", "status", "sentAt", "lastSentAt", "reminderCount", "openedAt", "rsvpStatus", "rsvpAttendees"), rows);
+    }
+
+    /** Export Excel (.xlsx) des RSVP. */
+    public byte[] exportRsvpsXlsx(Long weddingId) {
+        securityUtils.assertPermission("RSVP_VIEW");
+        Event event = eventService.loadInOrgScope(weddingId);
+        List<Rsvp> rsvps = rsvpRepository.findActiveByWeddingId(weddingId);
+        Map<Long, Invitation> invitations = invitationRepository.findByWeddingId(weddingId).stream()
+                .collect(Collectors.toMap(Invitation::getId, i -> i, (a, b) -> a));
+        List<List<Object>> rows = rsvps.stream()
+                .sorted(Comparator.comparing(Rsvp::getId))
+                .map(r -> {
+                    Invitation inv = invitations.get(r.getInvitationId());
+                    return List.<Object>of(
+                            r.getId(), r.getInvitationId(),
+                            inv == null ? "" : inv.getGuestId(),
+                            r.getStatus() == null ? "" : r.getStatus().name(),
+                            r.getNumberOfAttendees() == null ? "" : r.getNumberOfAttendees(),
+                            r.getRespondedAt() == null ? "" : r.getRespondedAt().toString());
+                })
+                .toList();
+        return workbook("RSVP", List.of("id", "invitationId", "guestId", "status", "numberOfAttendees", "respondedAt"), rows);
+    }
+
+    /** Export Excel (.xlsx) des tables et affectations. */
+    public byte[] exportTablesXlsx(Long weddingId) {
+        securityUtils.assertPermission("TABLE_VIEW");
+        Event event = eventService.loadInOrgScope(weddingId);
+        List<WeddingTable> tables = weddingTableRepository.findByWeddingId(weddingId);
+        List<List<Object>> rows = tables.stream()
+                .sorted(Comparator.comparing(WeddingTable::getName))
+                .map(t -> {
+                    long assigned = tableAssignmentRepository.countByWeddingTableId(t.getId());
+                    return List.<Object>of(t.getId(), nz(t.getName()), t.getCapacity(), assigned, Math.max(0, t.getCapacity() - assigned));
+                })
+                .toList();
+        return workbook("Tables", List.of("tableId", "tableName", "capacity", "assignedGuests", "remaining"), rows);
+    }
+
+    /** Construit un classeur .xlsx : en-tête gris gras, colonnes auto-dimensionnées, 1re ligne figée. */
+    private byte[] workbook(String sheetName, List<String> headers, List<List<Object>> rows) {
+        try (XSSFWorkbook wb = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            Sheet sheet = wb.createSheet(sheetName);
+            CellStyle headStyle = wb.createCellStyle();
+            headStyle.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
+            headStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+            org.apache.poi.ss.usermodel.Font bold = wb.createFont();
+            bold.setBold(true);
+            headStyle.setFont(bold);
+            Row header = sheet.createRow(0);
+            for (int c = 0; c < headers.size(); c++) {
+                Cell cell = header.createCell(c);
+                cell.setCellValue(headers.get(c));
+                cell.setCellStyle(headStyle);
+            }
+            for (int r = 0; r < rows.size(); r++) {
+                Row row = sheet.createRow(r + 1);
+                List<Object> values = rows.get(r);
+                for (int c = 0; c < values.size(); c++) {
+                    Object v = values.get(c);
+                    Cell cell = row.createCell(c);
+                    if (v instanceof Number n) {
+                        cell.setCellValue(n.doubleValue());
+                    } else if (v instanceof Boolean b) {
+                        cell.setCellValue(b);
+                    } else {
+                        cell.setCellValue(v == null ? "" : String.valueOf(v));
+                    }
+                }
+            }
+            for (int c = 0; c < headers.size(); c++) {
+                sheet.autoSizeColumn(c);
+            }
+            sheet.createFreezePane(0, 1);
+            wb.write(out);
+            return out.toByteArray();
+        } catch (Exception ex) {
+            throw new IllegalStateException("Impossible de générer le fichier Excel", ex);
+        }
+    }
+
+    private String nz(String value) {
+        return value == null ? "" : value;
     }
 
     public byte[] exportDashboardPdf(Long weddingId) {

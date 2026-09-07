@@ -54,6 +54,44 @@ public class ExportController {
                 .body(bytes);
     }
 
+    private static final String XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+    @GetMapping(value = "/guests/xlsx", produces = XLSX_MEDIA_TYPE)
+    @Operation(summary = "Exporter les invités au format Excel (.xlsx)")
+    public ResponseEntity<byte[]> exportGuestsXlsx(@PathVariable Long weddingId) {
+        byte[] bytes = exportService.exportGuestsXlsx(weddingId);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"guests.xlsx\"")
+                .body(bytes);
+    }
+
+    @GetMapping(value = "/invitations/xlsx", produces = XLSX_MEDIA_TYPE)
+    @Operation(summary = "Exporter les invitations au format Excel (.xlsx)")
+    public ResponseEntity<byte[]> exportInvitationsXlsx(@PathVariable Long weddingId) {
+        byte[] bytes = exportService.exportInvitationsXlsx(weddingId);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"invitations.xlsx\"")
+                .body(bytes);
+    }
+
+    @GetMapping(value = "/rsvps/xlsx", produces = XLSX_MEDIA_TYPE)
+    @Operation(summary = "Exporter les RSVP au format Excel (.xlsx)")
+    public ResponseEntity<byte[]> exportRsvpsXlsx(@PathVariable Long weddingId) {
+        byte[] bytes = exportService.exportRsvpsXlsx(weddingId);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"rsvps.xlsx\"")
+                .body(bytes);
+    }
+
+    @GetMapping(value = "/tables/xlsx", produces = XLSX_MEDIA_TYPE)
+    @Operation(summary = "Exporter les tables et affectations au format Excel (.xlsx)")
+    public ResponseEntity<byte[]> exportTablesXlsx(@PathVariable Long weddingId) {
+        byte[] bytes = exportService.exportTablesXlsx(weddingId);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"tables.xlsx\"")
+                .body(bytes);
+    }
+
     @GetMapping(value = "/report/pdf", produces = "application/pdf")
     @Operation(summary = "Exporter le rapport de synthèse au format PDF")
     public ResponseEntity<byte[]> exportReportPdf(@PathVariable Long weddingId) {
