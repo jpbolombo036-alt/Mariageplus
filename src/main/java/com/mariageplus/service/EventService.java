@@ -266,7 +266,22 @@ public class EventService {
     /** Photo de couverture (S3 d'abord, base en fallback) ; null si aucune. */
     @Transactional(readOnly = true)
     public byte[] getImage(Long id) {
-        Event event = loadInOrgScope(id);
+        return readImage(loadInOrgScope(id));
+    }
+
+    /**
+     * Photo de couverture en accès PUBLIC — sans périmètre organisation.
+     * Servie aux serveurs Meta (en-tête des templates WhatsApp : fetch
+     * server-to-server ANONYME) et à la page d'invitation publique.
+     * Les événements supprimés sont déjà exclus par {@code SQLRestriction}.
+     */
+    @Transactional(readOnly = true)
+    public byte[] getPublicImage(Long id) {
+        Event event = eventRepository.findById(id).orElse(null);
+        return event == null ? null : readImage(event);
+    }
+
+    private byte[] readImage(Event event) {
         if (event.getImageKey() != null && !event.getImageKey().isBlank()) {
             byte[] fromS3 = storageService.download(event.getImageKey());
             if (fromS3 != null) {

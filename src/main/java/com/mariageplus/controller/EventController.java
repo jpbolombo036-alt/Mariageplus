@@ -78,9 +78,9 @@ public class EventController {
     }
 
     @GetMapping("/{id}/image")
-    @Operation(summary = "Photo de couverture de l'événement")
+    @Operation(summary = "Photo de couverture de l'événement (public : en-tête des templates WhatsApp + page d'invitation)")
     public ResponseEntity<byte[]> getImage(@PathVariable Long id) {
-        byte[] image = eventService.getImage(id);
+        byte[] image = eventService.getPublicImage(id);
         if (image == null) {
             return ResponseEntity.notFound().build();
         }
