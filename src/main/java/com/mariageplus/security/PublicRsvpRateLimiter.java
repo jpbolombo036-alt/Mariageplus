@@ -2,6 +2,7 @@ package com.mariageplus.security;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.scheduling.annotation.Scheduled;
 
 import java.time.Instant;
 import java.util.concurrent.ConcurrentHashMap;
@@ -18,6 +19,7 @@ public class PublicRsvpRateLimiter {
     private final int submitPerToken;
     private final int perIp;
     private final long windowSeconds;
+    private final int maxCounters = 100_000;
     private final ConcurrentHashMap<String, WindowCounter> counters = new ConcurrentHashMap<>();
 
     public PublicRsvpRateLimiter(
@@ -43,9 +45,22 @@ public class PublicRsvpRateLimiter {
         return windowSeconds;
     }
 
+    /** Prevents attacker-controlled token/IP values from growing the map forever. */
+    @Scheduled(fixedDelayString = "${app.rate-limit.rsvp.cleanup-ms:60000}")
+    public void evictExpiredCounters() {
+        Instant now = Instant.now();
+        counters.entrySet().removeIf(entry -> !now.isBefore(entry.getValue().windowEndsAt()));
+    }
+
     private boolean tryAcquire(String key, int limit, Instant now) {
         if (limit < 1 || windowSeconds < 1) {
             throw new IllegalStateException("Les limites RSVP doivent etre strictement positives");
+        }
+        if (counters.size() >= maxCounters) {
+            evictExpiredCounters();
+            if (counters.size() >= maxCounters && !counters.containsKey(key)) {
+                return false;
+            }
         }
         final boolean[] accepted = {false};
         counters.compute(key, (ignored, current) -> {

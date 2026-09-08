@@ -76,6 +76,7 @@ app:
       read-per-token: ${RSVP_RATE_LIMIT_READ_PER_TOKEN:30}
       submit-per-token: ${RSVP_RATE_LIMIT_SUBMIT_PER_TOKEN:6}
       per-ip: ${RSVP_RATE_LIMIT_PER_IP:120}
+      cleanup-ms: ${RSVP_RATE_LIMIT_CLEANUP_MS:60000}
 
   invitation:
     max-reminders: ${INVITATION_MAX_REMINDERS:3}

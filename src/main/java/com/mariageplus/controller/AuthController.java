@@ -13,8 +13,10 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import jakarta.servlet.http.HttpServletRequest;
 
 @RestController
 @RequestMapping("/auth")
@@ -27,20 +29,29 @@ public class AuthController {
 
     @PostMapping("/register")
     @Operation(summary = "Inscription d'un organisateur (avec création de son organisation)")
-    public ResponseEntity<LoginResponse> register(@Valid @RequestBody RegisterRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(authService.register(request));
+    public ResponseEntity<LoginResponse> register(@Valid @RequestBody RegisterRequest request,
+                                                  HttpServletRequest httpRequest,
+                                                  @RequestHeader(value = "X-Client-Platform", required = false) String platform) {
+        LoginResponse response = authService.register(request);
+        return withRefreshCookie(response, HttpStatus.CREATED, httpRequest, isWeb(platform));
     }
 
     @PostMapping("/login")
     @Operation(summary = "Connexion (email + mot de passe)")
-    public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
-        return ResponseEntity.ok(authService.login(request));
+    public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request,
+                                               HttpServletRequest httpRequest,
+                                               @RequestHeader(value = "X-Client-Platform", required = false) String platform) {
+        return withRefreshCookie(authService.login(request), HttpStatus.OK, httpRequest, isWeb(platform));
     }
 
     @PostMapping("/refresh")
     @Operation(summary = "Renouvellement du token d'accès via refresh token")
-    public ResponseEntity<LoginResponse> refresh(@RequestBody String rawBody) {
-        return ResponseEntity.ok(authService.refreshToken(extractRefreshToken(rawBody)));
+    public ResponseEntity<LoginResponse> refresh(@CookieValue(name = "mp_refresh", required = false) String cookieToken,
+                                                 @RequestBody(required = false) String rawBody,
+                                                 HttpServletRequest httpRequest,
+                                                 @RequestHeader(value = "X-Client-Platform", required = false) String platform) {
+        String token = cookieToken != null ? cookieToken : extractRefreshToken(rawBody);
+        return withRefreshCookie(authService.refreshToken(token), HttpStatus.OK, httpRequest, isWeb(platform));
     }
 
     /**
@@ -78,11 +89,37 @@ public class AuthController {
 
     @PostMapping("/logout")
     @Operation(summary = "Déconnexion (révoque les refresh tokens et invalide les JWT)")
-    public ResponseEntity<Void> logout(@CurrentUser UserInfo currentUser) {
+    public ResponseEntity<Void> logout(@CurrentUser UserInfo currentUser, HttpServletRequest request) {
         if (currentUser != null) {
             authService.logout(currentUser.getId());
         }
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.noContent().header("Set-Cookie", clearRefreshCookie(request.isSecure())).build();
+    }
+
+    private ResponseEntity<LoginResponse> withRefreshCookie(LoginResponse response, HttpStatus status,
+                                                             HttpServletRequest request, boolean webClient) {
+        boolean secure = request.isSecure();
+        ResponseCookie cookie = ResponseCookie.from("mp_refresh", response.getRefreshToken())
+                .httpOnly(true)
+                .secure(secure)
+                .sameSite(secure ? "None" : "Lax")
+                .path("/auth")
+                .maxAge(7 * 24 * 60 * 60)
+                .build();
+        LoginResponse body = webClient
+                ? new LoginResponse(response.getAccessToken(), null, response.getExpiresIn(),
+                response.getTokenType(), response.getUser())
+                : response;
+        return ResponseEntity.status(status).header("Set-Cookie", cookie.toString()).body(body);
+    }
+
+    private boolean isWeb(String platform) {
+        return "web".equalsIgnoreCase(platform);
+    }
+
+    private String clearRefreshCookie(boolean secure) {
+        return ResponseCookie.from("mp_refresh", "")
+                .httpOnly(true).secure(secure).sameSite(secure ? "None" : "Lax").path("/auth").maxAge(0).build().toString();
     }
 
     @GetMapping("/me")

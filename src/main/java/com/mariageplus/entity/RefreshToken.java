@@ -18,8 +18,15 @@ import java.time.LocalDateTime;
 @Builder
 public class RefreshToken extends BaseEntity {
 
-    @Column(name = "token", nullable = false, length = 255, unique = true)
+    /**
+     * Legacy storage kept temporarily for backward-compatible migrations.
+     * New tokens are stored only as a SHA-256 digest in tokenHash.
+     */
+    @Column(name = "token", length = 255, unique = true)
     private String token;
+
+    @Column(name = "token_hash", length = 64, unique = true)
+    private String tokenHash;
 
     @Column(name = "user_id", nullable = false)
     private Long userId;

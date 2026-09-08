@@ -28,6 +28,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
 @Service
 @RequiredArgsConstructor
@@ -134,8 +137,16 @@ public class AuthService {
         }
 
         Long userId = jwtTokenProvider.getUserIdFromToken(token);
-        RefreshToken refreshTokenEntity = refreshTokenRepository.findByToken(token)
+        RefreshToken refreshTokenEntity = refreshTokenRepository.findByTokenHash(hashToken(token))
+                // Compatibility with tokens issued before V33. Upgrade them on use.
+                .or(() -> refreshTokenRepository.findByToken(token))
                 .orElseThrow(() -> new ResourceNotFoundException("Refresh token introuvable"));
+
+        // Remove the legacy clear-text value as soon as an old token is used.
+        if (refreshTokenEntity.getTokenHash() == null) {
+            refreshTokenEntity.setTokenHash(hashToken(token));
+            refreshTokenEntity.setToken(null);
+        }
 
         if (refreshTokenEntity.getExpiresAt().isBefore(LocalDateTime.now())) {
             refreshTokenEntity.softDelete();
@@ -182,12 +193,26 @@ public class AuthService {
 
     private void saveRefreshToken(User user, Long organizationId, String token) {
         RefreshToken refreshToken = RefreshToken.builder()
-                .token(token)
+                .token(null)
+                .tokenHash(hashToken(token))
                 .userId(user.getId())
                 .organizationId(organizationId)
                 .expiresAt(LocalDateTime.now().plusSeconds(jwtTokenProvider.getRefreshExpirationSeconds()))
                 .build();
         refreshTokenRepository.save(refreshToken);
+    }
+
+    private String hashToken(String token) {
+        if (token == null || token.isBlank()) {
+            throw new ResourceNotFoundException("Refresh token invalide");
+        }
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(token.getBytes(StandardCharsets.UTF_8));
+            return java.util.HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException ex) {
+            throw new IllegalStateException("SHA-256 indisponible", ex);
+        }
     }
 
     public UserResponse me(Long userId) {
