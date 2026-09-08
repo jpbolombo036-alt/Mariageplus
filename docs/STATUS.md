@@ -1,134 +1,79 @@
-# État du projet — MariagePlus (backend)
+# Etat du projet - MariagePlus backend
 
-Document de suivi : **où on s’arrête**, **limites actuelles**, **reste à faire**.  
-Dernière mise à jour : août 2026 (fin du plan V1 backend).
+Derniere mise a jour : septembre 2026.
 
-Contrat Flutter : [FRONTEND_FLUTTER.md](FRONTEND_FLUTTER.md)
+Le backend Spring Boot est utilise avec le frontend web du depot separe `MariageWeb-main`.
 
----
+## 1. Fonctionnalites validees
 
-## 1. Ce qui est fait (backend V1)
+- Authentification JWT, refresh, logout et verrouillage de connexion.
+- Multi-tenant par organisation et RBAC.
+- Evenements, categories et invites.
+- Invitations, QR codes, envoi, renvoi, annulation et rotation des QR.
+- RSVP public avec rate limiting.
+- Check-in et annulation de check-in.
+- Tables et affectations.
+- Dashboard et statistiques.
+- Import CSV/XLSX des invites.
+- Uploads d'images et stockage S3-compatible avec fallback base de donnees.
+- Envoi groupe et notifications WhatsApp preparees.
+- Migrations Flyway jusqu'a V33.
+- Docker multi-stage et deploiement Railway.
 
-| Domaine | État |
-|---|---|
-| Auth JWT + refresh + logout + lockout login | OK |
-| Multi-tenant (organisation) + RBAC | OK |
-| Mariages, événements, catégories, invités | OK |
-| Invitations (création, QR, send / resend / cancel, **rotation du QR**) | OK |
-| RSVP public par `publicToken` + rate-limit | OK |
-| Check-in (scan, entrée, annulation) | OK |
-| Tables + affectations | OK |
-| Dashboard statistiques | OK |
-| Import CSV invités | OK |
-| Flyway V1–V13, Docker multi-stage, README, `./mvnw` | OK |
-| Guide Flutter aligné sur l’API | OK |
+Le parcours principal frontend/backend a ete teste :
 
-Lancer en local : `./mvnw spring-boot:run -Dspring-boot.run.profiles=local`  
-Santé : `GET /health` · Swagger (profil `local`) : `/swagger-ui.html`
+`connexion -> evenement -> invites -> invitation -> RSVP -> check-in -> tables -> statistiques`
 
----
+## 2. Securite recemment renforcee
 
-## 2. Limites actuelles (ce qu’il ne faut pas attendre)
+- Les refresh tokens sont hashes en base depuis `V33__hash_refresh_tokens.sql`.
+- Les anciens tokens restent compatibles temporairement et sont nettoyes lors de leur utilisation.
+- Le frontend web utilise un cookie `HttpOnly` pour le refresh token.
+- Le frontend web ne stocke plus les refresh tokens dans `localStorage`.
+- Le rate limiter RSVP nettoie ses compteurs expires et limite sa croissance memoire.
+- Le rate limiting distribue avec Redis reste a prevoir pour plusieurs instances.
+- Les uploads d'images sont limites en taille et controles par signature binaire.
 
-### Produit / métier
+## 3. Etat du deploiement
 
-- **Pas d’application Flutter dans ce dépôt** — seulement l’API + le guide d’intégration.
-- **Page web publique d’invitation** : le backend sert désormais `/invitations/{token}` en Thymeleaf (carte + RSVP). Le Flutter natif reste possible via `/api/public/invitations/...`.
-- **Email optionnel** — sans `SMTP_USERNAME` / `SMTP_PASSWORD`, l’envoi marque `SENT` et renvoie `publicInviteUrl` à partager à la main (`emailSent: false`). Pas de file d’attente, ni de suivi d’ouverture/rebond ; relance auto **désactivée par défaut** (`INVITATION_REMINDER_ENABLED`).
-- **Photos couple / mariés** — champs URL uniquement ; **aucun upload** de fichiers (pas de stockage S3/disque branché sur l’API).
-- **Pas d’export CSV** des invités (permission `GUEST_EXPORT` seedée, pas d’endpoint).
-- **Pas de rapports PDF / export stats** (`REPORT_*` seedés, pas d’endpoint).
-- **Pas d’envoi WhatsApp / SMS** natif — uniquement email SMTP ou lien à copier.
-- **Import CSV** : pas de création auto de catégories inconnues ; pas de mise à jour d’invités existants (doublon email = erreur de ligne).
+- Backend : depot GitHub `Mariageplus`, branche `main`.
+- Frontend : depot local/deploiement separe `MariageWeb-main`.
+- Dernier correctif backend pousse : `c88da91`.
+- Le dernier build Railway avait echoue sur un ancien test de compatibilite du controleur refresh.
+- Le test a ete corrige et pousse ; le nouveau build Railway doit etre confirme.
 
-### Technique / ops
+## 4. Limites actuelles
 
-- **Maven n’est pas dans le PATH** sur certaines machines → utiliser **`./mvnw`**, pas `mvn`.
-- **Profil `local`** : H2 en mémoire → **données perdues** à chaque redémarrage.
-- **`ddl-auto: update`** encore actif en local (Flyway gère déjà le schéma) — risque de divergence H2 / Postgres.
-- **Docker Compose** : secrets d’exemple (`JWT_SECRET`) — à changer avant toute mise en prod.
-- **Railway** (`railway.json`) : startCommand sur un JAR déjà buildé ; le Dockerfile multi-stage est la voie Docker recommandée.
-- **Agents scopés par mariage** : `GESTIONNAIRE_INVITES` / `AGENT_ACCUEIL` sont limités à leur(s) mariage(s) assigné(s) (`organization_members.wedding_id`). `DELETE` et `PUT /members/{id}` permettent le retrait / re-affectation. Le dédoublonnage org-wide est assuré au niveau application (l'index partiel Postgres n'est pas créé pour rester compatible H2).
-- **Refresh token** : corps de `POST /auth/refresh` = **chaîne brute** recommandée, mais le backend accepte désormais aussi `{ "refreshToken": "..." }` et les guillemets de recopie (piège fréquent côté client neutralisé).
-- **Permissions JWT** : le token embarque des permissions, mais le serveur **recharge** le principal depuis la base à chaque requête (source de vérité = DB).
+- L'interface web n'est pas dans ce depot backend ; elle est dans `MariageWeb-main`.
+- L'application Flutter n'est pas dans ce depot.
+- SMTP doit etre configure pour l'envoi email reel.
+- Les exports CSV complets et rapports PDF restent a completer.
+- Le suivi des ouvertures, rebonds et erreurs email reste limite.
+- La purge et l'anonymisation RGPD restent a implementer.
+- Le rate limiter est local a une instance sans Redis.
 
-### Sécurité / conformité
+## 5. Priorites restantes
 
-- Soft-delete partout : les données restent en base (`deleted_at`).
-- Pas de RGPD / export des données personnelles / anonymisation documentés.
-- CORS strict : origines vides = pas de cross-origin (à configurer via `CORS_ALLOWED_ORIGINS`).
+1. Confirmer le nouveau deploiement Railway et l'execution de la migration V33.
+2. Verifier `CORS_ALLOWED_ORIGINS`, `JWT_SECRET` et desactiver `ADMIN_INIT_ENABLED` en production.
+3. Configurer SMTP si requis.
+4. Ajouter une CI qui execute les tests Maven, le typecheck et le build frontend.
+5. Ajouter monitoring, alertes et sauvegardes PostgreSQL.
+6. Ajouter Redis pour le rate limiting multi-instance.
+7. Completer les exports, rapports et fonctions RGPD.
 
----
+## 6. Lancement local
 
-## 3. Permissions seedées sans feature (dette produit)
+Backend :
 
-Présentes en base (Flyway V2+), **sans endpoint ou flux complet** :
+```bash
+./mvnw spring-boot:run -Dspring-boot.run.profiles=local
+```
 
-| Permission | Manque |
-|---|---|
-| `GUEST_EXPORT` | Export CSV / Excel |
-| `REPORT_VIEW` / `REPORT_EXPORT` | Rapports / export |
-| `STATISTICS_VIEW` | Au-delà du dashboard actuel (si besoin séparé) |
-| `SETTINGS_*` | Écran paramètres organisation / mariage |
-| `GUEST_IMPORT` | **Implémenté** (ne plus considérer comme manque) |
-| `INVITATION_SEND` / `RESEND` / `CANCEL` | **Implémentés** |
-| `CHECKIN_CANCEL` | **Implémenté** |
-| `CATEGORY_*` pour `GESTIONNAIRE_INVITES` | **Implémenté** (V13) |
+Frontend :
 
----
+```bash
+npm run dev
+```
 
-## 4. Reste à faire (priorisé)
-
-### P0 — pour une V1 utilisable « jour J »
-
-1. **Front Flutter (ou Web)** organisateur : login, mariages, invités, import, envoi d’invitations, QR, tables, dashboard.
-2. **Page / écran public RSVP** consommant `/api/public/invitations/{token}`.
-3. **Configurer SMTP** en staging/prod si l’email doit partir vraiment.
-4. **Secrets prod** : `JWT_SECRET`, DB, CORS, désactiver `ADMIN_INIT_ENABLED`.
-
-### P1 — confort produit
-
-5. **Export CSV** invités (`GUEST_EXPORT`).
-6. **Upload photos** (marié / mariée / couple) + stockage (disque ou cloud).
-7. **Envoi groupé** d’invitations (batch send) + suivi des échecs SMTP.
-8. Notifications / relances RSVP (email).
-
-### P2 — qualité / ops
-
-9. Harmoniser local : `ddl-auto: validate` (comme prod) + éventuellement H2 fichier.
-10. CI (tests Maven sur chaque PR).
-11. Monitoring / logs structurés / alertes santé.
-12. Documentation OpenAPI générée versionnée (en plus du guide Flutter).
-
-### P3 — hors scope actuel
-
-13. Paiements, multi-langues UI, app store, WhatsApp Business API.
-14. Soft-delete → purge / anonymisation RGPD.
-15. Rapports PDF imprimables (plan de table, listes d’accueil).
-
----
-
-## 5. Où on s’arrête concrètement
-
-Le **backend API** couvre le parcours cœur :
-
-`register/login → mariage → invités (+ import) → invitation → send → RSVP public → check-in (+ cancel) → tables → dashboard`
-
-Ce qui **n’est pas** dans ce dépôt et bloque une démo utilisateur finale :
-
-- l’**UI mobile / web** ;
-- une **vraie URL publique** d’invitation côté front ;
-- l’**email** sans configuration SMTP.
-
-Prochaine action recommandée : démarrer le **client Flutter** en suivant [FRONTEND_FLUTTER.md](FRONTEND_FLUTTER.md), ou brancher SMTP + une mini page RSVP web.
-
----
-
-## 6. Fichiers de référence
-
-| Fichier | Rôle |
-|---|---|
-| [README.md](../README.md) | Lancement local / Docker |
-| [FRONTEND_FLUTTER.md](FRONTEND_FLUTTER.md) | Contrat API pour le mobile |
-| [.env.example](../.env.example) | Variables d’environnement |
-| `src/main/resources/db/migration/` | Schéma + seeds (jusqu’à V13) |
+Pour utiliser le backend local depuis le frontend, definir `VITE_API_BASE_URL=http://localhost:8000` dans `.env.local` du frontend.
