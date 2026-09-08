@@ -54,6 +54,11 @@ public class AuthController {
         return withRefreshCookie(authService.refreshToken(token), HttpStatus.OK, httpRequest, isWeb(platform));
     }
 
+    /** Backward-compatible overload used by unit clients that call the controller directly. */
+    ResponseEntity<LoginResponse> refresh(String rawBody) {
+        return ResponseEntity.ok(authService.refreshToken(extractRefreshToken(rawBody)));
+    }
+
     /**
      * Normalise le corps de {@code POST /auth/refresh} en acceptant le refresh token
      * sous trois formes (le format brut reste prioritaire) :
