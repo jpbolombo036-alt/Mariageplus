@@ -59,6 +59,10 @@ public class Invitation extends BaseEntity {
     @Column(name = "opened_at")
     private LocalDateTime openedAt;
 
+    /** Livraison WhatsApp confirmée par le webhook Meta. Null tant que non confirmé. */
+    @Column(name = "delivered_at")
+    private LocalDateTime deliveredAt;
+
     /** Carte d'invitation confirmée (PNG généré côté invité) : clé objet S3 (prioritaire) / fallback en base. */
     @Column(name = "card_key", length = 500)
     private String cardKey;

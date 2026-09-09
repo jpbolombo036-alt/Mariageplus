@@ -57,7 +57,7 @@ class BulkSendControllerIntegrationTest {
 
         when(whatsAppService.isConfigured()).thenReturn(true);
         when(whatsAppService.sendInvitationTemplate(any(), any(), any(), any(), any()))
-                .thenReturn(true);
+                .thenReturn("wamid.batch");
 
         if (weddingId == 0) {
             String body = mockMvc.perform(post("/api/events")

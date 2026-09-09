@@ -91,7 +91,7 @@ public class BulkSendWorker {
             Invitation invitation = invitationRepository.findById(invitationId).orElse(null);
             if (invitation == null) {
                 skipped++;
-                logRepository.save(log(batch, null, null, "SKIPPED", "Invitation introuvable"));
+                logRepository.save(log(batch, null, null, "SKIPPED", "Invitation introuvable", null));
                 batch = saveCounters(batch, sent, failed, skipped);
                 continue;
             }
@@ -102,24 +102,24 @@ public class BulkSendWorker {
             if (whatsAppId == null) {
                 skipped++;
                 logRepository.save(log(batch, invitation, guest, "SKIPPED",
-                        "Téléphone absent ou invalide"));
+                        "Téléphone absent ou invalide", null));
                 batch = saveCounters(batch, sent, failed, skipped);
                 continue;
             }
 
             String url = invitationMailService.publicInviteUrl(invitation.getPublicToken());
             try {
-                whatsAppService.sendInvitationTemplate(whatsAppId, guest, event, url, imageUrl);
+                String messageId = whatsAppService.sendInvitationTemplate(whatsAppId, guest, event, url, imageUrl);
                 markInvitationSent(invitation, resend);
                 sent++;
-                logRepository.save(log(batch, invitation, guest, "SENT", null));
+                logRepository.save(log(batch, invitation, guest, "SENT", null, messageId));
             } catch (WhatsAppDeliveryException ex) {
                 failed++;
-                logRepository.save(log(batch, invitation, guest, "FAILED", abbreviate(ex.getMessage())));
+                logRepository.save(log(batch, invitation, guest, "FAILED", abbreviate(ex.getMessage()), null));
             } catch (Exception ex) {
                 failed++;
                 log.error("Erreur inattendue d'envoi WhatsApp (invitation {})", invitationId, ex);
-                logRepository.save(log(batch, invitation, guest, "FAILED", "Erreur inattendue"));
+                logRepository.save(log(batch, invitation, guest, "FAILED", "Erreur inattendue", null));
             }
             batch = saveCounters(batch, sent, failed, skipped);
         }
@@ -164,7 +164,7 @@ public class BulkSendWorker {
     }
 
     private NotificationLog log(BulkSendBatch batch, Invitation invitation, Guest guest,
-                                String status, String errorMessage) {
+                                String status, String errorMessage, String messageId) {
         return NotificationLog.builder()
                 .batchId(batch.getId())
                 .weddingId(batch.getWeddingId())
@@ -173,6 +173,7 @@ public class BulkSendWorker {
                 .channel(batch.getChannel())
                 .status(status)
                 .errorMessage(abbreviate(errorMessage))
+                .messageId(messageId)
                 .build();
     }
 

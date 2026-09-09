@@ -43,4 +43,8 @@ public class NotificationLog extends BaseEntity {
     /** Raison de l'échec ou du saut (téléphone absent, erreur API...). */
     @Column(name = "error_message", length = 500)
     private String errorMessage;
+
+    /** Identifiant de message Meta (wamid.*) reçu à l'envoi : clé des statuts webhook. */
+    @Column(name = "message_id", length = 128)
+    private String messageId;
 }

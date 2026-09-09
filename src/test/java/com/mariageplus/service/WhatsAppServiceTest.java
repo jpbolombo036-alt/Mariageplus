@@ -19,6 +19,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -76,16 +77,16 @@ class WhatsAppServiceTest {
     }
 
     @Test
-    void notConfigured_returnsFalseWithoutHttpCall() {
-        assertFalse(new WhatsAppService(RestClient.builder(), new ObjectMapper(),
+    void notConfigured_returnsNullWithoutHttpCall() {
+        assertNull(new WhatsAppService(RestClient.builder(), new ObjectMapper(),
                 "https://graph.facebook.com")
                 .sendInvitationTemplate("2250701020304", guest(), event(),
                         "https://front/invitations/tok", null));
     }
 
     @Test
-    void apiSuccess_returnsTrue() {
-        assertTrue(wired(200, "{\"messages\":[{\"id\":\"wamid.123\"}]}")
+    void apiSuccess_returnsMessageId() {
+        assertEquals("wamid.123", wired(200, "{\"messages\":[{\"id\":\"wamid.123\"}]}")
                 .sendInvitationTemplate("2250701020304", guest(), event(),
                         "https://front/invitations/tok123", null));
     }
@@ -95,10 +96,10 @@ class WhatsAppServiceTest {
         // Garde-fou : l'URI appelée doit être ABSOLUE (baseUrl configurée),
         // sinon l'appel échoue en production avec une exception générique.
         AtomicReference<URI> captured = new AtomicReference<>();
-        boolean sent = wired(200, "{\"messages\":[{\"id\":\"wamid.123\"}]}", captured)
+        String messageId = wired(200, "{\"messages\":[{\"id\":\"wamid.123\"}]}", captured)
                 .sendInvitationTemplate("2250701020304", guest(), event(),
                         "https://front/invitations/tok123", null);
-        assertTrue(sent);
+        assertEquals("wamid.123", messageId);
         assertTrue(captured.get().isAbsolute(),
                 "L'URI de l'API Meta doit être absolue : " + captured.get());
         assertTrue(captured.get().getPath().endsWith("/123456789/messages"),
@@ -161,7 +162,7 @@ class WhatsAppServiceTest {
                 .city("Kinshasa")
                 .build();
 
-        assertTrue(w.sendInvitationTemplate("2250701020304", guest(), wedding,
+        assertEquals("wamid.1", w.sendInvitationTemplate("2250701020304", guest(), wedding,
                 "https://front/invitations/tok123", "https://api.example.com/cover.jpg"));
 
         JsonNode payload = new ObjectMapper().readTree(capturedRequest.get().getBodyAsString());

@@ -104,17 +104,18 @@ public class WhatsAppService {
      * @param publicInviteUrl lien public complet (le publicToken alimente le bouton URL)
      * @param imageUrl        URL publique de la photo de couverture (en-tête, si
      *                        {@code send-header-image} est actif) ; null = sans image
-     * @return true si l'API a accepté le message (identifiant de message reçu)
+     * @return l'identifiant de message Meta (wamid.*) si l'API a accepté le message ;
+     *         null si WhatsApp n'est pas configuré ou si l'API ne renvoie pas d'identifiant
      * @throws WhatsAppDeliveryException si l'API rejette le message
      */
-    public boolean sendInvitationTemplate(String whatsAppId,
-                                          Guest guest,
-                                          Event event,
-                                          String publicInviteUrl,
-                                          String imageUrl) {
+    public String sendInvitationTemplate(String whatsAppId,
+                                         Guest guest,
+                                         Event event,
+                                         String publicInviteUrl,
+                                         String imageUrl) {
         if (!isConfigured()) {
             log.warn("WhatsApp non configuré : aucun envoi tenté");
-            return false;
+            return null;
         }
 
         Map<String, Object> payload = buildPayload(whatsAppId, guest, event, publicInviteUrl, imageUrl);
@@ -127,11 +128,12 @@ public class WhatsAppService {
                     .retrieve()
                     .body(String.class);
             JsonNode json = objectMapper.readTree(body == null ? "{}" : body);
-            boolean accepted = json.path("messages").isArray() && json.path("messages").size() > 0;
-            if (!accepted) {
+            if (!json.path("messages").isArray() || json.path("messages").size() == 0) {
                 throw new WhatsAppDeliveryException("Réponse inattendue de l'API WhatsApp");
             }
-            return true;
+            // Identifiant du message côté Meta (wamid.*) : clé de rattachement des
+            // statuts de livraison (delivered/read/failed) reçus via le webhook.
+            return json.path("messages").get(0).path("id").asText(null);
         } catch (RestClientResponseException ex) {
             String detail = extractApiError(ex);
             log.error("Échec d'envoi WhatsApp vers {} : {}", whatsAppId, detail);

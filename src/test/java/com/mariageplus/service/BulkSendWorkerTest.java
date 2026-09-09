@@ -87,7 +87,7 @@ class BulkSendWorkerTest {
         stubCommon(invitation, guest);
         // 07 01 02 03 04 (local) → +225 701020304 → id WhatsApp "225701020304"
         when(whatsAppService.sendInvitationTemplate(eq("225701020304"), any(), any(), anyString(), isNull()))
-                .thenReturn(true);
+                .thenReturn("wamid.225701020304");
 
         worker.processBatch(9L, 1L, List.of(11L), null, false);
 
@@ -142,7 +142,7 @@ class BulkSendWorkerTest {
         guest.setId(21L);
         stubCommon(invitation, guest);
         when(whatsAppService.sendInvitationTemplate(any(), any(), any(), anyString(), isNull()))
-                .thenReturn(true);
+                .thenReturn("wamid.resend-ok");
 
         worker.processBatch(9L, 1L, List.of(11L), null, true);
 

@@ -26,6 +26,8 @@ public class InvitationResponse {
     private LocalDateTime lastSentAt;
     private int reminderCount;
     private LocalDateTime openedAt;
+    /** Livraison WhatsApp confirmée (webhook Meta). Null tant que non confirmé. */
+    private LocalDateTime deliveredAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

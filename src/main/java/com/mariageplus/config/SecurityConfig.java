@@ -76,6 +76,10 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> {
                     auth.requestMatchers("/auth/**").permitAll();
                     auth.requestMatchers("/api/public/**").permitAll();
+                    // Webhook Meta (statuts WhatsApp delivered/read/failed) :
+                    // GET = handshake hub.verify_token, POST = notifications signées
+                    // X-Hub-Signature-256 (contrôlées dans le contrôleur).
+                    auth.requestMatchers("/api/webhooks/**").permitAll();
                     auth.requestMatchers(org.springframework.http.HttpMethod.GET, "/api/events/*/photos/*").permitAll();
                     // Image de couverture d'événement : utilisée comme en-tête
                     // publique des templates WhatsApp (server-to-server Meta).
