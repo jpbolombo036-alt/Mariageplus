@@ -85,6 +85,7 @@ public class RsvpService {
                 .couplePhotoUrl(photoUrl(invitation.getWeddingId(), details != null ? details.getCouplePhotoUrl() : null, "couple"))
                 .groomPhotoUrl(photoUrl(invitation.getWeddingId(), details != null ? details.getGroomPhotoUrl() : null, "groom"))
                 .bridePhotoUrl(photoUrl(invitation.getWeddingId(), details != null ? details.getBridePhotoUrl() : null, "bride"))
+                .eventPhotoUrl(eventPhotoUrl(invitation.getWeddingId(), event))
                 .message(event != null ? event.getMessage() : null)
                 .eventName(event != null ? event.getName() : null)
                 .eventDate(event != null && event.getEventDate() != null ? DATE_FR.format(event.getEventDate()) : null)
@@ -110,6 +111,15 @@ public class RsvpService {
             return stored;
         }
         return "/api/events/" + eventId + "/photos/" + kind;
+    }
+
+    private String eventPhotoUrl(Long eventId, Event event) {
+        if (event == null || eventId == null) {
+            return null;
+        }
+        boolean hasImage = (event.getImageKey() != null && !event.getImageKey().isBlank())
+                || (event.getImage() != null && event.getImage().length > 0);
+        return hasImage ? "/api/events/" + eventId + "/image" : null;
     }
 
     private String venueText(Event event) {
@@ -147,6 +157,7 @@ public class RsvpService {
                 .couplePhotoUrl(photoUrl(invitation.getWeddingId(), details != null ? details.getCouplePhotoUrl() : null, "couple"))
                 .groomPhotoUrl(photoUrl(invitation.getWeddingId(), details != null ? details.getGroomPhotoUrl() : null, "groom"))
                 .bridePhotoUrl(photoUrl(invitation.getWeddingId(), details != null ? details.getBridePhotoUrl() : null, "bride"))
+                .eventPhotoUrl(eventPhotoUrl(invitation.getWeddingId(), event))
                 .message(event != null ? event.getMessage() : null)
                 .eventName(event != null ? event.getName() : null)
                 .eventDate(event != null && event.getEventDate() != null

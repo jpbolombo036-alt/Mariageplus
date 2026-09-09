@@ -25,6 +25,8 @@ public class PublicInvitationResponse {
     private String couplePhotoUrl;
     private String groomPhotoUrl;
     private String bridePhotoUrl;
+    /** Photo de couverture commune à tous les types d'événements. */
+    private String eventPhotoUrl;
     private String message;
 
     // Événement principal (date / heure / lieu formatés en français)
