@@ -21,7 +21,7 @@ import java.util.regex.Pattern;
 public class PublicRsvpRateLimitFilter extends OncePerRequestFilter {
 
     private static final Pattern PUBLIC_INVITATION_PATH =
-            Pattern.compile("^/api/public/invitations/([^/]+)(/rsvp)?$");
+            Pattern.compile("^/api/public/invitations/([^/]+)(/rsvp|/gallery|/gallery/photos/[0-9]+/image)?$");
 
     private final PublicRsvpRateLimiter rateLimiter;
 
