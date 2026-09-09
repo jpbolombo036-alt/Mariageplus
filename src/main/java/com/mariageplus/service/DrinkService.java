@@ -186,7 +186,8 @@ public class DrinkService {
             String path = "/api/events/" + drink.getWeddingId() + "/drinks/" + drink.getId() + "/image";
             return base.endsWith("/") ? base.substring(0, base.length() - 1) + path : base + path;
         }
-        return null;
+        // Fallback relatif : le frontend public préfixe cette URL avec l'API Railway.
+        return "/api/events/" + drink.getWeddingId() + "/drinks/" + drink.getId() + "/image";
     }
 
     private boolean isSupportedImage(byte[] b) {
