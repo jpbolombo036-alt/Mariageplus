@@ -57,7 +57,9 @@ public class StorageService {
                         AwsBasicCredentials.create(accessKey, secretKey)));
         if (endpoint != null && !endpoint.isBlank()) {
             // Endpoint custom (R2, B2, MinIO, gateway S3 sur Railway...)
-            builder.endpointOverride(URI.create(endpoint));
+            // Les endpoints S3 compatibles attendent généralement le bucket
+            // dans le chemin plutôt que dans le sous-domaine.
+            builder.endpointOverride(URI.create(endpoint)).forcePathStyle(true);
         }
         s3Client = builder.build();
         log.info("Stockage S3 actif : bucket={}", bucket);
@@ -89,7 +91,7 @@ public class StorageService {
                     .key(key)
                     .build()).asByteArray();
         } catch (Exception e) {
-            log.warn("Objet S3 introuvable ou illisible : {}", key);
+            log.warn("Objet S3 introuvable ou illisible : {} ({})", key, e.getMessage());
             return null;
         }
     }
