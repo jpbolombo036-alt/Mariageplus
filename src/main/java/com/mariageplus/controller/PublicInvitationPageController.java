@@ -25,6 +25,16 @@ import org.springframework.web.util.UriComponentsBuilder;
 @Controller
 public class PublicInvitationPageController {
 
+    /**
+     * Page de confirmation venue publique : "/" + "/{slug}".
+     * Sert l'application front (single bundle) et laisse le client router
+     * ("invitations/:slug" -> vue InvitationPage). Les garde-fous côté
+     * serveur (annulé / expiré) restent appliqués via l'API publique.
+     */
+    @GetMapping({"/", "/{slug:[a-z0-9-]+}"})
+    public String index(@PathVariable(required = false) String slug) {
+        return "forward:/index.html";
+    }
     @Value("${app.frontend.url:http://localhost:3000}")
     private String frontendUrl;
 
