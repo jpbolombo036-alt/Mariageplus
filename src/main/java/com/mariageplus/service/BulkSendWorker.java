@@ -49,25 +49,13 @@ public class BulkSendWorker {
     @Value("${app.whatsapp.default-country-code:}")
     private String defaultCountryCode;
 
-    /** Plafond de relances global (invitation) et spécifique WhatsApp (-1 = hériter). */
-    @Value("${app.invitation.max-reminders:3}")
-    private int maxReminders;
-
-    @Value("${app.whatsapp.max-reminders:-1}")
-    private int whatsappMaxReminders;
-
-    /** Plafond effectif : WhatsApp spécifique si défini, sinon global. */
-    private int effectiveMaxReminders() {
-        return whatsappMaxReminders >= 0 ? whatsappMaxReminders : maxReminders;
-    }
-
     /**
      * Traite le batch : s'exécute sur l'exécuteur dédié "bulkSendExecutor"
      * (un seul worker → cadencement et ordre garantis).
      */
     @Async("bulkSendExecutor")
     public void processBatch(Long batchId, Long weddingId, List<Long> invitationIds,
-                             String imageUrl, boolean resend) {
+                             String imageUrl, boolean resend, int reminderLimit) {
         BulkSendBatch batch = batchRepository.findById(batchId).orElse(null);
         if (batch == null) {
             log.error("Batch d'envoi en masse introuvable : {}", batchId);
@@ -120,10 +108,10 @@ public class BulkSendWorker {
             }
             // Garde-fou relances (re-vérifié au traitement : le compteur peut
             // avoir évolué entre la sélection et l'exécution asynchrone).
-            if (resend && invitation.getReminderCount() >= effectiveMaxReminders()) {
+            if (resend && invitation.getReminderCount() >= reminderLimit) {
                 skipped++;
                 logRepository.save(log(batch, invitation, guest, "SKIPPED",
-                        "Limite de relances atteinte (" + effectiveMaxReminders() + ")", null));
+                        "Limite de relances atteinte (" + reminderLimit + ")", null));
                 batch = saveCounters(batch, sent, failed, skipped);
                 continue;
             }

@@ -30,20 +30,45 @@ public class AdminSettingsController {
     @GetMapping("/whatsapp")
     @Operation(summary = "État de l'envoi WhatsApp (lecture : tout utilisateur authentifié)")
     public ResponseEntity<Map<String, Object>> getWhatsapp() {
-        return ResponseEntity.ok(Map.of(
-                "whatsappSendingEnabled", appSettingService.isWhatsappSendingEnabled()));
+        Map<String, Object> body = new java.util.HashMap<>();
+        body.put("whatsappSendingEnabled", appSettingService.isWhatsappSendingEnabled());
+        body.put("whatsappMaxReminders", appSettingService.getWhatsappMaxReminders());
+        return ResponseEntity.ok(body);
     }
 
     @PutMapping("/whatsapp")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
-    @Operation(summary = "Activer / désactiver l'envoi WhatsApp (SUPER_ADMIN)")
+    @Operation(summary = "Activer / désactiver l'envoi WhatsApp et régler le plafond de relances (SUPER_ADMIN)")
     public ResponseEntity<Map<String, Object>> updateWhatsapp(@RequestBody Map<String, Object> body) {
-        Object raw = body == null ? null : body.get("enabled");
-        if (raw == null) {
-            throw new IllegalArgumentException("Le champ 'enabled' est requis (true/false)");
+        Map<String, Object> response = new java.util.HashMap<>();
+        boolean hasEnabled = body != null && body.containsKey("enabled");
+        boolean hasMax = body != null && body.containsKey("whatsappMaxReminders");
+        if (!hasEnabled && !hasMax) {
+            throw new IllegalArgumentException(
+                    "Au moins un champ est requis : 'enabled' (true/false) ou 'whatsappMaxReminders' (entier >= 0 ou null)");
         }
-        boolean enabled = Boolean.parseBoolean(String.valueOf(raw));
-        appSettingService.setWhatsappSendingEnabled(enabled);
-        return ResponseEntity.ok(Map.of("whatsappSendingEnabled", enabled));
+        if (hasEnabled) {
+            Object raw = body.get("enabled");
+            boolean enabled = Boolean.parseBoolean(String.valueOf(raw));
+            appSettingService.setWhatsappSendingEnabled(enabled);
+            response.put("whatsappSendingEnabled", enabled);
+        }
+        if (hasMax) {
+            Object raw = body.get("whatsappMaxReminders");
+            Integer maxReminders;
+            if (raw == null || "inherit".equalsIgnoreCase(String.valueOf(raw))) {
+                maxReminders = appSettingService.setWhatsappMaxReminders(null);
+            } else {
+                try {
+                    maxReminders = appSettingService.setWhatsappMaxReminders(
+                            Integer.parseInt(String.valueOf(raw).trim()));
+                } catch (NumberFormatException ex) {
+                    throw new IllegalArgumentException(
+                            "'whatsappMaxReminders' doit être un entier >= 0 (ou null pour hériter)");
+                }
+            }
+            response.put("whatsappMaxReminders", maxReminders);
+        }
+        return ResponseEntity.ok(response);
     }
 }

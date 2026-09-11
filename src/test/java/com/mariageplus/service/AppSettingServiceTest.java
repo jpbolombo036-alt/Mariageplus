@@ -36,6 +36,13 @@ class AppSettingServiceTest {
         return s;
     }
 
+    private AppSetting maxRow(String value) {
+        AppSetting s = new AppSetting();
+        s.setSettingKey(AppSettingService.KEY_WHATSAPP_MAX_REMINDERS);
+        s.setSettingValue(value);
+        return s;
+    }
+
     @Test
     void enabled_byDefault_whenRowMissing() {
         when(repository.findBySettingKey(AppSettingService.KEY_WHATSAPP_SENDING_ENABLED))
@@ -65,5 +72,49 @@ class AppSettingServiceTest {
         when(repository.save(any(AppSetting.class))).thenAnswer(inv -> inv.getArgument(0));
         assertFalse(service.setWhatsappSendingEnabled(false));
         assertEquals("false", row.getSettingValue());
+    }
+
+    @Test
+    void whatsappMaxReminders_null_whenRowMissing() {
+        when(repository.findBySettingKey(AppSettingService.KEY_WHATSAPP_MAX_REMINDERS))
+                .thenReturn(Optional.empty());
+        assertEquals(null, service.getWhatsappMaxReminders());
+    }
+
+    @Test
+    void whatsappMaxReminders_parsesStoredValue() {
+        when(repository.findBySettingKey(AppSettingService.KEY_WHATSAPP_MAX_REMINDERS))
+                .thenReturn(Optional.of(maxRow("5")));
+        assertEquals(Integer.valueOf(5), service.getWhatsappMaxReminders());
+    }
+
+    @Test
+    void whatsappMaxReminders_ignoresNegativeOrGarbage() {
+        when(repository.findBySettingKey(AppSettingService.KEY_WHATSAPP_MAX_REMINDERS))
+                .thenReturn(Optional.of(maxRow("-2")));
+        assertEquals(null, service.getWhatsappMaxReminders());
+        when(repository.findBySettingKey(AppSettingService.KEY_WHATSAPP_MAX_REMINDERS))
+                .thenReturn(Optional.of(maxRow("abc")));
+        assertEquals(null, service.getWhatsappMaxReminders());
+    }
+
+    @Test
+    void whatsappMaxReminders_setPersistsValue() {
+        AppSetting setting = new AppSetting();
+        setting.setSettingKey(AppSettingService.KEY_WHATSAPP_MAX_REMINDERS);
+        when(repository.findBySettingKey(AppSettingService.KEY_WHATSAPP_MAX_REMINDERS))
+                .thenAnswer(inv -> Optional.of(setting));
+        when(repository.save(any(AppSetting.class))).thenAnswer(inv -> inv.getArgument(0));
+        assertEquals(Integer.valueOf(2), service.setWhatsappMaxReminders(2));
+        assertEquals("2", setting.getSettingValue());
+    }
+
+    @Test
+    void whatsappMaxReminders_resetNull_deletesRow() {
+        AppSetting setting = maxRow("2");
+        when(repository.findBySettingKey(AppSettingService.KEY_WHATSAPP_MAX_REMINDERS))
+                .thenReturn(Optional.of(setting));
+        assertEquals(null, service.setWhatsappMaxReminders(null));
+        org.mockito.Mockito.verify(repository).delete(setting);
     }
 }

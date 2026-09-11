@@ -69,8 +69,17 @@ public class BulkSendService {
 
     private static final int DEFAULT_LOG_PAGE_SIZE = 50;
 
-    /** Plafond effectif de relances : WhatsApp spécifique si défini, sinon global. */
+    /**
+     * Plafond effectif de relances WhatsApp, par priorité :
+     * 1) réglage BD du SUPER_ADMIN (app_settings.whatsapp_max_reminders),
+     * 2) variable d'environnement WHATSAPP_MAX_REMINDERS (app.whatsapp.max-reminders),
+     * 3) plafond global app.invitation.max-reminders (défaut 3).
+     */
     private int effectiveMaxReminders() {
+        Integer dbMax = appSettingService.getWhatsappMaxReminders();
+        if (dbMax != null && dbMax >= 0) {
+            return dbMax;
+        }
         return whatsappMaxReminders >= 0 ? whatsappMaxReminders : maxReminders;
     }
 
@@ -111,7 +120,7 @@ public class BulkSendService {
         List<Long> invitationIds = invitations.stream().map(Invitation::getId).toList();
         String imageUrl = resolveEventImageUrl(event);
         worker.processBatch(batch.getId(), weddingId, invitationIds, imageUrl,
-                request.isResend() || request.isOnlyPendingRsvp());
+                request.isResend() || request.isOnlyPendingRsvp(), effectiveMaxReminders());
 
         log.info("Envoi en masse démarré : batch={}, mariage={}, cibles={}",
                 batch.getId(), weddingId, invitationIds.size());

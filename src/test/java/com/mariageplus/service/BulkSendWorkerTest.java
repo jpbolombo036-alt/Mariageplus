@@ -56,8 +56,6 @@ class BulkSendWorkerTest {
     void setUp() {
         ReflectionTestUtils.setField(worker, "delayMs", 0L);
         ReflectionTestUtils.setField(worker, "defaultCountryCode", "225");
-        ReflectionTestUtils.setField(worker, "maxReminders", 3);
-        ReflectionTestUtils.setField(worker, "whatsappMaxReminders", -1);
         batch = BulkSendBatch.builder().weddingId(1L).organizationId(5L)
                 .channel("WHATSAPP").status("PENDING").totalCount(2).createdBy(7L).build();
         batch.setId(9L);
@@ -91,7 +89,7 @@ class BulkSendWorkerTest {
         when(whatsAppService.sendInvitationTemplate(eq("225701020304"), any(), any(), anyString(), isNull()))
                 .thenReturn("wamid.225701020304");
 
-        worker.processBatch(9L, 1L, List.of(11L), null, false);
+        worker.processBatch(9L, 1L, List.of(11L), null, false, 3);
 
         assertEquals(InvitationStatus.SENT, invitation.getStatus());
         assertNotNull(invitation.getSentAt());
@@ -108,7 +106,7 @@ class BulkSendWorkerTest {
         guest.setId(21L);
         stubCommon(invitation, guest);
 
-        worker.processBatch(9L, 1L, List.of(11L), null, false);
+        worker.processBatch(9L, 1L, List.of(11L), null, false, 3);
 
         verify(whatsAppService, never()).sendInvitationTemplate(any(), any(), any(), any(), any());
         assertEquals(InvitationStatus.GENERATED, invitation.getStatus());
@@ -126,7 +124,7 @@ class BulkSendWorkerTest {
         when(whatsAppService.sendInvitationTemplate(any(), any(), any(), anyString(), isNull()))
                 .thenThrow(new WhatsAppDeliveryException("Recipient not in whatsapp"));
 
-        worker.processBatch(9L, 1L, List.of(11L), null, false);
+        worker.processBatch(9L, 1L, List.of(11L), null, false, 3);
 
         assertEquals(1, batch.getFailedCount());
         assertEquals(0, batch.getSentCount());
@@ -146,16 +144,15 @@ class BulkSendWorkerTest {
         when(whatsAppService.sendInvitationTemplate(any(), any(), any(), anyString(), isNull()))
                 .thenReturn("wamid.resend-ok");
 
-        worker.processBatch(9L, 1L, List.of(11L), null, true);
+        worker.processBatch(9L, 1L, List.of(11L), null, true, 3);
 
         assertEquals(2, invitation.getReminderCount());
         assertEquals(1, batch.getSentCount());
     }
 
     @Test
-    void resendMode_whatsappSpecificLimit_skipsInvitation() {
-        // Plafond WhatsApp spécifique = 1 : une invitation déjà relancée 1 fois est ignorée.
-        ReflectionTestUtils.setField(worker, "whatsappMaxReminders", 1);
+    void resendMode_limitReached_skipsInvitation() {
+        // Plafond WhatsApp = 1 : une invitation déjà relancée 1 fois est ignorée.
         Invitation invitation = Invitation.builder().guestId(21L)
                 .weddingId(1L).publicToken("tok")
                 .status(InvitationStatus.SENT).reminderCount(1).build();
@@ -164,7 +161,7 @@ class BulkSendWorkerTest {
         guest.setId(21L);
         stubCommon(invitation, guest);
 
-        worker.processBatch(9L, 1L, List.of(11L), null, true);
+        worker.processBatch(9L, 1L, List.of(11L), null, true, 1);
 
         assertEquals(1, invitation.getReminderCount()); // inchangé
         assertEquals(1, batch.getSkippedCount());
@@ -173,9 +170,8 @@ class BulkSendWorkerTest {
     }
 
     @Test
-    void resendMode_fallsBackToGlobalLimit_whenWhatsappNotSet() {
-        // whatsappMaxReminders = -1 → hérite du plafond global (3) : 2 relances passent encore.
-        ReflectionTestUtils.setField(worker, "whatsappMaxReminders", -1);
+    void resendMode_withinLimit_sendsReminder() {
+        // Plafond global = 3 : une invitation à 2 relances passe encore.
         Invitation invitation = Invitation.builder().guestId(21L)
                 .weddingId(1L).publicToken("tok")
                 .status(InvitationStatus.SENT).reminderCount(2).build();
@@ -184,9 +180,9 @@ class BulkSendWorkerTest {
         guest.setId(21L);
         stubCommon(invitation, guest);
         when(whatsAppService.sendInvitationTemplate(any(), any(), any(), anyString(), isNull()))
-                .thenReturn("wamid.fallback-ok");
+                .thenReturn("wamid.within-ok");
 
-        worker.processBatch(9L, 1L, List.of(11L), null, true);
+        worker.processBatch(9L, 1L, List.of(11L), null, true, 3);
 
         assertEquals(3, invitation.getReminderCount());
         assertEquals(1, batch.getSentCount());
@@ -204,7 +200,7 @@ class BulkSendWorkerTest {
 
         Thread.currentThread().interrupt();
 
-        worker.processBatch(9L, 1L, List.of(11L), null, false);
+        worker.processBatch(9L, 1L, List.of(11L), null, false, 3);
 
         assertEquals("FAILED", batch.getStatus());
         verify(batchRepository, atLeastOnce()).save(any(BulkSendBatch.class));
@@ -216,7 +212,7 @@ class BulkSendWorkerTest {
         when(batchRepository.save(any(BulkSendBatch.class))).thenAnswer(inv -> inv.getArgument(0));
         when(eventRepository.findById(1L)).thenReturn(Optional.empty());
 
-        worker.processBatch(9L, 1L, List.of(11L), null, false);
+        worker.processBatch(9L, 1L, List.of(11L), null, false, 3);
 
         assertEquals("FAILED", batch.getStatus());
     }
