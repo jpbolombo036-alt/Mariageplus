@@ -56,6 +56,8 @@ class BulkSendWorkerTest {
     void setUp() {
         ReflectionTestUtils.setField(worker, "delayMs", 0L);
         ReflectionTestUtils.setField(worker, "defaultCountryCode", "225");
+        ReflectionTestUtils.setField(worker, "maxReminders", 3);
+        ReflectionTestUtils.setField(worker, "whatsappMaxReminders", -1);
         batch = BulkSendBatch.builder().weddingId(1L).organizationId(5L)
                 .channel("WHATSAPP").status("PENDING").totalCount(2).createdBy(7L).build();
         batch.setId(9L);
@@ -147,6 +149,46 @@ class BulkSendWorkerTest {
         worker.processBatch(9L, 1L, List.of(11L), null, true);
 
         assertEquals(2, invitation.getReminderCount());
+        assertEquals(1, batch.getSentCount());
+    }
+
+    @Test
+    void resendMode_whatsappSpecificLimit_skipsInvitation() {
+        // Plafond WhatsApp spécifique = 1 : une invitation déjà relancée 1 fois est ignorée.
+        ReflectionTestUtils.setField(worker, "whatsappMaxReminders", 1);
+        Invitation invitation = Invitation.builder().guestId(21L)
+                .weddingId(1L).publicToken("tok")
+                .status(InvitationStatus.SENT).reminderCount(1).build();
+        invitation.setId(11L);
+        Guest guest = Guest.builder().firstName("Claire").phone("+2250701020304").build();
+        guest.setId(21L);
+        stubCommon(invitation, guest);
+
+        worker.processBatch(9L, 1L, List.of(11L), null, true);
+
+        assertEquals(1, invitation.getReminderCount()); // inchangé
+        assertEquals(1, batch.getSkippedCount());
+        assertEquals(0, batch.getSentCount());
+        verify(whatsAppService, never()).sendInvitationTemplate(any(), any(), any(), anyString(), any());
+    }
+
+    @Test
+    void resendMode_fallsBackToGlobalLimit_whenWhatsappNotSet() {
+        // whatsappMaxReminders = -1 → hérite du plafond global (3) : 2 relances passent encore.
+        ReflectionTestUtils.setField(worker, "whatsappMaxReminders", -1);
+        Invitation invitation = Invitation.builder().guestId(21L)
+                .weddingId(1L).publicToken("tok")
+                .status(InvitationStatus.SENT).reminderCount(2).build();
+        invitation.setId(11L);
+        Guest guest = Guest.builder().firstName("Claire").phone("+2250701020304").build();
+        guest.setId(21L);
+        stubCommon(invitation, guest);
+        when(whatsAppService.sendInvitationTemplate(any(), any(), any(), anyString(), isNull()))
+                .thenReturn("wamid.fallback-ok");
+
+        worker.processBatch(9L, 1L, List.of(11L), null, true);
+
+        assertEquals(3, invitation.getReminderCount());
         assertEquals(1, batch.getSentCount());
     }
 

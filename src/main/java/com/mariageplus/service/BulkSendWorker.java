@@ -49,6 +49,18 @@ public class BulkSendWorker {
     @Value("${app.whatsapp.default-country-code:}")
     private String defaultCountryCode;
 
+    /** Plafond de relances global (invitation) et spécifique WhatsApp (-1 = hériter). */
+    @Value("${app.invitation.max-reminders:3}")
+    private int maxReminders;
+
+    @Value("${app.whatsapp.max-reminders:-1}")
+    private int whatsappMaxReminders;
+
+    /** Plafond effectif : WhatsApp spécifique si défini, sinon global. */
+    private int effectiveMaxReminders() {
+        return whatsappMaxReminders >= 0 ? whatsappMaxReminders : maxReminders;
+    }
+
     /**
      * Traite le batch : s'exécute sur l'exécuteur dédié "bulkSendExecutor"
      * (un seul worker → cadencement et ordre garantis).
@@ -103,6 +115,15 @@ public class BulkSendWorker {
                 skipped++;
                 logRepository.save(log(batch, invitation, guest, "SKIPPED",
                         "Téléphone absent ou invalide", null));
+                batch = saveCounters(batch, sent, failed, skipped);
+                continue;
+            }
+            // Garde-fou relances (re-vérifié au traitement : le compteur peut
+            // avoir évolué entre la sélection et l'exécution asynchrone).
+            if (resend && invitation.getReminderCount() >= effectiveMaxReminders()) {
+                skipped++;
+                logRepository.save(log(batch, invitation, guest, "SKIPPED",
+                        "Limite de relances atteinte (" + effectiveMaxReminders() + ")", null));
                 batch = saveCounters(batch, sent, failed, skipped);
                 continue;
             }

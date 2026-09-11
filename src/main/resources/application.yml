@@ -108,6 +108,9 @@ app:
     # URL publique de CETTE API (ex : https://mariageplus-prod.up.railway.app) :
     # sert à exposer /api/events/{id}/image (en-tête du template WhatsApp).
     public-api-base-url: ${PUBLIC_API_BASE_URL:}
+    # Plafond de relances WhatsApp par invitation (-1 = hériter de
+    # app.invitation.max-reminders, défaut 3). Ex : WHATSAPP_MAX_REMINDERS=2.
+    max-reminders: ${WHATSAPP_MAX_REMINDERS:-1}
     bulk:
       # Cadencement entre deux messages (ms) — 2000 = 30 msg/min.
       delay-ms: ${WHATSAPP_BULK_DELAY_MS:2000}

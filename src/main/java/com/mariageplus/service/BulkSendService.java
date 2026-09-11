@@ -57,6 +57,10 @@ public class BulkSendService {
     @Value("${app.invitation.max-reminders:3}")
     private int maxReminders;
 
+    /** Plafond de relances spécifique WhatsApp (-1 = hériter de maxReminders). */
+    @Value("${app.whatsapp.max-reminders:-1}")
+    private int whatsappMaxReminders;
+
     @Value("${app.whatsapp.public-api-base-url:}")
     private String publicApiBaseUrl;
 
@@ -64,6 +68,11 @@ public class BulkSendService {
     private String s3PublicBaseUrl;
 
     private static final int DEFAULT_LOG_PAGE_SIZE = 50;
+
+    /** Plafond effectif de relances : WhatsApp spécifique si défini, sinon global. */
+    private int effectiveMaxReminders() {
+        return whatsappMaxReminders >= 0 ? whatsappMaxReminders : maxReminders;
+    }
 
     @Transactional
     public BulkSendBatchResponse startBulkSend(Long weddingId, BulkSendRequest request) {
@@ -163,7 +172,7 @@ public class BulkSendService {
                 if (status != InvitationStatus.SENT) {
                     continue;
                 }
-                if (invitation.getReminderCount() >= maxReminders) {
+                if (invitation.getReminderCount() >= effectiveMaxReminders()) {
                     continue;
                 }
             } else if (status != InvitationStatus.GENERATED && status != InvitationStatus.DRAFT) {
