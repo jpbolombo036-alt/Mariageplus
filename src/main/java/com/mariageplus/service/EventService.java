@@ -111,16 +111,25 @@ public class EventService {
         return loadFullResponse(event);
     }
 
-    public PageResponse<EventResponse> list(int page, int size, String sortBy, String sortDir, EventType type) {
+    public PageResponse<EventResponse> list(int page, int size, String sortBy, String sortDir, EventType type,
+            Long organizationIdFilter) {
         securityUtils.assertPermission("EVENT_VIEW");
         Sort sort = "desc".equalsIgnoreCase(sortDir) ? Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
         Pageable pageable = PageRequest.of(page, size, sort);
 
         Page<Event> eventPage;
         if (securityUtils.isSuperAdmin()) {
-            eventPage = (type == null)
-                    ? eventRepository.findAll(pageable)
-                    : eventRepository.findByType(type, pageable);
+            if (organizationIdFilter != null) {
+                // Console SUPER_ADMIN : événements d'une organisation précise
+                // (le filtre est ignoré pour les autres rôles, déjà scopés).
+                eventPage = (type == null)
+                        ? eventRepository.findByOrganizationId(organizationIdFilter, pageable)
+                        : eventRepository.findByOrganizationIdAndType(organizationIdFilter, type, pageable);
+            } else {
+                eventPage = (type == null)
+                        ? eventRepository.findAll(pageable)
+                        : eventRepository.findByType(type, pageable);
+            }
         } else if (securityUtils.isAgentRole()) {
             // Scoping agent : GESTIONNAIRE_INVITES / AGENT_ACCUEIL ne voient QUE les
             // événements qui leur sont assignés (weddingIds), pas toute l'organisation.

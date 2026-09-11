@@ -34,14 +34,15 @@ public class EventController {
     private final EventService eventService;
 
     @GetMapping
-    @Operation(summary = "Liste paginée des événements (filtre optionnel par type, périmètre de l'utilisateur, global pour SUPER_ADMIN)")
+    @Operation(summary = "Liste paginée des événements (filtres optionnels : type, organizationId — SUPER_ADMIN uniquement —, périmètre de l'utilisateur, global pour SUPER_ADMIN)")
     public ResponseEntity<PageResponse<EventResponse>> list(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "25") int size,
             @RequestParam(defaultValue = "id") String sortBy,
             @RequestParam(defaultValue = "asc") String sortDir,
-            @RequestParam(required = false) EventType type) {
-        return ResponseEntity.ok(eventService.list(page, size, sortBy, sortDir, type));
+            @RequestParam(required = false) EventType type,
+            @RequestParam(required = false) Long organizationId) {
+        return ResponseEntity.ok(eventService.list(page, size, sortBy, sortDir, type, organizationId));
     }
 
     @PostMapping
