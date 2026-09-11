@@ -14,9 +14,9 @@ import com.mariageplus.repository.UserRoleRepository;
 import com.mariageplus.repository.OrganizationMemberRepository;
 import com.mariageplus.repository.RolePermissionRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class UserService {
 
     private final UserRepository userRepository;
@@ -38,11 +39,47 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
 
     public PageResponse<UserResponse> getAll(int page, int size, String sortBy, String sortDir) {
-        Sort sort = "desc".equalsIgnoreCase(sortDir) ? Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
-        Pageable pageable = PageRequest.of(page, size, sort);
-        Page<User> userPage = userRepository.findAll(pageable);
-        List<UserResponse> content = userPage.getContent().stream().map(this::buildResponse).collect(Collectors.toList());
+        Sort safeSort = Sort.unsorted();
+        try {
+            safeSort = "desc".equalsIgnoreCase(sortDir)
+                    ? Sort.by(sortBy).descending()
+                    : Sort.by(sortBy).ascending();
+        } catch (RuntimeException ex) {
+            log.warn("Tri invalide sortBy={} sortDir={} → tri par défaut", sortBy, sortDir);
+        }
+        Page<User> userPage = userRepository.findAll(
+                PageRequest.of(Math.max(0, page), Math.max(1, size), safeSort));
+        List<UserResponse> content = userPage.getContent().stream()
+                .map(this::buildResponseSafe)
+                .collect(Collectors.toList());
         return PageResponse.of(content, userPage);
+    }
+
+    /**
+     * Un utilisateur dont les données liées sont incohérentes (ex. ligne
+     * organization_members pointant vers une organisation supprimée) ne doit
+     * JAMAIS casser la liste entière (500) : on renvoie alors la fiche de base.
+     */
+    private UserResponse buildResponseSafe(User user) {
+        try {
+            return buildResponse(user);
+        } catch (RuntimeException ex) {
+            log.warn("Fiche utilisateur #{} incohérente ({}: {}) → fiche de base renvoyée",
+                    user.getId(), ex.getClass().getSimpleName(), ex.getMessage());
+            return UserResponse.builder()
+                    .id(user.getId())
+                    .firstName(user.getFirstName())
+                    .lastName(user.getLastName())
+                    .email(user.getEmail())
+                    .phone(user.getPhone())
+                    .active(user.isActive())
+                    .emailVerified(user.isEmailVerified())
+                    .lastLoginAt(user.getLastLoginAt())
+                    .roles(new ArrayList<>())
+                    .permissions(new ArrayList<>())
+                    .organizationId(null)
+                    .build();
+        }
     }
 
     public UserResponse getById(Long id) {
@@ -249,7 +286,7 @@ public class UserService {
                 ? new ArrayList<>()
                 : new ArrayList<>(rolePermissionRepository.findCodesByRoleIds(roleIds));
         Long orgId = organizationMemberRepository.findByUser_IdAndActiveTrue(user.getId())
-                .map(m -> m.getOrganization().getId())
+                .map(m -> m.getOrganization() == null ? null : m.getOrganization().getId())
                 .orElse(null);
         return UserResponse.builder()
                 .id(user.getId())
