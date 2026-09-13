@@ -1,8 +1,8 @@
 package com.mariageplus.controller;
 
-import com.mariageplus.dto.drink.DrinkResponse;
-import com.mariageplus.service.DrinkService;
+import com.mariageplus.dto.drink.AvailableDrinkResponse;
 import com.mariageplus.service.RsvpService;
+import com.mariageplus.service.EventDrinkService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -18,12 +18,13 @@ import java.util.List;
 public class PublicDrinkController {
 
     private final RsvpService rsvpService;
-    private final DrinkService drinkService;
+    private final EventDrinkService eventDrinkService;
 
     @GetMapping("/{publicToken}/drinks")
-    @Operation(summary = "Liste des boissons actives pour l'événement de l'invitation")
-    public ResponseEntity<List<DrinkResponse>> listForInvitation(@PathVariable String publicToken) {
+    @Operation(summary = "Boissons DISPONIBLES pour l'événement de l'invitation (déclarées par l'organisateur)")
+    public ResponseEntity<List<AvailableDrinkResponse>> listForInvitation(@PathVariable String publicToken) {
         Long eventId = rsvpService.resolveEventId(publicToken);
-        return ResponseEntity.ok(drinkService.listActive(eventId));
+        return ResponseEntity.ok(eventDrinkService.listForInvitation(eventId));
     }
 }
+

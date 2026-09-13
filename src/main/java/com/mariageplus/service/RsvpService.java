@@ -51,6 +51,7 @@ public class RsvpService {
     private final EventRepository eventRepository;
     private final WeddingDetailsRepository weddingDetailsRepository;
     private final DrinkRepository drinkRepository;
+    private final EventDrinkService eventDrinkService;
     private final EventSessionRepository eventSessionRepository;
     private final ObjectMapper objectMapper;
 
@@ -250,7 +251,8 @@ public class RsvpService {
 
     /**
      * Normalise les choix de boissons : trim, dédoublonnage (insensible à la
-     * casse), existence parmi les boissons ACTIVES de l'événement, 3 maximum.
+     * casse), existence parmi les boissons DISPONIBLES de l'événement
+     * (catalogue déclaré par l'organisateur — fallback ancienne table), 3 max.
      */
     private List<String> resolveChoices(SubmitRsvpRequest request, Long weddingId) {
         List<String> raw = request.getDrinkChoices();
@@ -261,8 +263,7 @@ public class RsvpService {
             throw new IllegalArgumentException(
                     "Vous pouvez choisir au maximum " + MAX_DRINK_CHOICES + " boissons");
         }
-        Set<String> activeNames = drinkRepository.findByWeddingIdAndActiveTrue(weddingId).stream()
-                .map(Drink::getName)
+        Set<String> availableNames = eventDrinkService.availableDrinkNames(weddingId).stream()
                 .collect(Collectors.toSet());
         List<String> result = new ArrayList<>();
         for (String item : raw) {
@@ -272,8 +273,8 @@ public class RsvpService {
             String name = item.trim();
             boolean duplicate = result.stream().anyMatch(r -> r.equalsIgnoreCase(name));
             if (!duplicate) {
-                if (!activeNames.contains(name)) {
-                    throw new IllegalArgumentException("Boisson inconnue : " + name);
+                if (!availableNames.contains(name)) {
+                    throw new IllegalArgumentException("Boisson inconnue ou non disponible : " + name);
                 }
                 result.add(name);
             }

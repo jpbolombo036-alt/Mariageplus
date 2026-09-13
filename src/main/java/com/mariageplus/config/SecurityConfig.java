@@ -86,6 +86,8 @@ public class SecurityConfig {
                     auth.requestMatchers(org.springframework.http.HttpMethod.GET, "/api/events/*/image").permitAll();
                     // Photo d'une boisson : carte visuelle du RSVP public.
                     auth.requestMatchers(org.springframework.http.HttpMethod.GET, "/api/events/*/drinks/*/image").permitAll();
+                    // Photo d'une boisson du CATALOGUE (carte RSVP publique des invités).
+                    auth.requestMatchers(org.springframework.http.HttpMethod.GET, "/api/admin/drink-catalog/*/image").permitAll();
                     // Page web publique d'invitation (lien envoyé à l'invité).
                     auth.requestMatchers("/invitations/**").permitAll();
                     auth.requestMatchers("/health").permitAll();
