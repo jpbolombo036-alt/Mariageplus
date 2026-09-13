@@ -15,9 +15,8 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.Map;
 
 /**
- * Réglages plateforme. Lecture ouverte à tout utilisateur authentifié
- * (le front s'en sert pour masquer/désactiver les boutons), modification
- * réservée au SUPER_ADMIN.
+ * Réglages plateforme. Lecture ET écriture réservées au SUPER_ADMIN
+ * (l'organisateur ne doit même pas voir les interrupteurs globaux).
  */
 @RestController
 @RequestMapping("/api/admin/settings")
@@ -28,7 +27,8 @@ public class AdminSettingsController {
     private final AppSettingService appSettingService;
 
     @GetMapping("/whatsapp")
-    @Operation(summary = "État de l'envoi WhatsApp (lecture : tout utilisateur authentifié)")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @Operation(summary = "État de l'envoi WhatsApp (lecture : SUPER_ADMIN uniquement)")
     public ResponseEntity<Map<String, Object>> getWhatsapp() {
         Map<String, Object> body = new java.util.HashMap<>();
         body.put("whatsappSendingEnabled", appSettingService.isWhatsappSendingEnabled());
