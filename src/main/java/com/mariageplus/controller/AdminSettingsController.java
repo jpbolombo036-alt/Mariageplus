@@ -71,4 +71,25 @@ public class AdminSettingsController {
         }
         return ResponseEntity.ok(response);
     }
+
+    @GetMapping("/event-creation")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @Operation(summary = "État de l'interrupteur « création d'événements » (SUPER_ADMIN)")
+    public ResponseEntity<Map<String, Object>> getEventCreation() {
+        return ResponseEntity.ok(Map.of(
+                "eventCreationEnabled", appSettingService.isEventCreationEnabled()));
+    }
+
+    @PutMapping("/event-creation")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Autoriser / interdire aux utilisateurs de créer des événements (SUPER_ADMIN)")
+    public ResponseEntity<Map<String, Object>> updateEventCreation(@RequestBody Map<String, Object> body) {
+        Object raw = body == null ? null : body.get("enabled");
+        if (raw == null) {
+            throw new IllegalArgumentException("Champ 'enabled' requis (true/false)");
+        }
+        boolean enabled = Boolean.parseBoolean(String.valueOf(raw));
+        appSettingService.setEventCreationEnabled(enabled);
+        return ResponseEntity.ok(Map.of("eventCreationEnabled", enabled));
+    }
 }

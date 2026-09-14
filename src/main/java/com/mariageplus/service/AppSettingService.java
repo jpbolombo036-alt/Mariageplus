@@ -23,6 +23,9 @@ public class AppSettingService {
     /** Plafond de relances WhatsApp par invitation (null = hériter du réglage env/global). */
     public static final String KEY_WHATSAPP_MAX_REMINDERS = "whatsapp_max_reminders";
 
+    /** Interrupteur global : autoriser les utilisateurs à créer des événements (SUPER_ADMIN). */
+    public static final String KEY_EVENT_CREATION_ENABLED = "event_creation_enabled";
+
     private final AppSettingRepository repository;
 
     @Transactional(readOnly = true)
@@ -75,6 +78,28 @@ public class AppSettingService {
         repository.save(setting);
         log.info("Réglage plateforme : {} = {}", KEY_WHATSAPP_MAX_REMINDERS, maxReminders);
         return maxReminders;
+    }
+
+    /**
+     * Autoriser les utilisateurs (non SUPER_ADMIN) à créer des événements.
+     * true par défaut (absence de ligne = autorisé).
+     */
+    @Transactional(readOnly = true)
+    public boolean isEventCreationEnabled() {
+        return repository.findBySettingKey(KEY_EVENT_CREATION_ENABLED)
+                .map(s -> !"false".equalsIgnoreCase(
+                        s.getSettingValue() == null ? "" : s.getSettingValue().trim()))
+                .orElse(true);
+    }
+
+    /** Active / désactive la création d'événements pour tous les utilisateurs non SUPER_ADMIN. */
+    @Transactional
+    public boolean setEventCreationEnabled(boolean enabled) {
+        AppSetting setting = upsert(KEY_EVENT_CREATION_ENABLED);
+        setting.setSettingValue(Boolean.toString(enabled));
+        repository.save(setting);
+        log.info("Réglage plateforme : {} = {}", KEY_EVENT_CREATION_ENABLED, enabled);
+        return enabled;
     }
 
     private AppSetting upsert(String key) {

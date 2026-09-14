@@ -11,6 +11,7 @@ import com.mariageplus.entity.EventSession;
 import com.mariageplus.entity.EventStatus;
 import com.mariageplus.entity.EventType;
 import com.mariageplus.entity.WeddingDetails;
+import com.mariageplus.exception.ForbiddenException;
 import com.mariageplus.exception.ResourceNotFoundException;
 import com.mariageplus.mapper.EventMapper;
 import com.mariageplus.repository.EventRepository;
@@ -44,6 +45,7 @@ import java.util.stream.Collectors;
 public class EventService {
 
     private final EventRepository eventRepository;
+    private final AppSettingService appSettingService;
     private final WeddingDetailsRepository weddingDetailsRepository;
     private final EventSessionRepository eventSessionRepository;
     private final EventMapper eventMapper;
@@ -54,6 +56,12 @@ public class EventService {
     @Transactional
     public EventResponse create(CreateEventRequest request) {
         securityUtils.assertPermission("EVENT_CREATE");
+        // Interrupteur global SUPER_ADMIN : seuls les SUPER_ADMIN peuvent créer
+        // quand la création d'événements est désactivée pour la plateforme.
+        if (!securityUtils.isSuperAdmin() && !appSettingService.isEventCreationEnabled()) {
+            throw new ForbiddenException(
+                    "La création d'événements est actuellement désactivée par l'administrateur de la plateforme");
+        }
         validateWeddingDetailsPresence(request.getType(), request.getWeddingDetails());
         Long organizationId = resolveOrganizationForCreate(request.getOrganizationId());
         Long userId = securityUtils.getCurrentUserId();
