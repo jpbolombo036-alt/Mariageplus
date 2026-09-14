@@ -52,6 +52,7 @@ public class BulkSendService {
     private final SecurityUtils securityUtils;
     private final WhatsAppService whatsAppService;
     private final AppSettingService appSettingService;
+    private final OrganizationSettingsService organizationSettingsService;
     private final BulkSendWorker worker;
 
     @Value("${app.invitation.max-reminders:3}")
@@ -97,10 +98,10 @@ public class BulkSendService {
             throw new IllegalArgumentException(
                     "WhatsApp non configuré : définissez WHATSAPP_TOKEN et WHATSAPP_PHONE_NUMBER_ID");
         }
-        // Interrupteur global SUPER_ADMIN : coupe l'envoi WhatsApp plateforme.
-        if (!appSettingService.isWhatsappSendingEnabled()) {
+        // Interrupteur SUPER_ADMIN par organisation (hérite du global).
+        if (!organizationSettingsService.isWhatsappAllowed(event.getOrganizationId())) {
             throw new ForbiddenException(
-                    "L'envoi WhatsApp est désactivé par l'administrateur de la plateforme");
+                    "L'envoi WhatsApp est désactivé pour votre organisation par l'administrateur de la plateforme");
         }
 
         List<Invitation> invitations = selectInvitations(weddingId, request);

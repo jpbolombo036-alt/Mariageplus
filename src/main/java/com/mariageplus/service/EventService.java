@@ -45,7 +45,7 @@ import java.util.stream.Collectors;
 public class EventService {
 
     private final EventRepository eventRepository;
-    private final AppSettingService appSettingService;
+    private final OrganizationSettingsService organizationSettingsService;
     private final WeddingDetailsRepository weddingDetailsRepository;
     private final EventSessionRepository eventSessionRepository;
     private final EventMapper eventMapper;
@@ -56,14 +56,14 @@ public class EventService {
     @Transactional
     public EventResponse create(CreateEventRequest request) {
         securityUtils.assertPermission("EVENT_CREATE");
-        // Interrupteur global SUPER_ADMIN : seuls les SUPER_ADMIN peuvent créer
-        // quand la création d'événements est désactivée pour la plateforme.
-        if (!securityUtils.isSuperAdmin() && !appSettingService.isEventCreationEnabled()) {
-            throw new ForbiddenException(
-                    "La création d'événements est actuellement désactivée par l'administrateur de la plateforme");
-        }
         validateWeddingDetailsPresence(request.getType(), request.getWeddingDetails());
         Long organizationId = resolveOrganizationForCreate(request.getOrganizationId());
+        // Réglage par organisation (hérite du global) : seuls les SUPER_ADMIN
+        // peuvent créer quand la création est interdite à l'organisation.
+        if (!securityUtils.isSuperAdmin() && !organizationSettingsService.isEventCreationAllowed(organizationId)) {
+            throw new ForbiddenException(
+                    "La création d'événements est désactivée pour votre organisation par l'administrateur de la plateforme");
+        }
         Long userId = securityUtils.getCurrentUserId();
 
         Event event = Event.builder()
