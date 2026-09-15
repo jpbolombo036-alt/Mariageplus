@@ -60,6 +60,20 @@ public class OrganizationSettingsService {
         log.info("Réglage organisation {} : whatsapp_enabled = {}", organizationId, enabled);
     }
 
+    /**
+     * Réglages initiaux d'un NOUVEAU compte (organisation) : envoi WhatsApp et
+     * création d'événements DÉSACTIVÉS. Le SUPER_ADMIN les active ensuite
+     * organisation par organisation (Console → Organisations → Réglages).
+     */
+    @Transactional
+    public void initializeLockedDefaults(Long organizationId) {
+        upsert(organizationId, s -> {
+            s.setWhatsappEnabled(false);
+            s.setEventCreationEnabled(false);
+        });
+        log.info("Nouvelle organisation {} : WhatsApp et création d'événements désactivés par défaut (SUPER_ADMIN doit activer)", organizationId);
+    }
+
     private Boolean getOverride(Long organizationId, Function<OrganizationSetting, Boolean> getter) {
         return organizationId == null ? null
                 : repository.findById(organizationId).map(getter).orElse(null);

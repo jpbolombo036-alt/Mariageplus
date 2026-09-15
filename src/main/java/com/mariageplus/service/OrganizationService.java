@@ -18,6 +18,7 @@ import java.util.stream.Collectors;
 public class OrganizationService {
 
     private final OrganizationRepository organizationRepository;
+    private final OrganizationSettingsService organizationSettingsService;
 
     public List<OrganizationResponse> getAll() {
         return organizationRepository.findAll().stream()
@@ -46,6 +47,9 @@ public class OrganizationService {
                 .active(request.getActive() == null || request.getActive())
                 .build();
         Organization saved = organizationRepository.save(organization);
+        // Nouvelle organisation (créée via la console) : WhatsApp et création
+        // d'événements verrouillés — le SUPER_ADMIN les active ensuite.
+        organizationSettingsService.initializeLockedDefaults(saved.getId());
         return buildResponse(saved);
     }
 

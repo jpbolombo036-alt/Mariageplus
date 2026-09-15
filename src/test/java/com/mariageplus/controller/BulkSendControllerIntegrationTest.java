@@ -32,6 +32,7 @@ class BulkSendControllerIntegrationTest {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private AuthService authService;
+    @Autowired private com.mariageplus.service.OrganizationSettingsService organizationSettingsService;
     @Autowired private ObjectMapper objectMapper;
 
     @MockBean
@@ -51,6 +52,10 @@ class BulkSendControllerIntegrationTest {
             req.setPassword("password123");
             req.setOrganizationName("Org BulkTest");
             var res = authService.register(req);
+            // Nouveau compte = verrouillé par défaut : déverrouille WhatsApp et
+            // la création d'événements pour ce scénario de test.
+            organizationSettingsService.setWhatsappEnabled(res.getUser().getOrganizationId(), true);
+            organizationSettingsService.setEventCreationEnabled(res.getUser().getOrganizationId(), true);
             token = res.getAccessToken();
             initialized = true;
         }

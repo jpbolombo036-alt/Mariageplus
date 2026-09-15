@@ -99,7 +99,9 @@ public class BulkSendService {
                     "WhatsApp non configuré : définissez WHATSAPP_TOKEN et WHATSAPP_PHONE_NUMBER_ID");
         }
         // Interrupteur SUPER_ADMIN par organisation (hérite du global).
-        if (!organizationSettingsService.isWhatsappAllowed(event.getOrganizationId())) {
+        // Le SUPER_ADMIN n'est pas bloqué par le verrou de son organisation.
+        if (!securityUtils.isSuperAdmin()
+                && !organizationSettingsService.isWhatsappAllowed(event.getOrganizationId())) {
             throw new ForbiddenException(
                     "L'envoi WhatsApp est désactivé pour votre organisation par l'administrateur de la plateforme");
         }

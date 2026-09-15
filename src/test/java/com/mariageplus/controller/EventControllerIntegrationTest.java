@@ -5,6 +5,7 @@ import com.mariageplus.dto.auth.RegisterRequest;
 import com.mariageplus.dto.event.CreateEventRequest;
 import com.mariageplus.dto.event.WeddingDetailsRequest;
 import com.mariageplus.service.AuthService;
+import com.mariageplus.service.OrganizationSettingsService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,6 +33,7 @@ class EventControllerIntegrationTest {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private AuthService authService;
+    @Autowired private OrganizationSettingsService organizationSettingsService;
     @Autowired private ObjectMapper objectMapper;
 
     private static String token;
@@ -47,6 +49,10 @@ class EventControllerIntegrationTest {
             req.setPassword("password123");
             req.setOrganizationName("Organisation EventA");
             LoginResponse res = authService.register(req);
+            // Nouveau compte = verrouillé par défaut (WhatsApp + création OFF) :
+            // on déverrouille l'organisation pour exercer le flux événementiel.
+            organizationSettingsService.setEventCreationEnabled(res.getUser().getOrganizationId(), true);
+            organizationSettingsService.setWhatsappEnabled(res.getUser().getOrganizationId(), true);
             token = res.getAccessToken();
             initialized = true;
         }

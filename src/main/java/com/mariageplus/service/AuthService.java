@@ -45,6 +45,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final UserService userService;
+    private final OrganizationSettingsService organizationSettingsService;
 
     @org.springframework.beans.factory.annotation.Value("${app.security.max-login-attempts:5}")
     private int maxLoginAttempts;
@@ -117,6 +118,10 @@ public class AuthService {
                 .role(organizerRole)
                 .active(true)
                 .build());
+
+        // Nouveau compte : envoi WhatsApp et création d'événements verrouillés.
+        // Le SUPER_ADMIN les active dans la Console → Organisations.
+        organizationSettingsService.initializeLockedDefaults(savedOrg.getId());
 
         UserPrincipal principal = UserPrincipal.create(
                 saved.getId(), saved.getEmail(), saved.getPasswordHash(),
