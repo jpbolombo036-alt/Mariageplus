@@ -46,6 +46,8 @@ public class AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final UserService userService;
     private final OrganizationSettingsService organizationSettingsService;
+    private final SuperAdminNotificationService superAdminNotificationService;
+    private final AuditService auditService;
 
     @org.springframework.beans.factory.annotation.Value("${app.security.max-login-attempts:5}")
     private int maxLoginAttempts;
@@ -122,6 +124,16 @@ public class AuthService {
         // Nouveau compte : envoi WhatsApp et création d'événements verrouillés.
         // Le SUPER_ADMIN les active dans la Console → Organisations.
         organizationSettingsService.initializeLockedDefaults(savedOrg.getId());
+
+        // Trace d'audit + notification asynchrone des SUPER_ADMIN (email) pour
+        // qu'ils activent l'organisation. Non bloquant : jamais d'échec SMTP
+        // ne fait échouer l'inscription.
+        auditService.record("ORGANIZATION_REGISTERED", savedOrg.getId(), "Organization",
+                saved.getId(), savedOrg.getId(),
+                "Nouvelle organisation inscrite : " + savedOrg.getName()
+                        + " (verrouillée jusqu'à activation par le SUPER_ADMIN)");
+        superAdminNotificationService.notifyNewOrganization(savedOrg.getId(), savedOrg.getName(),
+                saved.getFirstName() + " " + saved.getLastName(), saved.getEmail());
 
         UserPrincipal principal = UserPrincipal.create(
                 saved.getId(), saved.getEmail(), saved.getPasswordHash(),
