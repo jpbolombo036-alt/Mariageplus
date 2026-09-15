@@ -29,7 +29,7 @@ public class PublicInvitationPageController {
     private String frontendUrl;
 
     @GetMapping("/invitations/{publicToken}")
-    public ResponseEntity<Void> invitation(@PathVariable String publicToken) {
+    public ResponseEntity<?> invitation(@PathVariable String publicToken) {
         return redirectToFront(publicToken);
     }
 
@@ -40,11 +40,11 @@ public class PublicInvitationPageController {
      * (POST /api/public/invitations/{token}/rsvp).
      */
     @PostMapping("/invitations/{publicToken}/rsvp")
-    public ResponseEntity<Void> submit(@PathVariable String publicToken) {
+    public ResponseEntity<?> submit(@PathVariable String publicToken) {
         return redirectToFront(publicToken);
     }
 
-    private ResponseEntity<Void> redirectToFront(String publicToken) {
+    private ResponseEntity<?> redirectToFront(String publicToken) {
         String base = frontendUrl == null ? "" : frontendUrl.trim();
         if (base.isEmpty()) {
             // FRONTEND_URL non configurée : impossible de rediriger vers le front.

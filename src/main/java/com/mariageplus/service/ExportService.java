@@ -43,6 +43,7 @@ import org.apache.poi.ss.usermodel.FillPatternType;
 import org.apache.poi.ss.usermodel.IndexedColors;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.xssf.streaming.SXSSFSheet;
 import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 
 @Service
@@ -271,7 +272,7 @@ public class ExportService {
     private byte[] workbook(String sheetName, List<String> headers, List<List<Object>> rows) {
         SXSSFWorkbook wb = new SXSSFWorkbook(200);
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-            Sheet sheet = wb.createSheet(sheetName);
+            SXSSFSheet sheet = wb.createSheet(sheetName);
             sheet.trackAllColumnsForAutoSizing();
             CellStyle headStyle = wb.createCellStyle();
             headStyle.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
