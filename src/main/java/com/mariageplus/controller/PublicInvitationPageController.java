@@ -25,21 +25,11 @@ import org.springframework.web.util.UriComponentsBuilder;
 @Controller
 public class PublicInvitationPageController {
 
-    /**
-     * Page de confirmation venue publique : "/" + "/{slug}".
-     * Sert l'application front (single bundle) et laisse le client router
-     * ("invitations/:slug" -> vue InvitationPage). Les garde-fous côté
-     * serveur (annulé / expiré) restent appliqués via l'API publique.
-     */
-    @GetMapping({"/", "/{slug:[a-z0-9-]+}"})
-    public String index(@PathVariable(required = false) String slug) {
-        return "forward:/index.html";
-    }
-    @Value("${app.frontend.url:http://localhost:3000}")
+    @Value("${app.frontend.url:https://mariaplus-web.vercel.app}")
     private String frontendUrl;
 
     @GetMapping("/invitations/{publicToken}")
-    public ResponseEntity<?> invitation(@PathVariable String publicToken) {
+    public ResponseEntity<Void> invitation(@PathVariable String publicToken) {
         return redirectToFront(publicToken);
     }
 
@@ -50,11 +40,11 @@ public class PublicInvitationPageController {
      * (POST /api/public/invitations/{token}/rsvp).
      */
     @PostMapping("/invitations/{publicToken}/rsvp")
-    public ResponseEntity<?> submit(@PathVariable String publicToken) {
+    public ResponseEntity<Void> submit(@PathVariable String publicToken) {
         return redirectToFront(publicToken);
     }
 
-    private ResponseEntity<?> redirectToFront(String publicToken) {
+    private ResponseEntity<Void> redirectToFront(String publicToken) {
         String base = frontendUrl == null ? "" : frontendUrl.trim();
         if (base.isEmpty()) {
             // FRONTEND_URL non configurée : impossible de rediriger vers le front.
