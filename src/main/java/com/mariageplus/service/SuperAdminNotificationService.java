@@ -38,7 +38,7 @@ public class SuperAdminNotificationService {
     @Value("${spring.mail.password:}")
     private String smtpPassword;
 
-    @Value("${spring.mail.from:noreply@mariageplus.local}")
+    @Value("${spring.mail.from:${spring.mail.username:noreply@mariageplus.local}}")
     private String from;
 
     @Value("${app.frontend.url:}")
