@@ -7,6 +7,7 @@ import com.mariageplus.entity.Invitation;
 import com.mariageplus.entity.InvitationStatus;
 import com.mariageplus.entity.NotificationLog;
 import com.mariageplus.exception.WhatsAppDeliveryException;
+import com.mariageplus.exception.WhatsAppRateLimitException;
 import com.mariageplus.repository.BulkSendBatchRepository;
 import com.mariageplus.repository.EventRepository;
 import com.mariageplus.repository.GuestRepository;
@@ -16,6 +17,8 @@ import com.mariageplus.util.PhoneNormalizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
@@ -46,8 +49,25 @@ public class BulkSendWorker {
     @Value("${app.whatsapp.bulk.delay-ms:2000}")
     private long delayMs;
 
+    @Value("${app.whatsapp.bulk.rate-limit-wait-ms:60000}")
+    private long rateLimitWaitMs;
+
     @Value("${app.whatsapp.default-country-code:}")
     private String defaultCountryCode;
+
+    /**
+     * Au démarrage : les batchs restés IN_PROGRESS (crash / redéploiement en
+     * cours d'envoi) sont marqués FAILED — sans quoi ils resteraient bloqués
+     * à jamais puisque le traitement est en mémoire.
+     */
+    @EventListener(ApplicationReadyEvent.class)
+    public void recoverInterruptedBatches() {
+        List<BulkSendBatch> stuck = batchRepository.findByStatus("IN_PROGRESS");
+        for (BulkSendBatch batch : stuck) {
+            log.warn("Batch {} resté IN_PROGRESS après redémarrage → marqué FAILED", batch.getId());
+            finish(batch, "FAILED", "Interrompu par un redémarrage du serveur — relancez l'envoi");
+        }
+    }
 
     /**
      * Traite le batch : s'exécute sur l'exécuteur dédié "bulkSendExecutor"
@@ -118,7 +138,7 @@ public class BulkSendWorker {
 
             String url = invitationMailService.publicInviteUrl(invitation.getPublicToken());
             try {
-                String messageId = whatsAppService.sendInvitationTemplate(whatsAppId, guest, event, url, imageUrl);
+                String messageId = sendWithRateLimitRetry(batch.getId(), whatsAppId, guest, event, url, imageUrl);
                 markInvitationSent(invitation, resend);
                 sent++;
                 logRepository.save(log(batch, invitation, guest, "SENT", null, messageId));
@@ -134,6 +154,28 @@ public class BulkSendWorker {
         }
 
         finish(batch, "COMPLETED", null);
+    }
+
+    /**
+     * Envoi avec gestion de la limite de débit Meta (429) : pause configurée
+     * (app.whatsapp.bulk.rate-limit-wait-ms) puis un seul essai supplémentaire.
+     * Tout autre échec est propagé (invitation marquée FAILED).
+     */
+    private String sendWithRateLimitRetry(Long batchId, String whatsAppId, Guest guest, Event event,
+                                          String url, String imageUrl) throws WhatsAppDeliveryException {
+        try {
+            return whatsAppService.sendInvitationTemplate(whatsAppId, guest, event, url, imageUrl);
+        } catch (WhatsAppRateLimitException ex) {
+            log.warn("Limite de débit Meta (batch {}) : pause de {} ms puis nouvel essai",
+                    batchId, rateLimitWaitMs);
+            try {
+                Thread.sleep(rateLimitWaitMs);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                throw new WhatsAppDeliveryException("Interrompu pendant la pause de limitation Meta", ie);
+            }
+            return whatsAppService.sendInvitationTemplate(whatsAppId, guest, event, url, imageUrl);
+        }
     }
 
     /** Passage de l'invitation à SENT (même sémantique que l'envoi unitaire). */

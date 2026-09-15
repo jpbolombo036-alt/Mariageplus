@@ -86,11 +86,23 @@ public class GuestService {
     }
 
     public PageResponse<GuestResponse> list(Long weddingId, int page, int size, String sortBy, String sortDir) {
+        return list(weddingId, page, size, sortBy, sortDir, null);
+    }
+
+    /**
+     * Liste paginée avec recherche serveur optionnelle (nom, téléphone, email).
+     * page/size bornés pour éviter les requêtes de charge anormales.
+     */
+    public PageResponse<GuestResponse> list(Long weddingId, int page, int size, String sortBy, String sortDir, String search) {
         securityUtils.assertPermission("GUEST_VIEW");
         eventService.loadInOrgScope(weddingId);
+        int safePage = Math.max(0, page);
+        int safeSize = Math.min(Math.max(1, size), 200);
         Sort sort = "desc".equalsIgnoreCase(sortDir) ? Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
-        Pageable pageable = PageRequest.of(page, size, sort);
-        Page<Guest> guestPage = guestRepository.findByWeddingId(weddingId, pageable);
+        Pageable pageable = PageRequest.of(safePage, safeSize, sort);
+        Page<Guest> guestPage = StringUtils.hasText(search)
+                ? guestRepository.searchPageByWeddingIdAndQuery(weddingId, search.trim(), pageable)
+                : guestRepository.findByWeddingId(weddingId, pageable);
         List<GuestResponse> content = guestPage.getContent().stream()
                 .map(guestMapper::toResponse).collect(Collectors.toList());
         return PageResponse.of(content, guestPage);

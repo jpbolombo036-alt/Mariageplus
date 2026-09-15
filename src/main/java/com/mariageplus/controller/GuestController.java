@@ -25,14 +25,15 @@ public class GuestController {
     private final GuestService guestService;
 
     @GetMapping
-    @Operation(summary = "Liste paginée des invités d'un mariage")
+    @Operation(summary = "Liste paginée des invités d'un mariage (recherche serveur optionnelle)")
     public ResponseEntity<PageResponse<GuestResponse>> list(
             @PathVariable Long weddingId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "25") int size,
             @RequestParam(defaultValue = "lastName") String sortBy,
-            @RequestParam(defaultValue = "asc") String sortDir) {
-        return ResponseEntity.ok(guestService.list(weddingId, page, size, sortBy, sortDir));
+            @RequestParam(defaultValue = "asc") String sortDir,
+            @RequestParam(required = false) String search) {
+        return ResponseEntity.ok(guestService.list(weddingId, page, size, sortBy, sortDir, search));
     }
 
     @PostMapping

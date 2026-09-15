@@ -43,7 +43,7 @@ import org.apache.poi.ss.usermodel.FillPatternType;
 import org.apache.poi.ss.usermodel.IndexedColors;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 
 @Service
 @RequiredArgsConstructor
@@ -267,10 +267,12 @@ public class ExportService {
         return workbook("Tables", List.of("tableId", "tableName", "capacity", "assignedGuests", "assignedSeats", "remainingSeats"), rows);
     }
 
-    /** Construit un classeur .xlsx : en-tête gris gras, colonnes auto-dimensionnées, 1re ligne figée. */
+    /** Construit un classeur .xlsx en mode streaming (SXSSF) : mémoire constante même à 50k lignes. */
     private byte[] workbook(String sheetName, List<String> headers, List<List<Object>> rows) {
-        try (XSSFWorkbook wb = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+        SXSSFWorkbook wb = new SXSSFWorkbook(200);
+        try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             Sheet sheet = wb.createSheet(sheetName);
+            sheet.trackAllColumnsForAutoSizing();
             CellStyle headStyle = wb.createCellStyle();
             headStyle.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
             headStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
@@ -306,6 +308,8 @@ public class ExportService {
             return out.toByteArray();
         } catch (Exception ex) {
             throw new IllegalStateException("Impossible de générer le fichier Excel", ex);
+        } finally {
+            wb.dispose();
         }
     }
 

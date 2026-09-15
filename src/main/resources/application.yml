@@ -12,6 +12,11 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+        # Batch JDBC : imports d'invités 10x plus rapides (inserts groupés).
+        jdbc:
+          batch_size: 50
+        order_inserts: true
+        order_updates: true
 
   flyway:
     enabled: true
@@ -114,6 +119,11 @@ app:
     bulk:
       # Cadencement entre deux messages (ms) — 2000 = 30 msg/min.
       delay-ms: ${WHATSAPP_BULK_DELAY_MS:2000}
+      # Nombre de batches traités en parallèle (équité entre organisations).
+      # Chaque batch reste séquentiel ; 2 workers = 2 orgs peuvent envoyer en même temps.
+      workers: ${WHATSAPP_BULK_WORKERS:2}
+      # Pause après un 429 (limite de débit Meta) avant un nouvel essai (ms).
+      rate-limit-wait-ms: ${WHATSAPP_BULK_RATE_LIMIT_WAIT_MS:60000}
 
   event:
     # Cycle de vie automatique des événements passés (désactivé par défaut).

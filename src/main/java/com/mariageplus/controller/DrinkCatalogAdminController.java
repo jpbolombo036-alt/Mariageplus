@@ -79,6 +79,7 @@ public class DrinkCatalogAdminController {
         }
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(detectMediaType(image)))
+                .cacheControl(org.springframework.http.CacheControl.maxAge(5, java.util.concurrent.TimeUnit.MINUTES).cachePublic())
                 .body(image);
     }
 

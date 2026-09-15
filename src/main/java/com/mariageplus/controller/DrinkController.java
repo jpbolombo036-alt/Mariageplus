@@ -91,7 +91,7 @@ public class DrinkController {
         }
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(detectMediaType(image)))
-                .cacheControl(CacheControl.maxAge(60, TimeUnit.SECONDS).cachePublic())
+                .cacheControl(CacheControl.maxAge(5, TimeUnit.MINUTES).cachePublic())
                 .body(image);
     }
 

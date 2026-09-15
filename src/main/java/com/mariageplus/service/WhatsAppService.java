@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mariageplus.entity.Event;
 import com.mariageplus.entity.Guest;
 import com.mariageplus.exception.WhatsAppDeliveryException;
+import com.mariageplus.exception.WhatsAppRateLimitException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
@@ -137,6 +138,10 @@ public class WhatsAppService {
         } catch (RestClientResponseException ex) {
             String detail = extractApiError(ex);
             log.error("Échec d'envoi WhatsApp vers {} : {}", whatsAppId, detail);
+            if (ex.getStatusCode().value() == 429) {
+                // Limite de débit Meta : le worker effectue une pause puis réessaie.
+                throw new WhatsAppRateLimitException("Limite de débit Meta atteinte (429) : " + detail, ex);
+            }
             throw new WhatsAppDeliveryException("Échec d'envoi WhatsApp : " + detail, ex);
         } catch (WhatsAppDeliveryException ex) {
             throw ex;

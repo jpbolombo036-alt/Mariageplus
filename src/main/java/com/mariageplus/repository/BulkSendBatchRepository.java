@@ -4,6 +4,7 @@ import com.mariageplus.entity.BulkSendBatch;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -14,4 +15,7 @@ import java.util.Optional;
 public interface BulkSendBatchRepository extends JpaRepository<BulkSendBatch, Long> {
 
     Optional<BulkSendBatch> findByIdAndWeddingId(Long id, Long weddingId);
+
+    /** Batchs bloqués en IN_PROGRESS (crash serveur) — récupération au démarrage. */
+    List<BulkSendBatch> findByStatus(String status);
 }

@@ -135,7 +135,7 @@ public class UserController {
         }
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(detectMediaType(image)))
-                .cacheControl(CacheControl.maxAge(60, TimeUnit.SECONDS).cachePrivate())
+                .cacheControl(CacheControl.maxAge(5, TimeUnit.MINUTES).cachePrivate())
                 .body(image);
     }
 

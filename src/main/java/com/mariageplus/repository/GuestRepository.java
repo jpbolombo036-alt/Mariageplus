@@ -47,4 +47,20 @@ public interface GuestRepository extends JpaRepository<Guest, Long> {
     List<Guest> searchByWeddingIdAndQuery(@Param("weddingId") Long weddingId,
                                           @Param("q") String q,
                                           Pageable pageable);
+
+    /**
+     * Recherche paginée (même critères que {@link #searchByWeddingIdAndQuery}) —
+     * utilisée par l'onglet Invités pour ne jamais charger la table entière
+     * (rgression observée : le front ne recevait que la 1re page).
+     */
+    @Query("""
+            select g from Guest g
+            where g.weddingId = :weddingId
+              and (lower(concat(coalesce(g.firstName, ''), ' ', coalesce(g.lastName, ''))) like lower(concat('%', :q, '%'))
+                or lower(coalesce(g.phone, '')) like lower(concat('%', :q, '%'))
+                or lower(coalesce(g.email, '')) like lower(concat('%', :q, '%')))
+            """)
+    Page<Guest> searchPageByWeddingIdAndQuery(@Param("weddingId") Long weddingId,
+                                              @Param("q") String q,
+                                              Pageable pageable);
 }
