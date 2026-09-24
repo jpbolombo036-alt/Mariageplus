@@ -1,5 +1,6 @@
 package com.mariageplus.service;
 
+import com.mariageplus.exception.StorageException;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,6 +23,11 @@ import java.net.URI;
  * <p>Activé uniquement si {@code S3_BUCKET} et {@code S3_ACCESS_KEY} sont définis.
  * Sinon, les appelants doivent retomber sur le stockage en base (comportement
  * historique des avatars).</p>
+ *
+ * <p>{@link #upload} lève une {@link StorageException} (→ 502, message clair)
+ * quand le stockage n'est pas configuré ou que l'envoi échoue ;
+ * {@link #download} et {@link #delete} sont tolérants aux erreurs
+ * (best-effort : {@code null} / aucune exception).</p>
  */
 @Service
 @Slf4j
@@ -70,21 +76,39 @@ public class StorageService {
         return s3Client != null;
     }
 
-    /** Upload l'image et retourne la clé objet. */
+    /**
+     * Upload l'image et retourne la clé objet.
+     *
+     * @throws StorageException si le stockage objet n'est pas configuré, ou si
+     *         l'envoi échoue (bucket inexistant, identifiants révoqués, réseau).
+     */
     public String upload(String key, byte[] bytes, String contentType) {
-        s3Client.putObject(PutObjectRequest.builder()
-                        .bucket(bucket)
-                        .key(key)
-                        .contentType(contentType)
-                        .contentLength((long) bytes.length)
-                        .cacheControl("public, max-age=86400")
-                        .build(),
-                RequestBody.fromBytes(bytes));
+        if (!isEnabled()) {
+            throw new StorageException(
+                    "Stockage objet non configuré (S3_BUCKET / S3_ACCESS_KEY manquants)");
+        }
+        try {
+            s3Client.putObject(PutObjectRequest.builder()
+                            .bucket(bucket)
+                            .key(key)
+                            .contentType(contentType)
+                            .contentLength((long) bytes.length)
+                            .cacheControl("public, max-age=86400")
+                            .build(),
+                    RequestBody.fromBytes(bytes));
+        } catch (Exception e) {
+            log.error("Échec de l'upload S3 (bucket={}, key={}) : {}", bucket, key, e.getMessage());
+            throw new StorageException(
+                    "Échec de l'enregistrement de l'image (stockage objet indisponible)", e);
+        }
         return key;
     }
 
-    /** Télécharge l'objet ; retourne null si introuvable. */
+    /** Télécharge l'objet ; retourne null si introuvable ou stockage désactivé. */
     public byte[] download(String key) {
+        if (!isEnabled()) {
+            return null;
+        }
         try {
             return s3Client.getObjectAsBytes(GetObjectRequest.builder()
                     .bucket(bucket)
@@ -98,6 +122,9 @@ public class StorageService {
 
     /** Supprime l'objet (ignore les erreurs : suppression best-effort). */
     public void delete(String key) {
+        if (!isEnabled()) {
+            return;
+        }
         try {
             s3Client.deleteObject(DeleteObjectRequest.builder().bucket(bucket).key(key).build());
         } catch (Exception e) {

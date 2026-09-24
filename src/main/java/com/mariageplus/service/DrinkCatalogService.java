@@ -150,13 +150,24 @@ public class DrinkCatalogService {
         if (!isSupportedImage(bytes)) {
             throw new IllegalArgumentException("Format non supporté (JPEG, PNG, GIF, WebP)");
         }
+        // Remplace l'ancienne photo (objet S3 et/ou octets en base).
         if (item.getImageKey() != null && !item.getImageKey().isBlank()) {
             storageService.delete(item.getImageKey());
             item.setImageKey(null);
         }
-        item.setImage(bytes);
+        if (storageService.isEnabled()) {
+            // Même mécanique que les photos d'événement et de boisson : S3 si
+            // configuré, base de données en fallback (cf. DrinkService#setImage).
+            String key = "drink-catalog/" + catalogItemId + "/" + System.currentTimeMillis() + extensionOf(bytes);
+            storageService.upload(key, bytes, contentTypeOf(bytes));
+            item.setImageKey(key);
+            item.setImage(null);
+        } else {
+            item.setImage(bytes);
+        }
         DrinkCatalogItem saved = catalogRepository.save(item);
-        log.info("Photo uploadée pour la boisson de catalogue '{}' ({} octets)", saved.getName(), bytes.length);
+        log.info("Photo uploadée pour la boisson de catalogue '{}' ({} octets, s3={})",
+                saved.getName(), bytes.length, storageService.isEnabled());
     }
 
     @Transactional
@@ -216,5 +227,19 @@ public class DrinkCatalogService {
         if (b.length >= 3 && b[0] == 'G' && b[1] == 'I') return true;
         return b.length >= 12 && b[0] == 'R' && b[1] == 'I' && b[2] == 'F' && b[3] == 'F'
                 && b[8] == 'W' && b[9] == 'E' && b[10] == 'B' && b[11] == 'P';
+    }
+
+    private String extensionOf(byte[] image) {
+        if (image.length >= 3 && (image[0] & 0xFF) == 0xFF && (image[1] & 0xFF) == 0xD8) return ".jpg";
+        if (image.length >= 4 && (image[0] & 0xFF) == 0x89 && image[1] == 'P') return ".png";
+        if (image.length >= 3 && image[0] == 'G' && image[1] == 'I') return ".gif";
+        return ".webp";
+    }
+
+    private String contentTypeOf(byte[] image) {
+        if (image.length >= 3 && (image[0] & 0xFF) == 0xFF && (image[1] & 0xFF) == 0xD8) return "image/jpeg";
+        if (image.length >= 4 && (image[0] & 0xFF) == 0x89 && image[1] == 'P') return "image/png";
+        if (image.length >= 3 && image[0] == 'G' && image[1] == 'I') return "image/gif";
+        return "image/webp";
     }
 }
