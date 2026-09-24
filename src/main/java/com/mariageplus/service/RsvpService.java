@@ -172,6 +172,7 @@ public class RsvpService {
                 .rsvpNumberOfAttendees(rsvp != null ? rsvp.getNumberOfAttendees() : null)
                 .rsvpDrinkChoice(rsvp != null ? rsvp.getDrinkChoice() : null)
                 .rsvpDrinkChoices(rsvpDrinkChoices(rsvp))
+                .rsvpNote(rsvp != null ? rsvp.getNote() : null)
                 .publicToken(invitation.getPublicToken())
                 .sessions(publicSessions(invitation.getWeddingId()))
                 .build();
@@ -233,6 +234,7 @@ public class RsvpService {
         rsvp.setStatus(status);
         rsvp.setNumberOfAttendees(attendees);
         applyDrinkChoices(rsvp, choices, request.getDrinkChoice());
+        rsvp.setNote(normalizeNote(request.getNote()));
         rsvp.setRespondedAt(LocalDateTime.now());
         Rsvp saved = rsvpRepository.save(rsvp);
 
@@ -248,6 +250,13 @@ public class RsvpService {
 
     /** Maximum de boissons sélectionnables au RSVP. */
     private static final int MAX_DRINK_CHOICES = 3;
+
+    /** Note invité : trim, chaîne vide → null (pas de chaîne blanche en base). */
+    private String normalizeNote(String raw) {
+        if (raw == null) return null;
+        String trimmed = raw.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
 
     /**
      * Normalise les choix de boissons : trim, dédoublonnage (insensible à la

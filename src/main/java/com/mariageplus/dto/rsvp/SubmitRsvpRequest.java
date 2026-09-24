@@ -29,4 +29,11 @@ public class SubmitRsvpRequest {
      */
     @Size(max = 3, message = "Vous pouvez choisir au maximum 3 boissons")
     private java.util.List<String> drinkChoices;
+
+    /**
+     * Message libre de l'invité (« petit mot »), facultatif — 250 caractères max
+     * (aligné sur le maxlength du formulaire web).
+     */
+    @Size(max = 250, message = "Le message ne peut pas dépasser 250 caractères")
+    private String note;
 }

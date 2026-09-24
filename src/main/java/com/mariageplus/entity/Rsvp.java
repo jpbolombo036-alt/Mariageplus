@@ -46,6 +46,13 @@ public class Rsvp extends BaseEntity {
     @Column(name = "drink_choices")
     private String drinkChoices;
 
+    /**
+     * Message libre de l'invité (« petit mot ») saisi au moment du RSVP.
+     * Facultatif, 250 caractères max.
+     */
+    @Column(name = "note", length = 250)
+    private String note;
+
     @Column(name = "responded_at")
     private LocalDateTime respondedAt;
 }
