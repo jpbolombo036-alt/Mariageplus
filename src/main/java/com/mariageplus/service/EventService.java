@@ -84,6 +84,7 @@ public class EventService {
                 .longitude(request.getLongitude())
                 .mapUrl(request.getMapUrl())
                 .status(EventStatus.DRAFT)
+                .dressCode(request.getDressCode())
                 .displayOrder(request.getDisplayOrder())
                 .active(true)
                 .createdBy(userId)
@@ -488,6 +489,7 @@ public class EventService {
         if (request.getLatitude() != null) event.setLatitude(request.getLatitude());
         if (request.getLongitude() != null) event.setLongitude(request.getLongitude());
         if (request.getMapUrl() != null) event.setMapUrl(request.getMapUrl());
+        if (request.getDressCode() != null) event.setDressCode(request.getDressCode());
         if (request.getDisplayOrder() != null) event.setDisplayOrder(request.getDisplayOrder());
         if (request.getActive() != null) event.setActive(request.getActive());
     }

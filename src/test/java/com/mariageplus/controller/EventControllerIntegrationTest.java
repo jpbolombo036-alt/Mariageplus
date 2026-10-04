@@ -4,6 +4,7 @@ import com.mariageplus.dto.auth.LoginResponse;
 import com.mariageplus.dto.auth.RegisterRequest;
 import com.mariageplus.dto.event.CreateEventRequest;
 import com.mariageplus.dto.event.WeddingDetailsRequest;
+import com.mariageplus.entity.EventDressCode;
 import com.mariageplus.service.AuthService;
 import com.mariageplus.service.OrganizationSettingsService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -112,13 +113,15 @@ class EventControllerIntegrationTest {
         CreateEventRequest req = new CreateEventRequest();
         req.setName("Collation Test");
         req.setType(com.mariageplus.entity.EventType.COLLATION);
+        req.setDressCode(EventDressCode.COCKTAIL);
         mockMvc.perform(post("/api/events")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.weddingDetails").doesNotExist())
-                .andExpect(jsonPath("$.type").value("COLLATION"));
+                .andExpect(jsonPath("$.type").value("COLLATION"))
+                .andExpect(jsonPath("$.dressCode").value("COCKTAIL"));
     }
 
     @Test

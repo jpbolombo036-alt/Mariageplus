@@ -1,5 +1,6 @@
 package com.mariageplus.dto.event;
 
+import com.mariageplus.entity.EventDressCode;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
@@ -49,6 +50,8 @@ public class UpdateEventRequest {
 
     @Size(max = 1000, message = "L'URL de la carte ne doit pas dépasser 1000 caractères")
     private String mapUrl;
+
+    private EventDressCode dressCode;
 
     private Integer displayOrder;
 

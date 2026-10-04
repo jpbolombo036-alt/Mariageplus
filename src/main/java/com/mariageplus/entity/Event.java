@@ -79,6 +79,10 @@ public class Event extends BaseEntity {
     @Builder.Default
     private EventStatus status = EventStatus.DRAFT;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "dress_code", length = 30)
+    private EventDressCode dressCode;
+
     @Column(name = "display_order")
     private Integer displayOrder;
 

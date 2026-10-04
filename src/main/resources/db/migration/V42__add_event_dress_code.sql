@@ -1,0 +1,1 @@
+ALTER TABLE events ADD COLUMN dress_code VARCHAR(30);

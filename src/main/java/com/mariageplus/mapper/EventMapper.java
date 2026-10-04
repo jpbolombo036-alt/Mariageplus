@@ -20,6 +20,7 @@ public interface EventMapper {
 
     @Mapping(target = "type", expression = "java(event.getType() == null ? null : event.getType().name())")
     @Mapping(target = "status", expression = "java(event.getStatus() == null ? null : event.getStatus().name())")
+    @Mapping(target = "dressCode", expression = "java(event.getDressCode() == null ? null : event.getDressCode().name())")
     @Mapping(target = "hasImage", expression = "java((event.getImageKey() != null && !event.getImageKey().isBlank()) || (event.getImage() != null && event.getImage().length > 0))")
     EventResponse toResponse(Event event);
 

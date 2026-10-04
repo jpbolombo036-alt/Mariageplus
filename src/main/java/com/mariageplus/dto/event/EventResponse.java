@@ -31,6 +31,7 @@ public class EventResponse {
     private Double longitude;
     private String mapUrl;
     private String status;
+    private String dressCode;
     private Integer displayOrder;
     private Boolean active;
     private Long organizationId;
