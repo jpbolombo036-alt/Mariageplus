@@ -8,6 +8,7 @@ import com.mariageplus.dto.organization.OrganizationMemberRequest;
 import com.mariageplus.dto.event.CreateEventRequest;
 import com.mariageplus.dto.event.EventResponse;
 import com.mariageplus.service.AuthService;
+import com.mariageplus.service.OrganizationSettingsService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,6 +37,7 @@ class AgentWeddingScopingIntegrationTest {
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
     @Autowired private AuthService authService;
+    @Autowired private OrganizationSettingsService organizationSettingsService;
 
     private static String tokenOrganizer;
     private static Long orgId;
@@ -57,6 +59,9 @@ class AgentWeddingScopingIntegrationTest {
             LoginResponse organizer = authService.register(org);
             tokenOrganizer = organizer.getAccessToken();
             orgId = organizer.getUser().getOrganizationId();
+            // Nouveau compte = organisation verrouillée par défaut (création
+            // d'événements OFF) : on l'ouvre pour pouvoir créer les mariages.
+            organizationSettingsService.setEventCreationEnabled(orgId, true);
 
             weddingAId = createWedding("Wedding A");
             weddingBId = createWedding("Wedding B");

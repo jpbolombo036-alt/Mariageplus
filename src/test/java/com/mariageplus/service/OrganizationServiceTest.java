@@ -25,6 +25,9 @@ class OrganizationServiceTest {
     @Mock
     private OrganizationRepository organizationRepository;
 
+    @Mock
+    private OrganizationSettingsService organizationSettingsService;
+
     @InjectMocks
     private OrganizationService organizationService;
 

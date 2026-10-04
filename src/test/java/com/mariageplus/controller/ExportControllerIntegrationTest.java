@@ -1,6 +1,7 @@
 package com.mariageplus.controller;
 
 import com.mariageplus.service.AuthService;
+import com.mariageplus.service.OrganizationSettingsService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,6 +24,7 @@ class ExportControllerIntegrationTest {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private AuthService authService;
+    @Autowired private OrganizationSettingsService organizationSettingsService;
     @Autowired private ObjectMapper objectMapper;
 
     private static String token;
@@ -39,6 +41,9 @@ class ExportControllerIntegrationTest {
             req.setPassword("password123");
             req.setOrganizationName("Org ExportTest");
             var res = authService.register(req);
+            // Nouveau compte = organisation verrouillée par défaut (création
+            // d'événements OFF) : on l'ouvre pour pouvoir créer le mariage.
+            organizationSettingsService.setEventCreationEnabled(res.getUser().getOrganizationId(), true);
             token = res.getAccessToken();
             initialized = true;
         }
