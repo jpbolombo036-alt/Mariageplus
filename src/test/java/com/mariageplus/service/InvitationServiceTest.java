@@ -151,7 +151,7 @@ class InvitationServiceTest {
     }
 
     @Test
-    void send_withoutEmail_throws() {
+    void send_withoutEmail_stillWorksAndReturnsLink() {
         guest.setEmail(null);
         Invitation invitation = Invitation.builder()
                 .weddingId(1L).guestId(7L).publicToken("tok")
@@ -160,9 +160,39 @@ class InvitationServiceTest {
         when(eventService.loadInOrgScope(1L)).thenReturn(wedding);
         when(invitationRepository.findByIdAndWeddingId(5L, 1L)).thenReturn(Optional.of(invitation));
         when(guestRepository.findByIdAndWeddingId(7L, 1L)).thenReturn(Optional.of(guest));
+        when(invitationMailService.publicInviteUrl("tok")).thenReturn("http://localhost:3000/invitations/tok");
+        when(invitationRepository.save(any(Invitation.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        assertThrows(IllegalArgumentException.class, () -> invitationService.send(1L, 5L));
-        verify(invitationRepository, never()).save(any(Invitation.class));
+        var response = invitationService.send(1L, 5L);
+
+        assertEquals("SENT", response.getStatus());
+        assertFalse(response.isEmailSent());
+        assertEquals("http://localhost:3000/invitations/tok", response.getPublicInviteUrl());
+        assertEquals(InvitationStatus.SENT, invitation.getStatus());
+        // L'email étant facultatif, aucun envoi SMTP n'est tenté sans adresse.
+        verify(invitationMailService, never()).sendInvitation(any(), any(), anyString());
+    }
+
+    @Test
+    void resend_withoutEmail_worksAndIncrementsReminders() {
+        guest.setEmail(null);
+        Invitation invitation = Invitation.builder()
+                .weddingId(1L).guestId(7L).publicToken("tok")
+                .status(InvitationStatus.SENT).reminderCount(2).build();
+        invitation.setId(5L);
+        when(eventService.loadInOrgScope(1L)).thenReturn(wedding);
+        when(invitationRepository.findByIdAndWeddingId(5L, 1L)).thenReturn(Optional.of(invitation));
+        when(guestRepository.findByIdAndWeddingId(7L, 1L)).thenReturn(Optional.of(guest));
+        when(invitationMailService.publicInviteUrl("tok")).thenReturn("http://localhost:3000/invitations/tok");
+        when(invitationRepository.save(any(Invitation.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        var response = invitationService.resend(1L, 5L);
+
+        assertEquals("SENT", response.getStatus());
+        assertFalse(response.isEmailSent());
+        assertEquals("http://localhost:3000/invitations/tok", response.getPublicInviteUrl());
+        assertEquals(3, invitation.getReminderCount());
+        verify(invitationMailService, never()).sendInvitation(any(), any(), anyString());
     }
 
     @Test

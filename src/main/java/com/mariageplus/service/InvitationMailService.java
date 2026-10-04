@@ -42,7 +42,10 @@ public class InvitationMailService {
     @Value("${spring.mail.password:}")
     private String smtpPassword;
 
-    @Value("${spring.mail.from:noreply@mariageplus.local}")
+    // Expéditeur : MAIL_FROM si défini, sinon on retombe sur SMTP_USERNAME
+    // (Gmail/OVH refusent un From différent du compte authentifié), et enfin
+    // sur une adresse neutre. Même règle que SuperAdminNotificationService.
+    @Value("${spring.mail.from:${spring.mail.username:noreply@mariageplus.local}}")
     private String mailFrom;
 
     @Value("${app.frontend.url:}")

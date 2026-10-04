@@ -183,10 +183,8 @@ public class InvitationService {
         Guest guest = guestRepository.findByIdAndWeddingId(invitation.getGuestId(), weddingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Invité introuvable"));
 
-        if (!StringUtils.hasText(guest.getEmail())) {
-            throw new IllegalArgumentException("L'invité n'a pas d'adresse email");
-        }
-
+        // L'email de l'invité est FACULTATIF (cf. GuestService : nullable en base) :
+        // on ne le réclame pas ici, il n'est utilisé que s'il est présent (voir plus bas).
         InvitationStatus status = invitation.getStatus();
         if (resend) {
             if (status != InvitationStatus.SENT) {
@@ -202,7 +200,11 @@ public class InvitationService {
         }
 
         String url = invitationMailService.publicInviteUrl(invitation.getPublicToken());
-        boolean emailSent = invitationMailService.sendInvitation(guest, wedding, url);
+        // Email facultatif : sans adresse, aucun envoi SMTP n'est tenté
+        // (`emailSent` = false) et l'endpoint reste utile en renvoyant le lien
+        // public à partager (WhatsApp, SMS, lien copié depuis l'onglet Invitations).
+        boolean emailSent = StringUtils.hasText(guest.getEmail())
+                && invitationMailService.sendInvitation(guest, wedding, url);
 
         LocalDateTime now = LocalDateTime.now();
         if (invitation.getSentAt() == null) {
@@ -215,9 +217,13 @@ public class InvitationService {
         invitation.setStatus(InvitationStatus.SENT);
         Invitation saved = invitationRepository.save(invitation);
         String action = resend ? "INVITATION_RESEND" : "INVITATION_SEND";
+        // Trace lisible même sans email (lien partagé manuellement).
+        String recipient = StringUtils.hasText(guest.getEmail())
+                ? guest.getEmail()
+                : guest.getFirstName() + " " + guest.getLastName() + " (sans email — lien à partager)";
         auditService.record(action, saved.getId(), "Invitation",
                 securityUtils.getCurrentUserId(), wedding.getOrganizationId(),
-                (resend ? "Renvoi" : "Envoi") + " de l'invitation à " + guest.getEmail());
+                (resend ? "Renvoi" : "Envoi") + " de l'invitation à " + recipient);
         return SendInvitationResponse.builder()
                 .status(saved.getStatus().name())
                 .sentAt(saved.getSentAt())

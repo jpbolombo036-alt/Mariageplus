@@ -36,7 +36,9 @@ spring:
           auth: true
           starttls:
             enable: true
-    from: ${MAIL_FROM:noreply@mariageplus.local}
+    # Expéditeur : MAIL_FROM si défini, sinon SMTP_USERNAME (nombreux serveurs,
+    # dont Gmail, refusent un From différent du compte authentifié).
+    from: ${MAIL_FROM:${SMTP_USERNAME:noreply@mariageplus.local}}
 
   servlet:
     multipart:

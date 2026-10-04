@@ -41,5 +41,18 @@ public class PlatformSettingsController {
         }
         return ResponseEntity.ok(Map.of("enabled", enabled));
     }
+
+    @GetMapping("/whatsapp-enabled")
+    @Operation(summary = "L'envoi WhatsApp est-il autorisé pour l'utilisateur connecté ?")
+    public ResponseEntity<Map<String, Object>> whatsappEnabled() {
+        boolean enabled;
+        if (securityUtils.isSuperAdmin()) {
+            enabled = true;
+        } else {
+            enabled = organizationSettingsService.isWhatsappAllowed(
+                    securityUtils.getCurrentOrganizationId());
+        }
+        return ResponseEntity.ok(Map.of("enabled", enabled));
+    }
 }
 
