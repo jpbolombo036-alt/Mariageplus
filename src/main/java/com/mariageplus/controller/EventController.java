@@ -50,17 +50,18 @@ public class EventController {
     }
 
     /**
-     * Options de tenue vestimentaire (code + libellé français) : données de
-     * référence pour les sélecteurs côté organisateur. Les libellés viennent de
-     * l'enum, ce qui évite toute duplication front.
+     * Couleurs de tenue disponibles (code + libellé français + couleur d'aperçu) :
+     * données de référence pour les sélecteurs côté organisateur. Les libellés
+     * viennent de l'enum, ce qui évite toute duplication front.
      */
     @GetMapping("/dress-codes")
-    @Operation(summary = "Tenues vestimentaires disponibles (code, libellé français, précision)")
+    @Operation(summary = "Couleurs de tenue disponibles (code, libellé français, hex, précision)")
     public ResponseEntity<List<DressCodeOption>> dressCodes() {
         return ResponseEntity.ok(Arrays.stream(EventDressCode.values())
                 .map(d -> DressCodeOption.builder()
                         .value(d.name())
                         .label(d.getLabel())
+                        .hex(d.getHex())
                         .description(d.getDescription())
                         .build())
                 .toList());

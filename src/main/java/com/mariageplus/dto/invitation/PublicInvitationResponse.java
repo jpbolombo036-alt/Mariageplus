@@ -43,6 +43,8 @@ public class PublicInvitationResponse {
     private String dressCodeLabel;
     /** Précision affichée à l'invité sous le libellé (page publique, sans auth). */
     private String dressCodeDescription;
+    /** Code couleur CSS : l'invité voit la teinte attendue d'un coup d'œil. */
+    private String dressCodeHex;
 
     /** Maximum de participants accepté : 1 + allowedCompanions (résolu côté backend). */
     private Integer maxAccepted;

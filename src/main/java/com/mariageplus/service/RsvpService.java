@@ -169,6 +169,7 @@ public class RsvpService {
                 .dressCode(event != null && event.getDressCode() != null ? event.getDressCode().name() : null)
                 .dressCodeLabel(event != null && event.getDressCode() != null ? event.getDressCode().getLabel() : null)
                 .dressCodeDescription(event != null && event.getDressCode() != null ? event.getDressCode().getDescription() : null)
+                .dressCodeHex(event != null && event.getDressCode() != null ? event.getDressCode().getHex() : null)
                 .maxAccepted(guest != null ? maximumAllowed(guest) : 1)
                 .status(invitation.getStatus().name())
                 .rsvpStatus(rsvp != null ? rsvp.getStatus().name() : null)

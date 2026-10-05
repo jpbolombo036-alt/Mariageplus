@@ -114,7 +114,7 @@ class EventControllerIntegrationTest {
         CreateEventRequest req = new CreateEventRequest();
         req.setName("Collation Test");
         req.setType(com.mariageplus.entity.EventType.COLLATION);
-        req.setDressCode(EventDressCode.COCKTAIL);
+        req.setDressCode(EventDressCode.BLACK);
         mockMvc.perform(post("/api/events")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -122,7 +122,7 @@ class EventControllerIntegrationTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.weddingDetails").doesNotExist())
                 .andExpect(jsonPath("$.type").value("COLLATION"))
-                .andExpect(jsonPath("$.dressCode").value("COCKTAIL"));
+                .andExpect(jsonPath("$.dressCode").value("BLACK"));
     }
 
     @Test
@@ -179,30 +179,35 @@ class EventControllerIntegrationTest {
     }
 
     /**
-     * Les options de tenue sont alimentées par l'enum backend (libellés FR) :
-     * le front ne doit jamais coder les libellés en dur.
+     * Le vestiaire porte sur la COULEUR, pas sur un style : les options sont des
+     * teintes (noir, blanc, gris…) avec un code couleur pour l'aperçu. Les
+     * libellés viennent de l'enum backend, le front ne doit rien coder en dur.
      */
     @Test
-    void dressCodes_returnsOptionsWithFrenchLabels() throws Exception {
+    void dressCodes_returnsColorOptionsWithFrenchLabels() throws Exception {
         mockMvc.perform(get("/api/events/dress-codes")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$", org.hamcrest.Matchers.hasSize(6)))
-                .andExpect(jsonPath("$[0].value").value("CASUAL"))
-                .andExpect(jsonPath("$[0].label").value("Tenue décontractée"))
-                .andExpect(jsonPath("$[4].value").value("BLACK_TIE"))
-                .andExpect(jsonPath("$[4].label").value("Cravate noire"))
-                .andExpect(jsonPath("$[4].description").value("Smoking pour les hommes, robe longue pour les femmes"));
+                .andExpect(jsonPath("$", org.hamcrest.Matchers.hasSize(9)))
+                .andExpect(jsonPath("$[0].value").value("BLACK"))
+                .andExpect(jsonPath("$[0].label").value("Noir"))
+                .andExpect(jsonPath("$[0].hex").value("#1F1F1F"))
+                .andExpect(jsonPath("$[0].description").value("Tenue noire : du plus sobre au plus chic"))
+                .andExpect(jsonPath("$[1].value").value("WHITE"))
+                .andExpect(jsonPath("$[1].label").value("Blanc"))
+                .andExpect(jsonPath("$[3].value").value("GREY"))
+                .andExpect(jsonPath("$[3].label").value("Gris"));
     }
 
     /**
-     * Chaîne complète du vestiaire : l'organisateur renseigne la tenue, et
-     * l'invité la reçoit sur la page publique (libellé + précision, sans JWT).
+     * Chaîne complète du vestiaire : l'organisateur choisit une couleur, et
+     * l'invité la reçoit sur la page publique (libellé, précision ET couleur
+     * d'aperçu, sans JWT).
      */
     @Test
-    void publicInvitation_exposesDressCodeWithFrenchLabel() throws Exception {
+    void publicInvitation_exposesDressColorWithFrenchLabel() throws Exception {
         CreateEventRequest req = weddingRequest();
-        req.setDressCode(EventDressCode.BLACK_TIE);
+        req.setDressCode(EventDressCode.BLACK);
         String evBody = mockMvc.perform(post("/api/events")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -230,10 +235,11 @@ class EventControllerIntegrationTest {
 
         mockMvc.perform(get("/api/public/invitations/{publicToken}", publicToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.dressCode").value("BLACK_TIE"))
-                .andExpect(jsonPath("$.dressCodeLabel").value("Cravate noire"))
+                .andExpect(jsonPath("$.dressCode").value("BLACK"))
+                .andExpect(jsonPath("$.dressCodeLabel").value("Noir"))
                 .andExpect(jsonPath("$.dressCodeDescription")
-                        .value("Smoking pour les hommes, robe longue pour les femmes"));
+                        .value("Tenue noire : du plus sobre au plus chic"))
+                .andExpect(jsonPath("$.dressCodeHex").value("#1F1F1F"));
     }
 }
 
