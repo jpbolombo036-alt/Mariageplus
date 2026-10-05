@@ -18,6 +18,8 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
@@ -34,6 +36,8 @@ class BulkSendControllerIntegrationTest {
     @Autowired private AuthService authService;
     @Autowired private com.mariageplus.service.OrganizationSettingsService organizationSettingsService;
     @Autowired private ObjectMapper objectMapper;
+    @Autowired private com.mariageplus.repository.InvitationRepository invitationRepository;
+    @Autowired private com.mariageplus.repository.NotificationLogRepository notificationLogRepository;
 
     @MockBean
     private WhatsAppService whatsAppService;
@@ -153,5 +157,47 @@ class BulkSendControllerIntegrationTest {
                 .andExpect(jsonPath("$.content").isArray())
                 .andExpect(jsonPath("$.currentPage").value(0))
                 .andExpect(jsonPath("$.pageSize").value(10));
+    }
+
+    /**
+     * Régression du signal trompeur : « envoyé » (accepté par l'API Meta) ne veut
+     * pas dire « reçu ». Le batch expose donc deux compteurs distincts :
+     * sentCount (acceptations Meta) et deliveredCount (confirmations du webhook).
+     * Une facture Meta impayée produit exactement ce cas : sentCount > 0 et
+     * deliveredCount = 0.
+     */
+    @Test
+    void getBatch_distinguishesAcceptedFromDelivered() throws Exception {
+        String batchBody = mockMvc.perform(post("/api/events/{weddingId}/invitations/send-bulk", weddingId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new BulkSendRequest() {{
+                            setChannel("WHATSAPP");
+                        }})))
+                .andExpect(status().isAccepted())
+                .andReturn().getResponse().getContentAsString();
+
+        long batchId = objectMapper.readTree(batchBody).get("id").asLong();
+
+        List<com.mariageplus.entity.Invitation> invitations = invitationRepository.findByWeddingId(weddingId);
+        assertThat(invitations).hasSizeGreaterThanOrEqualTo(2);
+        com.mariageplus.entity.Invitation accepted = invitations.get(0);
+        com.mariageplus.entity.Invitation delivered = invitations.get(1);
+
+        // Un message seulement ACCEPTÉ par Meta (SENT)… et un message LIVRÉ (DELIVERED).
+        notificationLogRepository.save(com.mariageplus.entity.NotificationLog.builder()
+                .batchId(batchId).weddingId(weddingId)
+                .invitationId(accepted.getId()).guestId(accepted.getGuestId())
+                .channel("WHATSAPP").status("SENT").messageId("wamid.accepted").build());
+        notificationLogRepository.save(com.mariageplus.entity.NotificationLog.builder()
+                .batchId(batchId).weddingId(weddingId)
+                .invitationId(delivered.getId()).guestId(delivered.getGuestId())
+                .channel("WHATSAPP").status("DELIVERED").messageId("wamid.delivered").build());
+
+        mockMvc.perform(get("/api/events/{weddingId}/invitations/send-bulk/{batchId}", weddingId, batchId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                // Seul le message confirmé par le webhook est compté comme livré.
+                .andExpect(jsonPath("$.deliveredCount").value(1));
     }
 }

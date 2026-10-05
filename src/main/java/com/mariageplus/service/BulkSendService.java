@@ -71,6 +71,12 @@ public class BulkSendService {
     private static final int DEFAULT_LOG_PAGE_SIZE = 50;
 
     /**
+     * Statuts NotificationLog signifiant « livré à l'invité » (confirmés par le
+     * webhook Meta). Tout journal resté à SENT n'est qu'un envoi ACCEPTÉ par Meta.
+     */
+    private static final List<String> DELIVERED_STATUSES = List.of("DELIVERED", "READ");
+
+    /**
      * Plafond effectif de relances WhatsApp, par priorité :
      * 1) réglage BD du SUPER_ADMIN (app_settings.whatsapp_max_reminders),
      * 2) variable d'environnement WHATSAPP_MAX_REMINDERS (app.whatsapp.max-reminders),
@@ -232,9 +238,24 @@ public class BulkSendService {
                 .status(batch.getStatus())
                 .totalCount(batch.getTotalCount())
                 .sentCount(batch.getSentCount())
+                .deliveredCount(countDelivered(batch.getId()))
                 .failedCount(batch.getFailedCount())
                 .skippedCount(batch.getSkippedCount())
                 .createdAt(batch.getCreatedAt())
                 .build();
+    }
+
+    /**
+     * Nombre de messages réellement livrés (webhook Meta). Tant que le webhook
+     * n'a rien signalé — ou que la messagerie Meta est en pause faute de
+     * facturation — ce compteur reste à 0 alors que {@code sentCount} est bon :
+     * c'est précisément ce qui distingue « accepté par Meta » de « reçu par
+     * l'invité », deux choses très différentes en pratique.
+     */
+    private int countDelivered(Long batchId) {
+        if (batchId == null) {
+            return 0;
+        }
+        return (int) notificationLogRepository.countByBatchIdAndStatusIn(batchId, DELIVERED_STATUSES);
     }
 }
