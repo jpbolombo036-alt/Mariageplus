@@ -36,6 +36,7 @@ class EventControllerIntegrationTest {
     @Autowired private AuthService authService;
     @Autowired private OrganizationSettingsService organizationSettingsService;
     @Autowired private ObjectMapper objectMapper;
+    @Autowired private com.mariageplus.repository.InvitationRepository invitationRepository;
 
     private static String token;
     private static boolean initialized;
@@ -175,6 +176,64 @@ class EventControllerIntegrationTest {
     void list_withoutAuth_returns401() throws Exception {
         mockMvc.perform(get("/api/events"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    /**
+     * Les options de tenue sont alimentées par l'enum backend (libellés FR) :
+     * le front ne doit jamais coder les libellés en dur.
+     */
+    @Test
+    void dressCodes_returnsOptionsWithFrenchLabels() throws Exception {
+        mockMvc.perform(get("/api/events/dress-codes")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", org.hamcrest.Matchers.hasSize(6)))
+                .andExpect(jsonPath("$[0].value").value("CASUAL"))
+                .andExpect(jsonPath("$[0].label").value("Tenue décontractée"))
+                .andExpect(jsonPath("$[4].value").value("BLACK_TIE"))
+                .andExpect(jsonPath("$[4].label").value("Cravate noire"))
+                .andExpect(jsonPath("$[4].description").value("Smoking pour les hommes, robe longue pour les femmes"));
+    }
+
+    /**
+     * Chaîne complète du vestiaire : l'organisateur renseigne la tenue, et
+     * l'invité la reçoit sur la page publique (libellé + précision, sans JWT).
+     */
+    @Test
+    void publicInvitation_exposesDressCodeWithFrenchLabel() throws Exception {
+        CreateEventRequest req = weddingRequest();
+        req.setDressCode(EventDressCode.BLACK_TIE);
+        String evBody = mockMvc.perform(post("/api/events")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        long eventId = objectMapper.readTree(evBody).get("id").asLong();
+
+        String guestBody = mockMvc.perform(post("/api/events/" + eventId + "/guests")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"firstName\":\"Invite\",\"lastName\":\"Tenue\",\"phone\":\"2250701020399\",\"email\":\"dresscode@test.com\"}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        long guestId = objectMapper.readTree(guestBody).get("id").asLong();
+
+        mockMvc.perform(post("/api/events/" + eventId + "/invitations")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"guestId\":" + guestId + "}"))
+                .andExpect(status().isCreated());
+
+        // publicToken n'est pas exposé dans la réponse administrative : on le lit en base.
+        String publicToken = invitationRepository.findByWeddingId(eventId).get(0).getPublicToken();
+
+        mockMvc.perform(get("/api/public/invitations/{publicToken}", publicToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.dressCode").value("BLACK_TIE"))
+                .andExpect(jsonPath("$.dressCodeLabel").value("Cravate noire"))
+                .andExpect(jsonPath("$.dressCodeDescription")
+                        .value("Smoking pour les hommes, robe longue pour les femmes"));
     }
 }
 

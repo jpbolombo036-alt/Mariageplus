@@ -95,17 +95,51 @@ class BulkSendControllerIntegrationTest {
         }
     }
 
+    /**
+     * Crée un mariage + 3 invités possédant chacun une invitation, isolés du
+     * mariage partagé utilisé par les autres tests de la classe.
+     */
+    private long createWeddingWithInvitations(String label) throws Exception {
+        String body = mockMvc.perform(post("/api/events")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"" + label + "\",\"type\":\"WEDDING\",\"weddingDetails\":{\"groomFirstName\":\"Jean\",\"groomLastName\":\"Kabongo\",\"brideFirstName\":\"Marie\",\"brideLastName\":\"Mukendi\"}}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        long freshWeddingId = objectMapper.readTree(body).get("id").asLong();
+        for (int i = 0; i < 3; i++) {
+            String guestBody = mockMvc.perform(post("/api/events/" + freshWeddingId + "/guests")
+                            .header("Authorization", "Bearer " + token)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"firstName\":\"Bulk" + i + "\",\"lastName\":\"Invite\",\"phone\":\"22507010203" + (10 + i) + "\",\"email\":\"bulk" + i + "-" + label.hashCode() + "@test.com\"}"))
+                    .andExpect(status().isCreated())
+                    .andReturn().getResponse().getContentAsString();
+            long guestId = objectMapper.readTree(guestBody).get("id").asLong();
+            mockMvc.perform(post("/api/events/" + freshWeddingId + "/invitations")
+                            .header("Authorization", "Bearer " + token)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"guestId\":" + guestId + "}"))
+                    .andExpect(status().isCreated());
+        }
+        return freshWeddingId;
+    }
+
     @Test
     void startBulkSend_returns202_withBatch() throws Exception {
+        // Fraisoin dédié : les autres tests déclenchent aussi des envois sur le
+        // mariage partagé, et le worker asynchrone (délai entre messages) y fait
+        // passer les invitations à SENT — le total ciblé n'y serait plus 3.
+        long targetWeddingId = createWeddingWithInvitations("Mariage Bulk Isolé");
+
         BulkSendRequest request = new BulkSendRequest();
         request.setChannel("WHATSAPP");
 
-        MvcResult result = mockMvc.perform(post("/api/events/{weddingId}/invitations/send-bulk", weddingId)
+        MvcResult result = mockMvc.perform(post("/api/events/{weddingId}/invitations/send-bulk", targetWeddingId)
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isAccepted())
-                .andExpect(jsonPath("$.weddingId").value(weddingId))
+                .andExpect(jsonPath("$.weddingId").value(targetWeddingId))
                 .andExpect(jsonPath("$.channel").value("WHATSAPP"))
                 .andExpect(jsonPath("$.totalCount").value(3))
                 .andReturn();

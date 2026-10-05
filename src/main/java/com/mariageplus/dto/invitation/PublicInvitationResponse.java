@@ -35,6 +35,15 @@ public class PublicInvitationResponse {
     private String eventStartTime;
     private String eventVenue;
 
+    /**
+     * Tenue demandée aux invités : code technique (ex. BLACK_TIE) et libellé
+     * français. Les deux sont nuls si l'organisateur n'impose aucune tenue.
+     */
+    private String dressCode;
+    private String dressCodeLabel;
+    /** Précision affichée à l'invité sous le libellé (page publique, sans auth). */
+    private String dressCodeDescription;
+
     /** Maximum de participants accepté : 1 + allowedCompanions (résolu côté backend). */
     private Integer maxAccepted;
 

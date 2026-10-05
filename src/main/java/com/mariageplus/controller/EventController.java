@@ -2,9 +2,11 @@ package com.mariageplus.controller;
 
 import com.mariageplus.dto.PageResponse;
 import com.mariageplus.dto.event.CreateEventRequest;
+import com.mariageplus.dto.event.DressCodeOption;
 import com.mariageplus.dto.event.EventResponse;
 import com.mariageplus.dto.event.UpdateEventRequest;
 import com.mariageplus.dto.event.UpdateEventStatusRequest;
+import com.mariageplus.entity.EventDressCode;
 import com.mariageplus.entity.EventType;
 import com.mariageplus.service.EventService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -18,6 +20,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -43,6 +47,23 @@ public class EventController {
             @RequestParam(required = false) EventType type,
             @RequestParam(required = false) Long organizationId) {
         return ResponseEntity.ok(eventService.list(page, size, sortBy, sortDir, type, organizationId));
+    }
+
+    /**
+     * Options de tenue vestimentaire (code + libellé français) : données de
+     * référence pour les sélecteurs côté organisateur. Les libellés viennent de
+     * l'enum, ce qui évite toute duplication front.
+     */
+    @GetMapping("/dress-codes")
+    @Operation(summary = "Tenues vestimentaires disponibles (code, libellé français, précision)")
+    public ResponseEntity<List<DressCodeOption>> dressCodes() {
+        return ResponseEntity.ok(Arrays.stream(EventDressCode.values())
+                .map(d -> DressCodeOption.builder()
+                        .value(d.name())
+                        .label(d.getLabel())
+                        .description(d.getDescription())
+                        .build())
+                .toList());
     }
 
     @PostMapping
