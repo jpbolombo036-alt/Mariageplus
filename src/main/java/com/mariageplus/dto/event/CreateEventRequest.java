@@ -1,6 +1,7 @@
 package com.mariageplus.dto.event;
 
 import com.mariageplus.entity.EventDressCode;
+import com.mariageplus.util.DressColors;
 import com.mariageplus.entity.EventType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -62,7 +63,12 @@ public class CreateEventRequest {
     @Size(max = 1000, message = "L'URL de la carte ne doit pas dépasser 1000 caractères")
     private String mapUrl;
 
-    private EventDressCode dressCode;
+    /**
+     * Couleurs de tenue demandées aux invités (facultatif). Maximum 3 : un pagne
+     * peut combiner plusieurs teintes. Liste vide = aucune couleur imposée.
+     */
+    @Size(max = DressColors.MAX, message = "Vous pouvez demander au maximum 3 couleurs de tenue")
+    private java.util.List<EventDressCode> dressColors;
 
     private Integer displayOrder;
 

@@ -21,6 +21,7 @@ import com.mariageplus.repository.GuestRepository;
 import com.mariageplus.repository.RsvpRepository;
 import com.mariageplus.repository.WeddingDetailsRepository;
 import com.mariageplus.repository.EventRepository;
+import com.mariageplus.util.DressColors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -123,6 +124,20 @@ public class RsvpService {
         return hasImage ? "/api/events/" + eventId + "/image" : null;
     }
 
+    /**
+     * URL de la photo du pagne / tissu à porter, servie sans JWT par
+     * {@code GET /api/events/{id}/dress-image}. Null si l'organisateur n'en a
+     * pas joint.
+     */
+    private String dressImageUrl(Long eventId, Event event) {
+        if (event == null || eventId == null) {
+            return null;
+        }
+        boolean hasImage = (event.getDressImageKey() != null && !event.getDressImageKey().isBlank())
+                || (event.getDressImage() != null && event.getDressImage().length > 0);
+        return hasImage ? "/api/events/" + eventId + "/dress-image" : null;
+    }
+
     private String venueText(Event event) {
         StringBuilder sb = new StringBuilder();
         if (event.getVenueName() != null) sb.append(event.getVenueName());
@@ -166,10 +181,8 @@ public class RsvpService {
                 .eventStartTime(event != null && event.getStartTime() != null
                         ? TIME_FR.format(event.getStartTime()) : null)
                 .eventVenue(event != null ? venueText(event) : null)
-                .dressCode(event != null && event.getDressCode() != null ? event.getDressCode().name() : null)
-                .dressCodeLabel(event != null && event.getDressCode() != null ? event.getDressCode().getLabel() : null)
-                .dressCodeDescription(event != null && event.getDressCode() != null ? event.getDressCode().getDescription() : null)
-                .dressCodeHex(event != null && event.getDressCode() != null ? event.getDressCode().getHex() : null)
+                .dressColors(DressColors.options(event != null ? event.getDressColors() : null))
+                .dressImageUrl(event != null ? dressImageUrl(invitation.getWeddingId(), event) : null)
                 .maxAccepted(guest != null ? maximumAllowed(guest) : 1)
                 .status(invitation.getStatus().name())
                 .rsvpStatus(rsvp != null ? rsvp.getStatus().name() : null)

@@ -79,9 +79,21 @@ public class Event extends BaseEntity {
     @Builder.Default
     private EventStatus status = EventStatus.DRAFT;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "dress_code", length = 30)
-    private EventDressCode dressCode;
+    /**
+     * Couleurs de tenue demandées aux invités : CSV de codes enum
+     * (ex : "BLACK,IVORY,WHITE"), maximum 3 (cf. DressColors.MAX). Null si
+     * aucune couleur imposée.
+     */
+    @Column(name = "dress_colors", length = 60)
+    private String dressColors;
+
+    /**
+     * Clé objet S3 de la photo du pagne / tissu à porter. Les mariages
+     * coutumiers distribuent un tissu que les invités doivent coudre : sans
+     * photo, la consigne de couleur est incompréhensible.
+     */
+    @Column(name = "dress_image_key", length = 255)
+    private String dressImageKey;
 
     @Column(name = "display_order")
     private Integer displayOrder;
@@ -99,6 +111,10 @@ public class Event extends BaseEntity {
     /** Photo de couverture : clé objet S3 (prioritaire) / fallback en base. */
     @Column(name = "image_key", length = 500)
     private String imageKey;
+
+    /** Repli en base de la photo du pagne quand le stockage objet est désactivé. */
+    @Column(name = "dress_image")
+    private byte[] dressImage;
 
     @Column(name = "image")
     private byte[] image;

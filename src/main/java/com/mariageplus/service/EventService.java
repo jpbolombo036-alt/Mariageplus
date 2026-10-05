@@ -18,6 +18,7 @@ import com.mariageplus.repository.EventRepository;
 import com.mariageplus.repository.EventSessionRepository;
 import com.mariageplus.repository.WeddingDetailsRepository;
 import com.mariageplus.security.SecurityUtils;
+import com.mariageplus.util.DressColors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -84,7 +85,7 @@ public class EventService {
                 .longitude(request.getLongitude())
                 .mapUrl(request.getMapUrl())
                 .status(EventStatus.DRAFT)
-                .dressCode(request.getDressCode())
+                .dressColors(DressColors.encode(request.getDressColors()))
                 .displayOrder(request.getDisplayOrder())
                 .active(true)
                 .createdBy(userId)
@@ -323,6 +324,77 @@ public class EventService {
         eventRepository.save(event);
     }
 
+    /**
+     * Photo du pagne / tissu à porter (mariages coutumiers) : l'invité doit
+     * coudre le tissu exact, une consigne de couleur seule ne suffit pas.
+     * Même stockage que la photo de couverture : S3 si activé, base en repli.
+     */
+    @Transactional
+    public void setDressImage(Long id, byte[] image) {
+        securityUtils.assertPermission("EVENT_UPDATE");
+        if (image == null || image.length == 0) {
+            throw new IllegalArgumentException("Fichier image vide ou manquant");
+        }
+        if (image.length > IMAGE_MAX_BYTES) {
+            throw new IllegalArgumentException("Image trop volumineuse (max 2 Mo)");
+        }
+        if (!isSupportedImage(image)) {
+            throw new IllegalArgumentException("Format d'image non supporté (JPEG, PNG, GIF ou WebP attendu)");
+        }
+        Event event = loadInOrgScope(id);
+        if (storageService.isEnabled()) {
+            if (event.getDressImageKey() != null && !event.getDressImageKey().isBlank()) {
+                storageService.delete(event.getDressImageKey());
+            }
+            String key = "events/" + id + "/dress-" + System.currentTimeMillis() + extensionOf(image);
+            storageService.upload(key, image, contentTypeOf(image));
+            event.setDressImageKey(key);
+            event.setDressImage(null);
+        } else {
+            event.setDressImage(image);
+        }
+        event.setUpdatedBy(securityUtils.getCurrentUserId());
+        eventRepository.save(event);
+        auditService.record("EVENT_UPDATE", id, "Event",
+                securityUtils.getCurrentUserId(), event.getOrganizationId(),
+                "Mise à jour de la photo du pagne / tissu de tenue");
+    }
+
+    /**
+     * Photo du pagne en accès PUBLIC — sans périmètre organisationnel, servie à
+     * la page d'invitation (aucun JWT). Les événements supprimés sont exclus par
+     * la {@code SQLRestriction}.
+     */
+    @Transactional(readOnly = true)
+    public byte[] getPublicDressImage(Long id) {
+        Event event = eventRepository.findById(id).orElse(null);
+        if (event == null) {
+            return null;
+        }
+        if (event.getDressImageKey() != null && !event.getDressImageKey().isBlank()) {
+            byte[] fromS3 = storageService.download(event.getDressImageKey());
+            if (fromS3 != null) {
+                return fromS3;
+            }
+        }
+        return (event.getDressImage() == null || event.getDressImage().length == 0)
+                ? null : event.getDressImage();
+    }
+
+    /** Supprime la photo du pagne. */
+    @Transactional
+    public void deleteDressImage(Long id) {
+        securityUtils.assertPermission("EVENT_UPDATE");
+        Event event = loadInOrgScope(id);
+        if (event.getDressImageKey() != null && !event.getDressImageKey().isBlank()) {
+            storageService.delete(event.getDressImageKey());
+        }
+        event.setDressImageKey(null);
+        event.setDressImage(null);
+        event.setUpdatedBy(securityUtils.getCurrentUserId());
+        eventRepository.save(event);
+    }
+
     private boolean isSupportedImage(byte[] b) {
         if (b.length < 12) return false;
         if ((b[0] & 0xFF) == 0xFF && (b[1] & 0xFF) == 0xD8) return true;
@@ -489,7 +561,7 @@ public class EventService {
         if (request.getLatitude() != null) event.setLatitude(request.getLatitude());
         if (request.getLongitude() != null) event.setLongitude(request.getLongitude());
         if (request.getMapUrl() != null) event.setMapUrl(request.getMapUrl());
-        if (request.getDressCode() != null) event.setDressCode(request.getDressCode());
+        if (request.getDressColors() != null) event.setDressColors(DressColors.encode(request.getDressColors()));
         if (request.getDisplayOrder() != null) event.setDisplayOrder(request.getDisplayOrder());
         if (request.getActive() != null) event.setActive(request.getActive());
     }

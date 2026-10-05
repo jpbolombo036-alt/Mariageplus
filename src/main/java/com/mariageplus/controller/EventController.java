@@ -120,6 +120,40 @@ public class EventController {
         return ResponseEntity.noContent().build();
     }
 
+    @PutMapping("/{id}/dress-image")
+    @Operation(summary = "Uploader la photo du pagne / tissu de tenue (JPEG, PNG, GIF, WebP — max 2 Mo)")
+    public ResponseEntity<?> uploadDressImage(@PathVariable Long id,
+                                              @RequestParam("file") MultipartFile file) {
+        try {
+            eventService.setDressImage(id, file.getBytes());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("error", e.getMessage()));
+        } catch (java.io.IOException e) {
+            return ResponseEntity.internalServerError().body(java.util.Map.of("error", "Impossible de lire le fichier"));
+        }
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{id}/dress-image")
+    @Operation(summary = "Photo du pagne / tissu de tenue (public : affichée sur la page d'invitation)")
+    public ResponseEntity<byte[]> getDressImage(@PathVariable Long id) {
+        byte[] image = eventService.getPublicDressImage(id);
+        if (image == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(detectMediaType(image)))
+                .cacheControl(CacheControl.maxAge(5, TimeUnit.MINUTES).cachePublic())
+                .body(image);
+    }
+
+    @DeleteMapping("/{id}/dress-image")
+    @Operation(summary = "Supprimer la photo du pagne / tissu de tenue")
+    public ResponseEntity<Void> deleteDressImage(@PathVariable Long id) {
+        eventService.deleteDressImage(id);
+        return ResponseEntity.noContent().build();
+    }
+
     @PutMapping("/{id}/photos/{kind}")
     @Operation(summary = "Uploader une photo de la fiche mariage (kind = groom | bride | couple — max 2 Mo)")
     public ResponseEntity<?> uploadDetailPhoto(@PathVariable Long id,

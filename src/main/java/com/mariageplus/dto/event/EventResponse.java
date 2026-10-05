@@ -31,7 +31,10 @@ public class EventResponse {
     private Double longitude;
     private String mapUrl;
     private String status;
-    private String dressCode;
+    /** Codes des couleurs demandées aux invités (max 3), dans l'ordre saisi. */
+    private java.util.List<String> dressColors;
+    /** Une photo du pagne / tissu à porter est-elle jointe à l'événement ? */
+    private boolean hasDressImage;
     private Integer displayOrder;
     private Boolean active;
     private Long organizationId;

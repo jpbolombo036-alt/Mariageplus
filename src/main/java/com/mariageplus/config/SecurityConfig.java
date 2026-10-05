@@ -84,6 +84,8 @@ public class SecurityConfig {
                     // Image de couverture d'événement : utilisée comme en-tête
                     // publique des templates WhatsApp (server-to-server Meta).
                     auth.requestMatchers(org.springframework.http.HttpMethod.GET, "/api/events/*/image").permitAll();
+                    // Photo du pagne / tissu de tenue : visible sur l'invitation publique.
+                    auth.requestMatchers(org.springframework.http.HttpMethod.GET, "/api/events/*/dress-image").permitAll();
                     // Photo d'une boisson : carte visuelle du RSVP public.
                     auth.requestMatchers(org.springframework.http.HttpMethod.GET, "/api/events/*/drinks/*/image").permitAll();
                     // Photo d'une boisson du CATALOGUE (carte RSVP publique des invités).

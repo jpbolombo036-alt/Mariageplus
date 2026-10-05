@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -114,7 +115,7 @@ class EventControllerIntegrationTest {
         CreateEventRequest req = new CreateEventRequest();
         req.setName("Collation Test");
         req.setType(com.mariageplus.entity.EventType.COLLATION);
-        req.setDressCode(EventDressCode.BLACK);
+        req.setDressColors(java.util.List.of(EventDressCode.BLACK));
         mockMvc.perform(post("/api/events")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -122,7 +123,7 @@ class EventControllerIntegrationTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.weddingDetails").doesNotExist())
                 .andExpect(jsonPath("$.type").value("COLLATION"))
-                .andExpect(jsonPath("$.dressCode").value("BLACK"));
+                .andExpect(jsonPath("$.dressColors[0]").value("BLACK"));
     }
 
     @Test
@@ -200,14 +201,15 @@ class EventControllerIntegrationTest {
     }
 
     /**
-     * Chaîne complète du vestiaire : l'organisateur choisit une couleur, et
-     * l'invité la reçoit sur la page publique (libellé, précision ET couleur
-     * d'aperçu, sans JWT).
+     * Chaîne complète du vestiaire : l'organisateur choisit jusqu'à 3 couleurs
+     * (un pagne combine souvent plusieurs teintes), et l'invité les reçoit sur
+     * la page publique avec libellé et couleur d'aperçu (sans JWT).
      */
     @Test
-    void publicInvitation_exposesDressColorWithFrenchLabel() throws Exception {
+    void publicInvitation_exposesUpToThreeDressColors() throws Exception {
         CreateEventRequest req = weddingRequest();
-        req.setDressCode(EventDressCode.BLACK);
+        req.setDressColors(java.util.List.of(
+                EventDressCode.BLACK, EventDressCode.IVORY, EventDressCode.GREY));
         String evBody = mockMvc.perform(post("/api/events")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -235,11 +237,133 @@ class EventControllerIntegrationTest {
 
         mockMvc.perform(get("/api/public/invitations/{publicToken}", publicToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.dressCode").value("BLACK"))
-                .andExpect(jsonPath("$.dressCodeLabel").value("Noir"))
-                .andExpect(jsonPath("$.dressCodeDescription")
-                        .value("Tenue noire : du plus sobre au plus chic"))
-                .andExpect(jsonPath("$.dressCodeHex").value("#1F1F1F"));
+                .andExpect(jsonPath("$.dressColors", org.hamcrest.Matchers.hasSize(3)))
+                .andExpect(jsonPath("$.dressColors[0].value").value("BLACK"))
+                .andExpect(jsonPath("$.dressColors[0].label").value("Noir"))
+                .andExpect(jsonPath("$.dressColors[0].hex").value("#1F1F1F"))
+                .andExpect(jsonPath("$.dressColors[1].value").value("IVORY"))
+                .andExpect(jsonPath("$.dressColors[1].label").value("Blanc cassé / Ivoire"))
+                .andExpect(jsonPath("$.dressColors[2].value").value("GREY"))
+                .andExpect(jsonPath("$.dressColors[2].label").value("Gris"));
+    }
+
+    /** Maximum 3 couleurs : au-delà, la requête est refusée (400). */
+    @Test
+    void create_withMoreThanThreeDressColors_returns400() throws Exception {
+        CreateEventRequest req = weddingRequest();
+        req.setDressColors(java.util.List.of(
+                EventDressCode.BLACK, EventDressCode.WHITE,
+                EventDressCode.IVORY, EventDressCode.GREY));
+        mockMvc.perform(post("/api/events")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isBadRequest());
+    }
+
+    /** PNG 1×1 valide : la détection ne regarde que les magic bytes. */
+    private static byte[] pngBytes() {
+        return java.util.Base64.getDecoder().decode(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==");
+    }
+
+    /** Crée un mariage et renvoie son id (helper des tests « photo du pagne »). */
+    private long createWeddingEvent() throws Exception {
+        String body = mockMvc.perform(post("/api/events")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(weddingRequest())))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return objectMapper.readTree(body).get("id").asLong();
+    }
+
+    /**
+     * Photo du pagne / tissu de tenue (mariages coutumiers) : l'organisateur
+     * l'upload, l'invité la lit SANS JWT sur la page d'invitation, puis la
+     * suppression la rend inaccessible. Chaîne complète du vestiaire.
+     */
+    @Test
+    void dressImage_upload_publicRead_delete_lifecycle() throws Exception {
+        long eventId = createWeddingEvent();
+
+        mockMvc.perform(multipart(org.springframework.http.HttpMethod.PUT,
+                        "/api/events/{id}/dress-image", eventId)
+                        .file(new MockMultipartFile("file", "pagne.png", "image/png", pngBytes()))
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent());
+
+        // Le drapeau remonte dans la réponse administrative (sélecteur front).
+        mockMvc.perform(get("/api/events/{id}", eventId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.hasDressImage").value(true));
+
+        // Lecture publique : la page d'invitation n'a pas de JWT.
+        mockMvc.perform(get("/api/events/{id}/dress-image", eventId))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("image/png"))
+                .andExpect(content().bytes(pngBytes()));
+
+        mockMvc.perform(delete("/api/events/{id}/dress-image", eventId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/events/{id}/dress-image", eventId))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/events/{id}", eventId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.hasDressImage").value(false));
+    }
+
+    /** Format non reconnu (magic bytes absents) : 400 + message explicite. */
+    @Test
+    void dressImage_unsupportedFormat_returns400() throws Exception {
+        long eventId = createWeddingEvent();
+        byte[] notAnImage = "ceci n'est pas une image".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+
+        mockMvc.perform(multipart(org.springframework.http.HttpMethod.PUT,
+                        "/api/events/{id}/dress-image", eventId)
+                        .file(new MockMultipartFile("file", "notes.txt", "text/plain", notAnImage))
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").isNotEmpty());
+    }
+
+    /** Sans photo, la page publique n'expose aucun lien ; après upload, l'URL y figure. */
+    @Test
+    void publicInvitation_exposesDressImageUrlOnlyWhenJoined() throws Exception {
+        long eventId = createWeddingEvent();
+
+        String guestBody = mockMvc.perform(post("/api/events/" + eventId + "/guests")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"firstName\":\"Invite\",\"lastName\":\"Pagne\",\"phone\":\"2250701020400\",\"email\":\"pagne@test.com\"}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        long guestId = objectMapper.readTree(guestBody).get("id").asLong();
+        mockMvc.perform(post("/api/events/" + eventId + "/invitations")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"guestId\":" + guestId + "}"))
+                .andExpect(status().isCreated());
+        String publicToken = invitationRepository.findByWeddingId(eventId).get(0).getPublicToken();
+
+        mockMvc.perform(get("/api/public/invitations/{publicToken}", publicToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.dressImageUrl").doesNotExist());
+
+        mockMvc.perform(multipart(org.springframework.http.HttpMethod.PUT,
+                        "/api/events/{id}/dress-image", eventId)
+                        .file(new MockMultipartFile("file", "pagne.png", "image/png", pngBytes()))
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/public/invitations/{publicToken}", publicToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.dressImageUrl")
+                        .value("/api/events/" + eventId + "/dress-image"));
     }
 }
 
