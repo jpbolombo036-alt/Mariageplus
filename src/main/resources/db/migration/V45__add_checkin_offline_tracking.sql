@@ -1,0 +1,5 @@
+ALTER TABLE checkins ADD COLUMN IF NOT EXISTS device_id VARCHAR(64);
+ALTER TABLE checkins ADD COLUMN IF NOT EXISTS synced_at TIMESTAMP;
+ALTER TABLE checkins ADD COLUMN IF NOT EXISTS is_offline BOOLEAN DEFAULT FALSE;
+
+CREATE INDEX IF NOT EXISTS idx_checkins_device_id ON checkins (device_id);

@@ -1,0 +1,52 @@
+--- cat-file sizes (HEAD) ---
+src/test/java/com/mariageplus/controller/CheckInIntegrationTest.java => 0
+src/test/java/com/mariageplus/controller/JourneyIntegrationTest.java => 0
+src/test/java/com/mariageplus/service/CheckInServiceTest.java => 16005
+--- ls-files -v ---
+
+H src/test/java/com/mariageplus/config/DataInitializerTest.java
+H src/test/java/com/mariageplus/config/DatabaseEnvironmentConfigTest.java
+H src/test/java/com/mariageplus/config/GestionnaireCategoryPermissionSeedTest.java
+H src/test/java/com/mariageplus/controller/AgentWeddingScopingIntegrationTest.java
+H src/test/java/com/mariageplus/controller/AuthControllerIntegrationTest.java
+H src/test/java/com/mariageplus/controller/AuthControllerRefreshTest.java
+H src/test/java/com/mariageplus/controller/BulkSendControllerIntegrationTest.java
+H src/test/java/com/mariageplus/controller/CheckInIntegrationTest.java
+H src/test/java/com/mariageplus/controller/EventControllerIntegrationTest.java
+H src/test/java/com/mariageplus/controller/ExportControllerIntegrationTest.java
+H src/test/java/com/mariageplus/controller/GuestCategoryControllerIntegrationTest.java
+H src/test/java/com/mariageplus/controller/GuestControllerIntegrationTest.java
+H src/test/java/com/mariageplus/controller/InvitationControllerIntegrationTest.java
+H src/test/java/com/mariageplus/controller/JourneyIntegrationTest.java
+H src/test/java/com/mariageplus/controller/OrganizationControllerIntegrationTest.java
+H src/test/java/com/mariageplus/controller/RsvpPublicIntegrationTest.java
+H src/test/java/com/mariageplus/controller/SecurityIntegrationTest.java
+H src/test/java/com/mariageplus/controller/WeddingDashboardIntegrationTest.java
+H src/test/java/com/mariageplus/controller/WeddingTableIntegrationTest.java
+H src/test/java/com/mariageplus/security/PublicRsvpRateLimitFilterTest.java
+H src/test/java/com/mariageplus/security/PublicRsvpRateLimiterTest.java
+H src/test/java/com/mariageplus/security/SecurityUtilsTest.java
+H src/test/java/com/mariageplus/service/AppSettingServiceTest.java
+H src/test/java/com/mariageplus/service/AuthServiceTest.java
+H src/test/java/com/mariageplus/service/BulkSendWorkerTest.java
+H src/test/java/com/mariageplus/service/CheckInServiceTest.java
+H src/test/java/com/mariageplus/service/ExportServiceTest.java
+H src/test/java/com/mariageplus/service/GuestCategoryServiceTest.java
+H src/test/java/com/mariageplus/service/GuestServiceTest.java
+H src/test/java/com/mariageplus/service/InvitationMailServiceTest.java
+
+
+
+--- status ---
+?? _inv.json
+?? _probe_out.json
+?? src/main/java/com/mariageplus/dto/checkin/OfflinePackInvitation.java
+?? src/main/java/com/mariageplus/dto/checkin/OfflinePackResponse.java
+?? src/main/java/com/mariageplus/dto/checkin/OfflinePackTable.java
+?? src/main/java/com/mariageplus/dto/checkin/OfflinePackTableAssignment.java
+?? src/main/java/com/mariageplus/dto/checkin/OfflineScanItem.java
+?? src/main/java/com/mariageplus/dto/checkin/SyncCheckInRequest.java
+?? src/main/java/com/mariageplus/dto/checkin/SyncCheckInResponse.java
+?? src/main/java/com/mariageplus/dto/checkin/SyncCheckInResult.java
+?? src/main/resources/db/migration/V45__add_checkin_offline_tracking.sql
+

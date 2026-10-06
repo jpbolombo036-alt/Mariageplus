@@ -17,7 +17,8 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "checkins", indexes = {
         @Index(name = "idx_checkins_invitation", columnList = "invitation_id"),
-        @Index(name = "idx_checkins_checked_at", columnList = "checked_in_at")
+        @Index(name = "idx_checkins_checked_at", columnList = "checked_in_at"),
+        @Index(name = "idx_checkins_device_id", columnList = "device_id")
 })
 @Getter
 @Setter
@@ -37,4 +38,13 @@ public class CheckIn extends BaseEntity {
 
     @Column(name = "checked_in_by")
     private Long checkedInBy;
+
+    @Column(name = "device_id", length = 64)
+    private String deviceId;
+
+    @Column(name = "synced_at")
+    private LocalDateTime syncedAt;
+
+    @Column(name = "is_offline")
+    private Boolean offline;
 }

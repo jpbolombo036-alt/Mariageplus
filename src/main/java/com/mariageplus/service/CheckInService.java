@@ -5,7 +5,15 @@ import com.mariageplus.dto.checkin.CheckInRequest;
 import com.mariageplus.dto.checkin.CheckInResponse;
 import com.mariageplus.dto.checkin.CheckInScanResponse;
 import com.mariageplus.dto.checkin.CheckInSearchItemResponse;
+import com.mariageplus.dto.checkin.OfflinePackInvitation;
+import com.mariageplus.dto.checkin.OfflinePackResponse;
+import com.mariageplus.dto.checkin.OfflinePackTable;
+import com.mariageplus.dto.checkin.OfflinePackTableAssignment;
+import com.mariageplus.dto.checkin.OfflineScanItem;
 import com.mariageplus.dto.checkin.ScanCheckInRequest;
+import com.mariageplus.dto.checkin.SyncCheckInRequest;
+import com.mariageplus.dto.checkin.SyncCheckInResponse;
+import com.mariageplus.dto.checkin.SyncCheckInResult;
 import com.mariageplus.entity.CheckIn;
 import com.mariageplus.entity.Guest;
 import com.mariageplus.entity.Invitation;
@@ -13,6 +21,7 @@ import com.mariageplus.entity.InvitationStatus;
 import com.mariageplus.entity.Rsvp;
 import com.mariageplus.entity.RsvpStatus;
 import com.mariageplus.entity.Event;
+import com.mariageplus.entity.WeddingTable;
 import com.mariageplus.exception.ConflictException;
 import com.mariageplus.exception.ResourceNotFoundException;
 import com.mariageplus.repository.CheckInRepository;
@@ -21,8 +30,10 @@ import com.mariageplus.repository.InvitationRepository;
 import com.mariageplus.repository.RsvpRepository;
 import com.mariageplus.repository.TableAssignmentRepository;
 import com.mariageplus.repository.EventRepository;
+import com.mariageplus.repository.WeddingTableRepository;
 import com.mariageplus.security.SecurityUtils;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -63,9 +74,16 @@ public class CheckInService {
     private final EventRepository eventRepository;
     private final RsvpRepository rsvpRepository;
     private final TableAssignmentRepository tableAssignmentRepository;
+    private final WeddingTableRepository weddingTableRepository;
     private final SecurityUtils securityUtils;
     private final AuditService auditService;
     private final StorageService storageService;
+
+    @Value("${app.checkin.offline-sync-enabled:true}")
+    private boolean offlineSyncEnabled;
+
+    @Value("${app.checkin.offline-pack-max-items:2000}")
+    private int offlinePackMaxItems;
 
     /** Formats français pour l'affichage agent (date / heure de l'événement). */
     private static final DateTimeFormatter DATE_FR = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.FRENCH);
@@ -423,5 +441,265 @@ public class CheckInService {
             sb.append(event.getCity());
         }
         return sb.length() > 0 ? sb.toString() : null;
+    }
+
+    @Transactional(readOnly = true)
+    public OfflinePackResponse offlinePack(Long eventId) {
+        securityUtils.assertPermission("CHECKIN_SCAN");
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new ResourceNotFoundException("Événement introuvable"));
+        securityUtils.assertWeddingAccess(event.getId());
+        securityUtils.assertOrganizationAccess(event.getOrganizationId());
+
+        List<Invitation> invitations = invitationRepository.findByWeddingId(event.getId());
+        if (invitations.size() > offlinePackMaxItems) {
+            throw new ConflictException("Trop d'invitations pour le pack hors ligne (max " + offlinePackMaxItems + ")");
+        }
+
+        List<Guest> guests = guestRepository.findByWeddingId(event.getId());
+        Map<Long, Guest> guestById = guests.stream()
+                .collect(Collectors.toMap(Guest::getId, g -> g));
+
+        List<CheckIn> allCheckIns = checkInRepository.findByWeddingIdOrderByCheckedInAtDesc(event.getId());
+        Map<Long, Integer> checkedInByInvitation = allCheckIns.stream()
+                .collect(Collectors.groupingBy(CheckIn::getInvitationId,
+                        Collectors.summingInt(CheckIn::getNumberOfAttendees)));
+
+        List<com.mariageplus.entity.TableAssignment> assignments = tableAssignmentRepository.findAllByWeddingId(event.getId());
+        Map<Long, List<com.mariageplus.entity.TableAssignment>> assignmentsByTable = assignments.stream()
+                .collect(Collectors.groupingBy(com.mariageplus.entity.TableAssignment::getWeddingTableId));
+
+        List<WeddingTable> tables = weddingTableRepository.findByWeddingId(event.getId());
+        Map<Long, String> tableNameById = tables.stream()
+                .collect(Collectors.toMap(WeddingTable::getId, WeddingTable::getName));
+
+        Map<Long, String> guestNameById = new LinkedHashMap<>();
+        for (Guest g : guests) {
+            String name = (g.getFirstName() == null ? "" : g.getFirstName())
+                    + " " + (g.getLastName() == null ? "" : g.getLastName());
+            guestNameById.put(g.getId(), name.trim().isEmpty() ? "Inconnu" : name.trim());
+        }
+
+        List<OfflinePackInvitation> packInvitations = new ArrayList<>();
+        for (Invitation inv : invitations) {
+            Guest guest = guestById.get(inv.getGuestId());
+            Rsvp rsvp = rsvpRepository.findByInvitationId(inv.getId()).orElse(null);
+            int expected = expectedAttendees(rsvp);
+            int checkedIn = checkedInByInvitation.getOrDefault(inv.getId(), 0);
+            int remaining = Math.max(0, expected - checkedIn);
+            boolean canCheckIn = rsvp != null
+                    && rsvp.getStatus() == RsvpStatus.ACCEPTED
+                    && expected > 0
+                    && remaining > 0
+                    && !isEventDatePassed(event);
+
+            String tableName = tableAssignmentRepository.findTableNameByGuestId(inv.getGuestId()).orElse(null);
+
+            packInvitations.add(OfflinePackInvitation.builder()
+                    .publicToken(inv.getPublicToken())
+                    .invitationCode(inv.getInvitationCode())
+                    .guestId(inv.getGuestId())
+                    .guestName(guest == null ? "Inconnu" : guestNameById.getOrDefault(inv.getGuestId(), "Inconnu"))
+                    .invitationStatus(inv.getStatus().name())
+                    .rsvpStatus(rsvp == null ? null : rsvp.getStatus().name())
+                    .expectedAttendees(expected)
+                    .checkedInAttendees(checkedIn)
+                    .remainingAttendees(remaining)
+                    .canCheckIn(canCheckIn)
+                    .tableName(tableName)
+                    .drinkChoice(rsvp == null ? null : rsvp.getDrinkChoice())
+                    .hasCard(hasCard(inv))
+                    .phone(guest == null ? null : guest.getPhone())
+                    .email(guest == null ? null : guest.getEmail())
+                    .build());
+        }
+
+        List<OfflinePackTable> packTables = new ArrayList<>();
+        for (WeddingTable table : tables) {
+            List<com.mariageplus.entity.TableAssignment> tableAssignments = assignmentsByTable.getOrDefault(table.getId(), List.of());
+            List<OfflinePackTableAssignment> packAssignments = new ArrayList<>();
+            for (com.mariageplus.entity.TableAssignment a : tableAssignments) {
+                packAssignments.add(OfflinePackTableAssignment.builder()
+                        .guestId(a.getGuestId())
+                        .guestName(guestNameById.getOrDefault(a.getGuestId(), "Inconnu"))
+                        .build());
+            }
+            int assignedCount = tableAssignments.size();
+            int remainingCapacity = Math.max(0, table.getCapacity() - assignedCount);
+            packTables.add(OfflinePackTable.builder()
+                    .tableId(table.getId())
+                    .name(table.getName())
+                    .capacity(table.getCapacity())
+                    .assignedCount(assignedCount)
+                    .remainingCapacity(remainingCapacity)
+                    .assignments(packAssignments)
+                    .build());
+        }
+
+        return OfflinePackResponse.builder()
+                .eventId(event.getId())
+                .eventName(event.getName())
+                .eventDate(event.getEventDate() != null ? DATE_FR.format(event.getEventDate()) : null)
+                .eventTime(event.getStartTime() != null ? TIME_FR.format(event.getStartTime()) : null)
+                .eventVenue(venueOf(event))
+                .dressColors(event.getDressColors())
+                .invitations(packInvitations)
+                .tables(packTables)
+                .generatedAt(System.currentTimeMillis())
+                .build();
+    }
+
+    public SyncCheckInResponse syncOfflineScans(SyncCheckInRequest request) {
+        if (!offlineSyncEnabled) {
+            throw new ConflictException("La synchronisation hors ligne est désactivée");
+        }
+        securityUtils.assertPermission("CHECKIN_CREATE");
+
+        Event event = eventRepository.findById(request.getEventId())
+                .orElseThrow(() -> new ResourceNotFoundException("Événement introuvable"));
+        securityUtils.assertWeddingAccess(event.getId());
+        securityUtils.assertOrganizationAccess(event.getOrganizationId());
+        assertNotExpired(event);
+
+        List<SyncCheckInResult> results = new ArrayList<>();
+        int accepted = 0;
+        int rejected = 0;
+
+        for (OfflineScanItem item : request.getScans()) {
+            SyncCheckInResult result = processOfflineScan(item, event);
+            results.add(result);
+            if ("ACCEPTED".equals(result.getStatus())) {
+                accepted++;
+            } else {
+                rejected++;
+            }
+        }
+
+        return SyncCheckInResponse.builder()
+                .processed(results.size())
+                .accepted(accepted)
+                .rejected(rejected)
+                .results(results)
+                .build();
+    }
+
+    @Transactional
+    protected SyncCheckInResult processOfflineScan(OfflineScanItem item, Event event) {
+        try {
+            int attendees = parseAttendees(item.getNumberOfAttendees());
+
+            Invitation invitation = invitationRepository.findByPublicToken(item.getQrToken())
+                    .orElseGet(() -> {
+                        // Fallback by invitation code if publicToken not resolved
+                        return invitationRepository.findByWeddingIdAndInvitationCodeContainingIgnoreCase(
+                                event.getId(), item.getQrToken()).stream().findFirst().orElse(null);
+                    });
+            if (invitation == null) {
+                return SyncCheckInResult.builder()
+                        .qrToken(item.getQrToken())
+                        .status("REJECTED")
+                        .reason("Invitation introuvable")
+                        .totalAttendees(0)
+                        .remainingAttendees(0)
+                        .build();
+            }
+
+            if (!invitation.getWeddingId().equals(event.getId())) {
+                return SyncCheckInResult.builder()
+                        .qrToken(item.getQrToken())
+                        .status("REJECTED")
+                        .reason("Invitation hors de l'événement")
+                        .totalAttendees(0)
+                        .remainingAttendees(0)
+                        .build();
+            }
+
+            if (invitation.isDeleted()
+                    || invitation.getStatus() == InvitationStatus.CANCELLED
+                    || invitation.getStatus() == InvitationStatus.EXPIRED) {
+                return SyncCheckInResult.builder()
+                        .qrToken(item.getQrToken())
+                        .status("REJECTED")
+                        .reason("Invitation inactive")
+                        .totalAttendees(0)
+                        .remainingAttendees(0)
+                        .build();
+            }
+
+            if (isEventDatePassed(event)) {
+                return SyncCheckInResult.builder()
+                        .qrToken(item.getQrToken())
+                        .status("REJECTED")
+                        .reason("Événement expiré")
+                        .totalAttendees(0)
+                        .remainingAttendees(0)
+                        .build();
+            }
+
+            Rsvp rsvp = rsvpRepository.findByInvitationId(invitation.getId()).orElse(null);
+            int expected = expectedAttendeesChecked(rsvp);
+            int checkedIn = checkInRepository.sumByInvitationId(invitation.getId());
+
+            if (checkedIn + attendees > expected) {
+                return SyncCheckInResult.builder()
+                        .qrToken(item.getQrToken())
+                        .status("REJECTED")
+                        .reason("Dépassement de capacité")
+                        .totalAttendees(checkedIn)
+                        .remainingAttendees(Math.max(0, expected - checkedIn))
+                        .build();
+            }
+
+            LocalDateTime scannedAt = item.getScannedAt() != null
+                    ? LocalDateTime.parse(item.getScannedAt())
+                    : LocalDateTime.now();
+
+            boolean duplicate = checkInRepository.findByWeddingIdOrderByCheckedInAtDesc(event.getId()).stream()
+                    .anyMatch(c -> c.getInvitationId().equals(invitation.getId())
+                            && c.getCheckedInAt().equals(scannedAt)
+                            && Boolean.TRUE.equals(c.getOffline()));
+
+            if (duplicate) {
+                return SyncCheckInResult.builder()
+                        .qrToken(item.getQrToken())
+                        .status("DUPLICATE")
+                        .reason("Scan déjà synchronisé")
+                        .checkInId(null)
+                        .totalAttendees(checkedIn)
+                        .remainingAttendees(Math.max(0, expected - checkedIn))
+                        .build();
+            }
+
+            CheckIn saved = checkInRepository.save(CheckIn.builder()
+                    .invitationId(invitation.getId())
+                    .numberOfAttendees(attendees)
+                    .checkedInAt(scannedAt)
+                    .checkedInBy(null)
+                    .deviceId(item.getDeviceId())
+                    .syncedAt(LocalDateTime.now())
+                    .offline(true)
+                    .build());
+
+            int total = checkedIn + attendees;
+            int remaining = Math.max(0, expected - total);
+
+            return SyncCheckInResult.builder()
+                    .qrToken(item.getQrToken())
+                    .status("ACCEPTED")
+                    .reason(null)
+                    .checkInId(saved.getId())
+                    .totalAttendees(total)
+                    .remainingAttendees(remaining)
+                    .build();
+
+        } catch (Exception e) {
+            return SyncCheckInResult.builder()
+                    .qrToken(item.getQrToken())
+                    .status("REJECTED")
+                    .reason("Erreur: " + e.getMessage())
+                    .totalAttendees(0)
+                    .remainingAttendees(0)
+                    .build();
+        }
     }
 }

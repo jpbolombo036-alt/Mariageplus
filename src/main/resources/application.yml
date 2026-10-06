@@ -133,6 +133,10 @@ app:
     autocomplete-enabled: ${EVENT_AUTOCOMPLETE_ENABLED:true}
     autocomplete-cron: ${EVENT_AUTOCOMPLETE_CRON:0 15 0 * * *}
 
+  checkin:
+    offline-sync-enabled: ${CHECKIN_OFFLINE_SYNC_ENABLED:true}
+    offline-pack-max-items: ${CHECKIN_OFFLINE_PACK_MAX_ITEMS:2000}
+
   admin:
     init-enabled: ${ADMIN_INIT_ENABLED:false}
     init-email: ${ADMIN_INIT_EMAIL:}

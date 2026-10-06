@@ -5,7 +5,10 @@ import com.mariageplus.dto.checkin.CheckInRequest;
 import com.mariageplus.dto.checkin.CheckInResponse;
 import com.mariageplus.dto.checkin.CheckInScanResponse;
 import com.mariageplus.dto.checkin.CheckInSearchItemResponse;
+import com.mariageplus.dto.checkin.OfflinePackResponse;
 import com.mariageplus.dto.checkin.ScanCheckInRequest;
+import com.mariageplus.dto.checkin.SyncCheckInRequest;
+import com.mariageplus.dto.checkin.SyncCheckInResponse;
 import com.mariageplus.service.CheckInService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -46,6 +49,18 @@ public class CheckInController {
     public ResponseEntity<Void> cancel(@PathVariable Long checkInId) {
         checkInService.cancel(checkInId);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/event/{eventId}/offline-pack")
+    @Operation(summary = "Précharger les données nécessaires au check-in hors ligne (JSON compact)")
+    public ResponseEntity<OfflinePackResponse> offlinePack(@PathVariable Long eventId) {
+        return ResponseEntity.ok(checkInService.offlinePack(eventId));
+    }
+
+    @PostMapping("/sync")
+    @Operation(summary = "Synchroniser des scans effectués hors ligne (batch)")
+    public ResponseEntity<SyncCheckInResponse> sync(@Valid @RequestBody SyncCheckInRequest request) {
+        return ResponseEntity.ok(checkInService.syncOfflineScans(request));
     }
 
     @GetMapping("/event/{weddingId}")
