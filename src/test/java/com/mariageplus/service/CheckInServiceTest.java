@@ -4,6 +4,10 @@ import com.mariageplus.dto.checkin.CheckInRequest;
 import com.mariageplus.dto.checkin.CheckInResponse;
 import com.mariageplus.dto.checkin.CheckInScanResponse;
 import com.mariageplus.dto.checkin.ScanCheckInRequest;
+import com.mariageplus.dto.checkin.OfflinePackResponse;
+import com.mariageplus.dto.checkin.OfflineScanItem;
+import com.mariageplus.dto.checkin.SyncCheckInRequest;
+import com.mariageplus.dto.checkin.SyncCheckInResponse;
 import com.mariageplus.entity.CheckIn;
 import com.mariageplus.entity.Guest;
 import com.mariageplus.entity.Invitation;
@@ -20,6 +24,7 @@ import com.mariageplus.repository.GuestRepository;
 import com.mariageplus.repository.InvitationRepository;
 import com.mariageplus.repository.RsvpRepository;
 import com.mariageplus.repository.TableAssignmentRepository;
+import com.mariageplus.repository.WeddingTableRepository;
 import com.mariageplus.repository.EventRepository;
 import com.mariageplus.security.SecurityUtils;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,9 +34,12 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.List;
 import java.util.Optional;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -53,6 +61,8 @@ class CheckInServiceTest {
     @Mock private TableAssignmentRepository tableAssignmentRepository;
     @Mock private SecurityUtils securityUtils;
     @Mock private AuditService auditService;
+    @Mock private WeddingTableRepository weddingTableRepository;
+    @Mock private StorageService storageService;
 
     @InjectMocks private CheckInService checkInService;
 
@@ -350,5 +360,227 @@ class CheckInServiceTest {
 
         assertThrows(ResourceNotFoundException.class, () -> checkInService.checkIn(checkInRequest(1)));
         verify(checkInRepository, never()).save(any(CheckIn.class));
+    }
+
+    // ---------- Mode hors ligne : pack préchargé + synchronisation des scans ----------
+
+    /** Active la synchro hors ligne (@Value non injecté en test unitaire). */
+    private void enableOfflineSync() {
+        ReflectionTestUtils.setField(checkInService, "offlineSyncEnabled", true);
+        ReflectionTestUtils.setField(checkInService, "offlineSyncGraceDays", 2);
+    }
+
+    private SyncCheckInRequest syncRequest(String qrToken, String deviceId, Long sequence, String scannedAt) {
+        SyncCheckInRequest request = new SyncCheckInRequest();
+        request.setEventId(1L);
+        OfflineScanItem scan = new OfflineScanItem();
+        scan.setQrToken(qrToken);
+        scan.setNumberOfAttendees(1);
+        scan.setScannedAt(scannedAt);
+        scan.setDeviceId(deviceId);
+        scan.setSequence(sequence);
+        request.setScans(List.of(scan));
+        return request;
+    }
+
+    private String pastScannedAt() {
+        return LocalDateTime.now().minusMinutes(5).toString();
+    }
+
+    /** Stubs du chemin heureux : invitation verrouillée, RSVP = 3, somme = 1. */
+    private void stubSyncHappyPath(String deviceId, Long sequence) {
+        when(eventRepository.findById(1L)).thenReturn(Optional.of(wedding));
+        when(invitationRepository.findByPublicTokenForUpdate("tok")).thenReturn(Optional.of(invitation));
+        when(rsvpRepository.findByInvitationId(5L)).thenReturn(Optional.of(acceptedRsvp(3)));
+        when(checkInRepository.sumByInvitationId(5L)).thenReturn(1);
+        when(checkInRepository.existsByDeviceIdAndSequenceNumber(deviceId, sequence)).thenReturn(false);
+        when(checkInRepository.existsByInvitationIdAndCheckedInAtAndOfflineTrue(eq(5L), any(LocalDateTime.class)))
+                .thenReturn(false);
+        when(checkInRepository.save(any(CheckIn.class))).thenAnswer(a -> {
+            CheckIn saved = a.getArgument(0);
+            saved.setId(77L);
+            return saved;
+        });
+        when(securityUtils.getCurrentUserId()).thenReturn(42L);
+    }
+
+    @Test
+    void sync_disabled_conflicts() {
+        // offlineSyncEnabled non injecté → false par défaut : aucun droit touché.
+        assertThrows(ConflictException.class,
+                () -> checkInService.syncOfflineScans(syncRequest("tok", "D1", 1L, pastScannedAt())));
+        verifyNoInteractions(securityUtils);
+    }
+
+    @Test
+    void sync_requiresCreatePermission() {
+        enableOfflineSync();
+        doThrow(new SecurityException("need")).when(securityUtils).assertPermission("CHECKIN_CREATE");
+        assertThrows(SecurityException.class,
+                () -> checkInService.syncOfflineScans(syncRequest("tok", "D1", 1L, pastScannedAt())));
+    }
+
+    @Test
+    void sync_accepted_persistsDeviceSequenceAndAudits() {
+        enableOfflineSync();
+        stubSyncHappyPath("D1", 7L);
+
+        SyncCheckInResponse response = checkInService.syncOfflineScans(
+                syncRequest("tok", "D1", 7L, pastScannedAt()));
+
+        assertEquals(1, response.getProcessed());
+        assertEquals(1, response.getAccepted());
+        assertEquals(0, response.getRejected());
+        assertEquals("ACCEPTED", response.getResults().get(0).getStatus());
+        assertEquals(2, response.getResults().get(0).getTotalAttendees());
+        assertEquals(1, response.getResults().get(0).getRemainingAttendees());
+
+        ArgumentCaptor<CheckIn> captor = ArgumentCaptor.forClass(CheckIn.class);
+        verify(checkInRepository).save(captor.capture());
+        assertEquals("D1", captor.getValue().getDeviceId());
+        assertEquals(Long.valueOf(7L), captor.getValue().getSequenceNumber());
+        assertTrue(Boolean.TRUE.equals(captor.getValue().getOffline()));
+        assertEquals(Long.valueOf(42L), captor.getValue().getCheckedInBy());
+        assertNotNull(captor.getValue().getSyncedAt());
+        verify(auditService).record(eq("CHECKIN_SYNC"), eq(77L), eq("CheckIn"), eq(42L), eq(100L), contains("D1"));
+    }
+
+    @Test
+    void sync_duplicateByDeviceSequence_skipsInsert() {
+        enableOfflineSync();
+        when(eventRepository.findById(1L)).thenReturn(Optional.of(wedding));
+        when(invitationRepository.findByPublicTokenForUpdate("tok")).thenReturn(Optional.of(invitation));
+        when(rsvpRepository.findByInvitationId(5L)).thenReturn(Optional.of(acceptedRsvp(3)));
+        when(checkInRepository.sumByInvitationId(5L)).thenReturn(1);
+        when(checkInRepository.existsByDeviceIdAndSequenceNumber("D1", 7L)).thenReturn(true);
+
+        SyncCheckInResponse response = checkInService.syncOfflineScans(
+                syncRequest("tok", "D1", 7L, pastScannedAt()));
+
+        assertEquals(0, response.getAccepted());
+        assertEquals("DUPLICATE", response.getResults().get(0).getStatus());
+        assertEquals(1, response.getResults().get(0).getTotalAttendees());
+        verify(checkInRepository, never()).save(any(CheckIn.class));
+        verify(auditService, never()).record(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void sync_rejectsFutureScannedAt() {
+        enableOfflineSync();
+        when(eventRepository.findById(1L)).thenReturn(Optional.of(wedding));
+        when(invitationRepository.findByPublicTokenForUpdate("tok")).thenReturn(Optional.of(invitation));
+
+        SyncCheckInResponse response = checkInService.syncOfflineScans(
+                syncRequest("tok", "D1", 1L, LocalDateTime.now().plusHours(2).toString()));
+
+        assertEquals("REJECTED", response.getResults().get(0).getStatus());
+        assertTrue(response.getResults().get(0).getReason().contains("futur"));
+        verify(checkInRepository, never()).save(any(CheckIn.class));
+    }
+
+    @Test
+    void sync_rejectsScannedAtBeforeEventDate() {
+        enableOfflineSync();
+        wedding.setEventDate(LocalDate.now().minusDays(1));
+        when(eventRepository.findById(1L)).thenReturn(Optional.of(wedding));
+        when(invitationRepository.findByPublicTokenForUpdate("tok")).thenReturn(Optional.of(invitation));
+
+        SyncCheckInResponse response = checkInService.syncOfflineScans(
+                syncRequest("tok", "D1", 1L, LocalDate.now().minusDays(2).atTime(12, 0).toString()));
+
+        assertEquals("REJECTED", response.getResults().get(0).getStatus());
+        assertTrue(response.getResults().get(0).getReason().contains("antérieur"));
+        verify(checkInRepository, never()).save(any(CheckIn.class));
+    }
+
+    @Test
+    void sync_afterGraceWindow_conflicts() {
+        enableOfflineSync();
+        wedding.setEventDate(LocalDate.now().minusDays(5));
+        when(eventRepository.findById(1L)).thenReturn(Optional.of(wedding));
+
+        assertThrows(ConflictException.class,
+                () -> checkInService.syncOfflineScans(syncRequest("tok", "D1", 1L, pastScannedAt())));
+        verify(checkInRepository, never()).save(any(CheckIn.class));
+    }
+
+    @Test
+    void sync_acceptedAfterEventDay_withinGrace() {
+        enableOfflineSync();
+        wedding.setEventDate(LocalDate.now().minusDays(1));
+        stubSyncHappyPath("D1", 7L);
+
+        // Scan capturé la veille à 23h30, synchronisé le lendemain : accepté
+        // (le lot ne doit plus être rejeté à cause de l'heure serveur).
+        String scannedAt = wedding.getEventDate().atTime(23, 30).toString();
+        SyncCheckInResponse response = checkInService.syncOfflineScans(syncRequest("tok", "D1", 7L, scannedAt));
+
+        assertEquals(1, response.getAccepted());
+    }
+
+    @Test
+    void sync_invitationCodeExactFallback_accepted() {
+        enableOfflineSync();
+        invitation.setInvitationCode("CODE-7");
+        when(eventRepository.findById(1L)).thenReturn(Optional.of(wedding));
+        when(invitationRepository.findByPublicTokenForUpdate("CODE-7")).thenReturn(Optional.empty());
+        when(invitationRepository.findByInvitationCode("CODE-7")).thenReturn(Optional.of(invitation));
+        when(invitationRepository.findByIdForUpdate(5L)).thenReturn(Optional.of(invitation));
+        when(rsvpRepository.findByInvitationId(5L)).thenReturn(Optional.of(acceptedRsvp(3)));
+        when(checkInRepository.sumByInvitationId(5L)).thenReturn(0);
+        when(checkInRepository.existsByDeviceIdAndSequenceNumber("D1", 7L)).thenReturn(false);
+        when(checkInRepository.existsByInvitationIdAndCheckedInAtAndOfflineTrue(eq(5L), any(LocalDateTime.class)))
+                .thenReturn(false);
+        when(checkInRepository.save(any(CheckIn.class))).thenAnswer(a -> a.getArgument(0));
+        when(securityUtils.getCurrentUserId()).thenReturn(42L);
+
+        SyncCheckInResponse response = checkInService.syncOfflineScans(
+                syncRequest("CODE-7", "D1", 7L, pastScannedAt()));
+
+        assertEquals(1, response.getAccepted());
+        verify(invitationRepository).findByInvitationCode("CODE-7");
+    }
+
+    @Test
+    void sync_invitationCodeFragment_neverResolves() {
+        enableOfflineSync();
+        invitation.setInvitationCode("CODE-7");
+        when(eventRepository.findById(1L)).thenReturn(Optional.of(wedding));
+        when(invitationRepository.findByPublicTokenForUpdate("CODE")).thenReturn(Optional.empty());
+        when(invitationRepository.findByInvitationCode("CODE")).thenReturn(Optional.empty());
+
+        SyncCheckInResponse response = checkInService.syncOfflineScans(
+                syncRequest("CODE", "D1", 1L, pastScannedAt()));
+
+        assertEquals("REJECTED", response.getResults().get(0).getStatus());
+        assertEquals("Invitation introuvable", response.getResults().get(0).getReason());
+        // L'ancien repli "contenant" (fragment de code) ne doit plus jamais être
+        // utilisé : il pouvait viser une autre invitation.
+        verify(invitationRepository, never())
+                .findByWeddingIdAndInvitationCodeContainingIgnoreCase(anyLong(), anyString());
+        verify(checkInRepository, never()).save(any(CheckIn.class));
+    }
+
+    @Test
+    void offlinePack_batchesLookups_noNPlusOne() {
+        ReflectionTestUtils.setField(checkInService, "offlinePackMaxItems", 2000);
+        when(eventRepository.findById(1L)).thenReturn(Optional.of(wedding));
+        when(invitationRepository.findByWeddingId(1L)).thenReturn(List.of(invitation));
+        when(guestRepository.findByWeddingId(1L)).thenReturn(List.of(guest));
+        when(checkInRepository.findByWeddingIdOrderByCheckedInAtDesc(1L)).thenReturn(List.of());
+        when(tableAssignmentRepository.findAllByWeddingId(1L)).thenReturn(List.of());
+        when(weddingTableRepository.findByWeddingId(1L)).thenReturn(List.of());
+        when(rsvpRepository.findByInvitationIdIn(List.of(5L))).thenReturn(List.of(acceptedRsvp(2)));
+
+        OfflinePackResponse pack = checkInService.offlinePack(1L);
+
+        assertEquals(1, pack.getInvitations().size());
+        assertEquals("Jean Kabongo", pack.getInvitations().get(0).getGuestName());
+        assertTrue(pack.getInvitations().get(0).isCanCheckIn());
+        assertNull(pack.getInvitations().get(0).getTableName());
+        // Deux chargements en lot, jamais une requête par invitation.
+        verify(rsvpRepository).findByInvitationIdIn(List.of(5L));
+        verify(rsvpRepository, never()).findByInvitationId(anyLong());
+        verify(tableAssignmentRepository, never()).findTableNameByGuestId(anyLong());
     }
 }

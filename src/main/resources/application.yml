@@ -136,6 +136,8 @@ app:
   checkin:
     offline-sync-enabled: ${CHECKIN_OFFLINE_SYNC_ENABLED:true}
     offline-pack-max-items: ${CHECKIN_OFFLINE_PACK_MAX_ITEMS:2000}
+    # Jours pendant lesquels un batch hors ligne peut encore être rejoué après l'événement.
+    offline-sync-grace-days: ${CHECKIN_OFFLINE_SYNC_GRACE_DAYS:2}
 
   admin:
     init-enabled: ${ADMIN_INIT_ENABLED:false}

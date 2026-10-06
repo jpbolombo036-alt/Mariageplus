@@ -47,4 +47,12 @@ public class CheckIn extends BaseEntity {
 
     @Column(name = "is_offline")
     private Boolean offline;
+
+    /**
+     * Compteur monotone émis par l'appareil (jamais remis à zéro) : clé
+     * d'idempotence de la synchronisation hors ligne, contrainte unique en base
+     * pour empêcher tout doublon lors d'un rejeu de batch.
+     */
+    @Column(name = "sequence_number")
+    private Long sequenceNumber;
 }

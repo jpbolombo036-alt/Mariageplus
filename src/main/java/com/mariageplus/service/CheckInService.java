@@ -38,9 +38,11 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -84,6 +86,13 @@ public class CheckInService {
 
     @Value("${app.checkin.offline-pack-max-items:2000}")
     private int offlinePackMaxItems;
+
+    /** Délai de grâce (jours) pendant lequel un batch hors ligne peut encore être rejoué après l'événement. */
+    @Value("${app.checkin.offline-sync-grace-days:2}")
+    private int offlineSyncGraceDays;
+
+    /** Tolérance d'horloge acceptée sur le scannedAt transmis par un appareil hors ligne. */
+    private static final Duration OFFLINE_CLOCK_SKEW = Duration.ofMinutes(10);
 
     /** Formats français pour l'affichage agent (date / heure de l'événement). */
     private static final DateTimeFormatter DATE_FR = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.FRENCH);
@@ -473,6 +482,20 @@ public class CheckInService {
         Map<Long, String> tableNameById = tables.stream()
                 .collect(Collectors.toMap(WeddingTable::getId, WeddingTable::getName));
 
+        // Chargements en lot : RSVP par invitation et nom de table par invité
+        // (deux requêtes pour tout le pack, pas de N+1 sur les invitations).
+        Map<Long, Rsvp> rsvpByInvitation = rsvpRepository
+                .findByInvitationIdIn(invitations.stream().map(Invitation::getId).collect(Collectors.toList()))
+                .stream()
+                .collect(Collectors.toMap(Rsvp::getInvitationId, r -> r, (a, b) -> a));
+        Map<Long, String> tableNameByGuest = new LinkedHashMap<>();
+        for (com.mariageplus.entity.TableAssignment a : assignments) {
+            String name = tableNameById.get(a.getWeddingTableId());
+            if (name != null) {
+                tableNameByGuest.put(a.getGuestId(), name);
+            }
+        }
+
         Map<Long, String> guestNameById = new LinkedHashMap<>();
         for (Guest g : guests) {
             String name = (g.getFirstName() == null ? "" : g.getFirstName())
@@ -483,7 +506,7 @@ public class CheckInService {
         List<OfflinePackInvitation> packInvitations = new ArrayList<>();
         for (Invitation inv : invitations) {
             Guest guest = guestById.get(inv.getGuestId());
-            Rsvp rsvp = rsvpRepository.findByInvitationId(inv.getId()).orElse(null);
+            Rsvp rsvp = rsvpByInvitation.get(inv.getId());
             int expected = expectedAttendees(rsvp);
             int checkedIn = checkedInByInvitation.getOrDefault(inv.getId(), 0);
             int remaining = Math.max(0, expected - checkedIn);
@@ -493,7 +516,7 @@ public class CheckInService {
                     && remaining > 0
                     && !isEventDatePassed(event);
 
-            String tableName = tableAssignmentRepository.findTableNameByGuestId(inv.getGuestId()).orElse(null);
+            String tableName = tableNameByGuest.get(inv.getGuestId());
 
             packInvitations.add(OfflinePackInvitation.builder()
                     .publicToken(inv.getPublicToken())
@@ -549,6 +572,16 @@ public class CheckInService {
                 .build();
     }
 
+    /**
+     * Synchronisation d'un batch de scans hors ligne. La méthode est
+     * transactionnelle : recalcul de la somme et insertion sont atomiques, et le
+     * verrou pessimiste sur l'invitation sérialise deux appareils qui
+     * synchronisent en parallèle (aucun dépassement de capacité possible). Chaque
+     * scan reste révalidé individuellement ; un refus métier est un résultat, pas
+     * une exception, pour ne pas perdre le reste du batch. L'idempotence du rejeu
+     * est garantie par l'index unique (device_id, sequence_number).
+     */
+    @Transactional
     public SyncCheckInResponse syncOfflineScans(SyncCheckInRequest request) {
         if (!offlineSyncEnabled) {
             throw new ConflictException("La synchronisation hors ligne est désactivée");
@@ -559,7 +592,15 @@ public class CheckInService {
                 .orElseThrow(() -> new ResourceNotFoundException("Événement introuvable"));
         securityUtils.assertWeddingAccess(event.getId());
         securityUtils.assertOrganizationAccess(event.getOrganizationId());
-        assertNotExpired(event);
+        // Pas de blocage à minuit : un batch capturé pendant l'événement peut être
+        // rejoué dans la fenêtre de grâce (sinon les scans de la nuit seraient
+        // perdus). Au-delà, la fenêtre est fermée — les rejeux légitimes sont de
+        // toute façon protégés par l'idempotence device/sequence.
+        if (event.getEventDate() != null
+                && LocalDate.now().isAfter(event.getEventDate().plusDays(offlineSyncGraceDays))) {
+            throw new ConflictException("Synchronisation hors ligne indisponible : fenêtre de grâce expirée "
+                    + "(événement du " + DATE_FR.format(event.getEventDate()) + ")");
+        }
 
         List<SyncCheckInResult> results = new ArrayList<>();
         int accepted = 0;
@@ -583,102 +624,91 @@ public class CheckInService {
                 .build();
     }
 
-    @Transactional
+    /**
+     * Révalidation complète d'un scan hors ligne dans la transaction du batch :
+     * verrou pessimiste sur l'invitation (sérialisation de la capacité),
+     * horodatage borné, idempotence (device/sequence puis horodatage), puis
+     * insertion et trace d'audit. Les refus métier sont retournés comme
+     * résultat (jamais levés) pour ne pas invalider le reste du batch.
+     */
     protected SyncCheckInResult processOfflineScan(OfflineScanItem item, Event event) {
         try {
             int attendees = parseAttendees(item.getNumberOfAttendees());
 
-            Invitation invitation = invitationRepository.findByPublicToken(item.getQrToken())
-                    .orElseGet(() -> {
-                        // Fallback by invitation code if publicToken not resolved
-                        return invitationRepository.findByWeddingIdAndInvitationCodeContainingIgnoreCase(
-                                event.getId(), item.getQrToken()).stream().findFirst().orElse(null);
-                    });
+            // Résolution par publicToken, puis par code d'invitation — égalité
+            // exacte uniquement : un fragment de code pourrait viser une autre
+            // invitation et enregistrer la mauvaise personne.
+            Invitation invitation = invitationRepository.findByPublicTokenForUpdate(item.getQrToken())
+                    .orElseGet(() -> invitationRepository.findByInvitationCode(item.getQrToken())
+                            .flatMap(inv -> invitationRepository.findByIdForUpdate(inv.getId()))
+                            .orElse(null));
             if (invitation == null) {
-                return SyncCheckInResult.builder()
-                        .qrToken(item.getQrToken())
-                        .status("REJECTED")
-                        .reason("Invitation introuvable")
-                        .totalAttendees(0)
-                        .remainingAttendees(0)
-                        .build();
+                return rejected(item, "Invitation introuvable", 0, 0);
             }
 
             if (!invitation.getWeddingId().equals(event.getId())) {
-                return SyncCheckInResult.builder()
-                        .qrToken(item.getQrToken())
-                        .status("REJECTED")
-                        .reason("Invitation hors de l'événement")
-                        .totalAttendees(0)
-                        .remainingAttendees(0)
-                        .build();
+                return rejected(item, "Invitation hors de l'événement", 0, 0);
             }
 
             if (invitation.isDeleted()
                     || invitation.getStatus() == InvitationStatus.CANCELLED
                     || invitation.getStatus() == InvitationStatus.EXPIRED) {
-                return SyncCheckInResult.builder()
-                        .qrToken(item.getQrToken())
-                        .status("REJECTED")
-                        .reason("Invitation inactive")
-                        .totalAttendees(0)
-                        .remainingAttendees(0)
-                        .build();
+                return rejected(item, "Invitation inactive", 0, 0);
             }
 
-            if (isEventDatePassed(event)) {
-                return SyncCheckInResult.builder()
-                        .qrToken(item.getQrToken())
-                        .status("REJECTED")
-                        .reason("Événement expiré")
-                        .totalAttendees(0)
-                        .remainingAttendees(0)
-                        .build();
+            // Horodatage du scan borné côté serveur : ni futur (horloge device
+            // fausse) ni antérieur au mariage. Le contrôle porte sur le scan et
+            // non sur l'heure serveur, pour qu'un batch rejoué après minuit
+            // reste acceptable pendant la fenêtre de grâce.
+            LocalDateTime scannedAt = parseScannedAt(item);
+            if (scannedAt == null) {
+                return rejected(item, "Horodatage invalide (format ISO attendu)", 0, 0);
+            }
+            if (event.getEventDate() != null && scannedAt.isBefore(event.getEventDate().atStartOfDay())) {
+                return rejected(item, "Horodatage antérieur à l'événement", 0, 0);
+            }
+            if (scannedAt.isAfter(LocalDateTime.now().plus(OFFLINE_CLOCK_SKEW))) {
+                return rejected(item, "Horodatage dans le futur", 0, 0);
             }
 
-            Rsvp rsvp = rsvpRepository.findByInvitationId(invitation.getId()).orElse(null);
-            int expected = expectedAttendeesChecked(rsvp);
+            Rsvp rsvp = loadRsvp(invitation);
             int checkedIn = checkInRepository.sumByInvitationId(invitation.getId());
 
-            if (checkedIn + attendees > expected) {
-                return SyncCheckInResult.builder()
-                        .qrToken(item.getQrToken())
-                        .status("REJECTED")
-                        .reason("Dépassement de capacité")
-                        .totalAttendees(checkedIn)
-                        .remainingAttendees(Math.max(0, expected - checkedIn))
-                        .build();
-            }
-
-            LocalDateTime scannedAt = item.getScannedAt() != null
-                    ? LocalDateTime.parse(item.getScannedAt())
-                    : LocalDateTime.now();
-
-            boolean duplicate = checkInRepository.findByWeddingIdOrderByCheckedInAtDesc(event.getId()).stream()
-                    .anyMatch(c -> c.getInvitationId().equals(invitation.getId())
-                            && c.getCheckedInAt().equals(scannedAt)
-                            && Boolean.TRUE.equals(c.getOffline()));
-
-            if (duplicate) {
+            // Idempotence AVANT la capacité : un rejeu d'un scan déjà enregistré
+            // est toujours reconnu comme tel, jamais rejeté pour dépassement.
+            if (isAlreadySynced(item, invitation.getId(), scannedAt)) {
+                int priorExpected = expectedAttendees(rsvp);
                 return SyncCheckInResult.builder()
                         .qrToken(item.getQrToken())
                         .status("DUPLICATE")
                         .reason("Scan déjà synchronisé")
                         .checkInId(null)
                         .totalAttendees(checkedIn)
-                        .remainingAttendees(Math.max(0, expected - checkedIn))
+                        .remainingAttendees(Math.max(0, priorExpected - checkedIn))
                         .build();
+            }
+
+            int expected = expectedAttendeesChecked(rsvp);
+            if (checkedIn + attendees > expected) {
+                return rejected(item, "Dépassement de capacité", checkedIn, Math.max(0, expected - checkedIn));
             }
 
             CheckIn saved = checkInRepository.save(CheckIn.builder()
                     .invitationId(invitation.getId())
                     .numberOfAttendees(attendees)
                     .checkedInAt(scannedAt)
-                    .checkedInBy(null)
+                    .checkedInBy(securityUtils.getCurrentUserId())
                     .deviceId(item.getDeviceId())
+                    .sequenceNumber(item.getSequence())
                     .syncedAt(LocalDateTime.now())
                     .offline(true)
                     .build());
+
+            auditService.record("CHECKIN_SYNC", saved.getId(), "CheckIn",
+                    securityUtils.getCurrentUserId(), event.getOrganizationId(),
+                    "Check-in hors ligne de " + attendees + " personne(s)"
+                            + (item.getDeviceId() != null ? " — device " + item.getDeviceId() : "")
+                            + (item.getSequence() != null ? " #" + item.getSequence() : ""));
 
             int total = checkedIn + attendees;
             int remaining = Math.max(0, expected - total);
@@ -692,14 +722,43 @@ public class CheckInService {
                     .remainingAttendees(remaining)
                     .build();
 
+        } catch (ConflictException | IllegalArgumentException e) {
+            // Refus métier explicite (RSVP absent/non confirmé, nombre de
+            // personnes invalide) : la raison est déjà claire et formatée.
+            return rejected(item, e.getMessage(), 0, 0);
         } catch (Exception e) {
-            return SyncCheckInResult.builder()
-                    .qrToken(item.getQrToken())
-                    .status("REJECTED")
-                    .reason("Erreur: " + e.getMessage())
-                    .totalAttendees(0)
-                    .remainingAttendees(0)
-                    .build();
+            return rejected(item, "Erreur: " + e.getMessage(), 0, 0);
         }
+    }
+
+    /** Rejeu déjà traité ? clé technique (device, sequence), puis horodatage en fallback. */
+    private boolean isAlreadySynced(OfflineScanItem item, Long invitationId, LocalDateTime scannedAt) {
+        if (item.getDeviceId() != null && item.getSequence() != null
+                && checkInRepository.existsByDeviceIdAndSequenceNumber(item.getDeviceId(), item.getSequence())) {
+            return true;
+        }
+        return checkInRepository.existsByInvitationIdAndCheckedInAtAndOfflineTrue(invitationId, scannedAt);
+    }
+
+    /** Horodatage ISO-8601 du scan ; null si le format est invalide. Absent = maintenant. */
+    private LocalDateTime parseScannedAt(OfflineScanItem item) {
+        if (item.getScannedAt() == null || item.getScannedAt().isBlank()) {
+            return LocalDateTime.now();
+        }
+        try {
+            return LocalDateTime.parse(item.getScannedAt());
+        } catch (DateTimeParseException e) {
+            return null;
+        }
+    }
+
+    private SyncCheckInResult rejected(OfflineScanItem item, String reason, int total, int remaining) {
+        return SyncCheckInResult.builder()
+                .qrToken(item.getQrToken())
+                .status("REJECTED")
+                .reason(reason)
+                .totalAttendees(total)
+                .remainingAttendees(remaining)
+                .build();
     }
 }

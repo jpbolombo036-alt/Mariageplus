@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -33,4 +34,16 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
 
     /** Dernier check-in d'une invitation (horodatage affiché à l'agent d'accueil). */
     Optional<CheckIn> findTopByInvitationIdOrderByCheckedInAtDesc(Long invitationId);
+
+    /**
+     * Idempotence du rejeu hors ligne : la paire (device, sequence) ne doit
+     * jamais être insérée deux fois (index unique uq_checkins_device_sequence).
+     */
+    boolean existsByDeviceIdAndSequenceNumber(String deviceId, Long sequenceNumber);
+
+    /**
+     * Fallback d'idempotence hors ligne pour un appareil qui n'envoie pas de
+     * sequence : même invitation, même horodatage de scan, origine hors ligne.
+     */
+    boolean existsByInvitationIdAndCheckedInAtAndOfflineTrue(Long invitationId, LocalDateTime checkedInAt);
 }
