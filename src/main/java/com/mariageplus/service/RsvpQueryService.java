@@ -1,5 +1,7 @@
 package com.mariageplus.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mariageplus.dto.guest.RsvpSummaryResponse;
 import com.mariageplus.entity.Rsvp;
 import com.mariageplus.repository.InvitationRepository;
@@ -28,6 +30,7 @@ public class RsvpQueryService {
     private final InvitationRepository invitationRepository;
     private final SecurityUtils securityUtils;
     private final EventService eventService;
+    private final ObjectMapper objectMapper;
 
     @Transactional(readOnly = true)
     public List<RsvpSummaryResponse> listForWedding(Long weddingId) {
@@ -54,7 +57,31 @@ public class RsvpQueryService {
                         .status(r.getStatus() == null ? null : r.getStatus().name())
                         .numberOfAttendees(r.getNumberOfAttendees())
                         .respondedAt(r.getRespondedAt())
+                        .drinkChoices(rsvpDrinkChoices(r))
                         .build())
                 .toList();
+    }
+
+    /**
+     * Choix de boissons du RSVP : JSON d'abord, sinon le choix unique
+     * historique (jointure des noms) — même règle que
+     * {@code RsvpService.rsvpDrinkChoices} pour un affichage identique partout.
+     */
+    private List<String> rsvpDrinkChoices(Rsvp r) {
+        String json = r.getDrinkChoices();
+        if (json != null && !json.isBlank()) {
+            try {
+                List<String> values = objectMapper.readValue(json, new TypeReference<List<String>>() {});
+                if (values != null && !values.isEmpty()) {
+                    return values;
+                }
+            } catch (Exception e) {
+                // JSON invalide → on retombe sur le champ legacy.
+            }
+        }
+        if (r.getDrinkChoice() != null && !r.getDrinkChoice().isBlank()) {
+            return List.of(r.getDrinkChoice());
+        }
+        return List.of();
     }
 }
