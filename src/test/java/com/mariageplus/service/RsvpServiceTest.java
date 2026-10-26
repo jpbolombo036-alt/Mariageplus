@@ -92,7 +92,9 @@ class RsvpServiceTest {
         when(guestRepository.findById(7L)).thenReturn(Optional.of(guest));
         when(eventRepository.findById(1L)).thenReturn(Optional.of(Event.builder()
                 .name("Jean Kabongo & Marie Mukendi")
-                
+                .latitude(-4.325)
+                .longitude(15.322)
+                .mapUrl("https://www.google.com/maps/search/?api=1&query=-4.325,15.322")
                 .status(EventStatus.DRAFT).build()));
         when(rsvpRepository.findByInvitationId(1L)).thenReturn(Optional.of(
                 Rsvp.builder().invitationId(1L).status(RsvpStatus.ACCEPTED).numberOfAttendees(2).build()));
@@ -103,6 +105,9 @@ class RsvpServiceTest {
         assertEquals("Jean", response.getGuestFirstName());
         assertEquals("GENERATED", response.getStatus());
         assertEquals("Jean Kabongo & Marie Mukendi", response.getWeddingDisplayName());
+        assertEquals(-4.325, response.getLatitude());
+        assertEquals(15.322, response.getLongitude());
+        assertEquals("https://www.google.com/maps/search/?api=1&query=-4.325,15.322", response.getMapUrl());
     }
 
     @Test

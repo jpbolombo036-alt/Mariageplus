@@ -6,6 +6,7 @@ import com.mariageplus.dto.organization.OrganizationMemberUpdateRequest;
 import com.mariageplus.dto.organization.OrganizationRequest;
 import com.mariageplus.dto.organization.OrganizationResponse;
 import com.mariageplus.exception.ForbiddenException;
+import com.mariageplus.repository.OrganizationMemberRepository;
 import com.mariageplus.security.SecurityUtils;
 import com.mariageplus.service.OrganizationMemberService;
 import com.mariageplus.service.OrganizationService;
@@ -33,6 +34,7 @@ public class OrganizationController {
 
     private final OrganizationService organizationService;
     private final OrganizationMemberService organizationMemberService;
+    private final OrganizationMemberRepository organizationMemberRepository;
     private final SecurityUtils securityUtils;
 
     @GetMapping
@@ -90,12 +92,12 @@ public class OrganizationController {
 
     @PutMapping("/{id}/members/{memberId}")
     @PreAuthorize("hasAnyRole('SUPER_ADMIN','ORGANISATEUR')")
-    @Operation(summary = "Modifier le mariage assigné d'un membre (scoping agent)")
-    public ResponseEntity<OrganizationMemberResponse> updateMemberWedding(@PathVariable Long id,
-                                                                          @PathVariable Long memberId,
-                                                                          @Valid @RequestBody OrganizationMemberUpdateRequest request) {
+    @Operation(summary = "Modifier le rôle et/ou le mariage assigné d'un membre (SUPER_ADMIN ou organisateur du périmètre)")
+    public ResponseEntity<OrganizationMemberResponse> updateMember(@PathVariable Long id,
+                                                                   @PathVariable Long memberId,
+                                                                   @Valid @RequestBody OrganizationMemberUpdateRequest request) {
         assertCanManageMembers(id);
-        return ResponseEntity.ok(organizationMemberService.updateMemberWedding(id, memberId, request.getWeddingId()));
+        return ResponseEntity.ok(organizationMemberService.updateMember(id, memberId, request));
     }
 
     @DeleteMapping("/{id}/members/{memberId}")
@@ -111,8 +113,9 @@ public class OrganizationController {
         if (securityUtils.isSuperAdmin()) {
             return;
         }
-        Long orgId = securityUtils.requireOrganizationId();
-        if (!orgId.equals(organizationId)) {
+        Long userId = securityUtils.getCurrentUserId();
+        if (userId == null || !organizationMemberRepository
+                .existsByUser_IdAndOrganization_IdAndActiveTrue(userId, organizationId)) {
             throw new ForbiddenException("Accès refusé : ressource hors de votre organisation");
         }
     }
@@ -121,6 +124,12 @@ public class OrganizationController {
         assertOrganizationAccess(organizationId);
         if (!securityUtils.isSuperAdmin()) {
             securityUtils.assertPermission("ORGANIZATION_MANAGE_MEMBERS");
+            Long userId = securityUtils.getCurrentUserId();
+            if (userId == null || !organizationMemberRepository
+                    .existsByUser_IdAndOrganization_IdAndRole_CodeAndActiveTrue(
+                            userId, organizationId, "ORGANISATEUR")) {
+                throw new ForbiddenException("Seul un organisateur de cette organisation peut gérer ses membres");
+            }
         }
     }
 }

@@ -39,5 +39,9 @@ public class PublicEventSessionResponse {
 
     private String city;
 
+    private Double latitude;
+
+    private Double longitude;
+
     private String mapUrl;
 }

@@ -35,6 +35,11 @@ public class PublicInvitationResponse {
     private String eventStartTime;
     private String eventVenue;
 
+    /** Coordonnées et lien cartographique du lieu principal, si renseignés. */
+    private Double latitude;
+    private Double longitude;
+    private String mapUrl;
+
     /**
      * Vestiaire de l'invité : couleurs demandées (maximum 3) avec libellé français
      * et couleur d'aperçu, plus la photo du pagne / tissu quand l'organisateur en

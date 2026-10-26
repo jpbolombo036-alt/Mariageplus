@@ -19,8 +19,10 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -144,10 +146,70 @@ class AgentWeddingScopingIntegrationTest {
         agent.setRoleCode("AGENT_ACCUEIL");
         agent.setWeddingId(weddingAId);
 
-        mockMvc.perform(post("/api/organizations/{id}/members", orgId)
+         mockMvc.perform(post("/api/organizations/{id}/members", orgId)
                         .header("Authorization", auth(tokenAgent))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(agent)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void organizer_canUpdateMemberRole_viaPutEndpoint() throws Exception {
+        // Le GESTIONNAIRE_INVITES scopé sur A devient AGENT_ACCUEIL scopé sur A.
+        String memberList = mockMvc.perform(get("/api/organizations/{id}/members", orgId)
+                        .header("Authorization", auth(tokenOrganizer)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        Long agentMemberId = objectMapper.readTree(memberList).get(0).get("id").asLong();
+
+        String updateBody = "{\"roleCode\":\"AGENT_ACCUEIL\",\"weddingId\":" + weddingAId + "}";
+        String putResponse = mockMvc.perform(put("/api/organizations/{id}/members/{memberId}", orgId, agentMemberId)
+                        .header("Authorization", auth(tokenOrganizer))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(updateBody))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        var response = objectMapper.readTree(putResponse);
+        assertEquals("AGENT_ACCUEIL", response.get("roleCode").asText());
+        assertEquals(weddingAId, response.get("weddingId").asLong());
+    }
+
+    @Test
+    void organizer_canUpdateMemberWeddingOnly_viaPutEndpoint() throws Exception {
+        // Reassigne le wedding de l'agent de A → B (même rôle).
+        String memberList = mockMvc.perform(get("/api/organizations/{id}/members", orgId)
+                        .header("Authorization", auth(tokenOrganizer)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        Long agentMemberId = objectMapper.readTree(memberList).get(0).get("id").asLong();
+
+        String updateBody = "{\"weddingId\":" + weddingBId + "}";
+        String putResponse = mockMvc.perform(put("/api/organizations/{id}/members/{memberId}", orgId, agentMemberId)
+                        .header("Authorization", auth(tokenOrganizer))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(updateBody))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        var response = objectMapper.readTree(putResponse);
+        assertEquals(weddingBId, response.get("weddingId").asLong());
+    }
+
+    @Test
+    void agent_cannotUpdateMemberRole_forbidden() throws Exception {
+        // L'agent (non organisateur) ne peut pas gérer les membres.
+        String memberList = mockMvc.perform(get("/api/organizations/{id}/members", orgId)
+                        .header("Authorization", auth(tokenOrganizer)))
+                .andReturn().getResponse().getContentAsString();
+        Long agentMemberId = objectMapper.readTree(memberList).get(0).get("id").asLong();
+
+        mockMvc.perform(put("/api/organizations/{id}/members/{memberId}", orgId, agentMemberId)
+                        .header("Authorization", auth(tokenAgent))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"roleCode\":\"ORGANISATEUR\"}"))
                 .andExpect(status().isForbidden());
     }
 }

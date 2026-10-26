@@ -3,6 +3,9 @@ package com.mariageplus.dto.event;
 import com.mariageplus.entity.EventDressCode;
 import com.mariageplus.util.DressColors;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Pattern;
 import lombok.Data;
 
 import java.time.LocalDate;
@@ -45,11 +48,16 @@ public class UpdateEventRequest {
     @Size(max = 100, message = "Le pays ne doit pas dépasser 100 caractères")
     private String country;
 
+    @DecimalMin(value = "-90.0", message = "La latitude doit être comprise entre -90 et 90")
+    @DecimalMax(value = "90.0", message = "La latitude doit être comprise entre -90 et 90")
     private Double latitude;
 
+    @DecimalMin(value = "-180.0", message = "La longitude doit être comprise entre -180 et 180")
+    @DecimalMax(value = "180.0", message = "La longitude doit être comprise entre -180 et 180")
     private Double longitude;
 
     @Size(max = 1000, message = "L'URL de la carte ne doit pas dépasser 1000 caractères")
+    @Pattern(regexp = "(?i)^https?://\\S+$", message = "L'URL de la carte doit commencer par http:// ou https://")
     private String mapUrl;
 
     /**

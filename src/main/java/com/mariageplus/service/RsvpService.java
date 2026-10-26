@@ -181,6 +181,9 @@ public class RsvpService {
                 .eventStartTime(event != null && event.getStartTime() != null
                         ? TIME_FR.format(event.getStartTime()) : null)
                 .eventVenue(event != null ? venueText(event) : null)
+                .latitude(event != null ? event.getLatitude() : null)
+                .longitude(event != null ? event.getLongitude() : null)
+                .mapUrl(event != null ? event.getMapUrl() : null)
                 .dressColors(DressColors.options(event != null ? event.getDressColors() : null))
                 .dressImageUrl(event != null ? dressImageUrl(invitation.getWeddingId(), event) : null)
                 .maxAccepted(guest != null ? maximumAllowed(guest) : 1)
@@ -216,6 +219,8 @@ public class RsvpService {
                         .venueName(s.getVenueName())
                         .venueAddress(s.getVenueAddress())
                         .city(s.getCity())
+                        .latitude(s.getLatitude())
+                        .longitude(s.getLongitude())
                         .mapUrl(s.getMapUrl())
                         .build())
                 .toList();

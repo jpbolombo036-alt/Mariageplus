@@ -75,9 +75,17 @@ app:
     require-activation: true
     max-login-attempts: ${MAX_LOGIN_ATTEMPTS:5}
     lockout-duration-minutes: ${LOCKOUT_DURATION_MINUTES:15}
-    admin-init-key: ${ADMIN_INIT_KEY:CHANGE_ME_MARIAGEPLUS}
+    # Aucun secret par défaut : cette variable est réservée aux déploiements qui
+    # l'utilisent explicitement et ne doit jamais contenir une valeur connue.
+    admin-init-key: ${ADMIN_INIT_KEY:}
 
   rate-limit:
+    auth:
+      window-seconds: ${AUTH_RATE_LIMIT_WINDOW_SECONDS:60}
+      login-per-ip: ${AUTH_RATE_LIMIT_LOGIN_PER_IP:20}
+      register-per-ip: ${AUTH_RATE_LIMIT_REGISTER_PER_IP:5}
+      refresh-per-ip: ${AUTH_RATE_LIMIT_REFRESH_PER_IP:60}
+      cleanup-ms: ${AUTH_RATE_LIMIT_CLEANUP_MS:60000}
     rsvp:
       window-seconds: ${RSVP_RATE_LIMIT_WINDOW_SECONDS:60}
       read-per-token: ${RSVP_RATE_LIMIT_READ_PER_TOKEN:30}

@@ -60,6 +60,8 @@ public class AuthService {
         User user = userRepository.findWithLockByEmail(request.getEmail()).orElse(null);
         if (isTemporarilyLocked(user)) {
             // Same response as invalid credentials: do not expose account state.
+            auditService.record("LOGIN_BLOCKED", user.getId(), "User", user.getId(), null,
+                    "Tentative de connexion pendant le verrouillage temporaire");
             throw new BadCredentialsException("Email ou mot de passe incorrect");
         }
 
@@ -69,6 +71,8 @@ public class AuthService {
                     new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword()));
         } catch (BadCredentialsException ex) {
             recordFailedLogin(user);
+            auditService.record("LOGIN_FAILED", user == null ? null : user.getId(), "User",
+                    user == null ? null : user.getId(), null, "Identifiants invalides");
             throw new BadCredentialsException("Email ou mot de passe incorrect");
         }
 
@@ -82,6 +86,8 @@ public class AuthService {
         String accessToken = jwtTokenProvider.generateToken(principal);
         String refreshToken = jwtTokenProvider.generateRefreshToken(user.getId(), principal.getOrganizationId());
         saveRefreshToken(user, principal.getOrganizationId(), refreshToken);
+        auditService.record("LOGIN_SUCCESS", user.getId(), "User", user.getId(),
+                principal.getOrganizationId(), "Connexion réussie");
 
         return new LoginResponse(accessToken, refreshToken, jwtTokenProvider.getExpirationSeconds(), "Bearer", userService.buildResponse(user));
     }
@@ -206,6 +212,7 @@ public class AuthService {
             user.setTokenVersion(user.getTokenVersion() + 1);
             userRepository.save(user);
         });
+        auditService.record("LOGOUT", userId, "User", userId, null, "Déconnexion");
     }
 
     private void saveRefreshToken(User user, Long organizationId, String token) {
