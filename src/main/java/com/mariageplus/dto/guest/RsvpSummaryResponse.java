@@ -23,6 +23,8 @@ public class RsvpSummaryResponse {
     private String status;
     private Integer numberOfAttendees;
     private LocalDateTime respondedAt;
+    /** Message libre transmis par l'invité au moment de sa réponse. */
+    private String note;
     /**
      * Choix de boissons de l'invité (1 à 3) — sert à prévoir les achats avant
      * le jour J. Même logique d'affichage que RsvpService : JSON d'abord,

@@ -57,6 +57,7 @@ public class RsvpQueryService {
                         .status(r.getStatus() == null ? null : r.getStatus().name())
                         .numberOfAttendees(r.getNumberOfAttendees())
                         .respondedAt(r.getRespondedAt())
+                        .note(r.getNote())
                         .drinkChoices(rsvpDrinkChoices(r))
                         .build())
                 .toList();
