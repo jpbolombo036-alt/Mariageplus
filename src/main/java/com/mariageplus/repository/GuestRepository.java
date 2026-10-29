@@ -29,7 +29,24 @@ public interface GuestRepository extends JpaRepository<Guest, Long> {
 
     long countByWeddingId(Long weddingId);
 
+    /**
+     * Compte les invités de plusieurs événements en une seule requête.
+     */
+    @Query("""
+            select g.weddingId as weddingId, count(g.id) as guestCount
+            from Guest g
+            where g.weddingId in :weddingIds
+            group by g.weddingId
+            """)
+    List<GuestCountProjection> countByWeddingIds(@Param("weddingIds") List<Long> weddingIds);
+
     long countByWeddingIdAndCategoryId(Long weddingId, Long categoryId);
+
+    interface GuestCountProjection {
+        Long getWeddingId();
+
+        long getGuestCount();
+    }
 
     /**
      * Recherche invité pour l'agent d'accueil : nom/prénom (concaténés), téléphone

@@ -150,6 +150,49 @@ class EventControllerIntegrationTest {
     }
 
     @Test
+    void eventResponsesExposeGuestCount() throws Exception {
+        String eventBody = mockMvc.perform(post("/api/events")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(weddingRequest())))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.guestCount").value(0))
+                .andReturn().getResponse().getContentAsString();
+        long eventId = objectMapper.readTree(eventBody).get("id").asLong();
+
+        for (int i = 1; i <= 2; i++) {
+            mockMvc.perform(post("/api/events/{eventId}/guests", eventId)
+                            .header("Authorization", "Bearer " + token)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"firstName\":\"Invite" + i + "\",\"lastName\":\"Test\",\"email\":\"guest-count-"
+                                    + eventId + "-" + i + "@test.com\"}"))
+                    .andExpect(status().isCreated());
+        }
+
+        mockMvc.perform(get("/api/events/{id}", eventId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.guestCount").value(2));
+
+        String listBody = mockMvc.perform(get("/api/events")
+                        .param("page", "0")
+                        .param("size", "100")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        boolean found = false;
+        for (com.fasterxml.jackson.databind.JsonNode event : objectMapper.readTree(listBody).path("content")) {
+            if (event.path("id").asLong() == eventId) {
+                assertThat(event.path("guestCount").asLong()).isEqualTo(2L);
+                found = true;
+                break;
+            }
+        }
+        assertThat(found).isTrue();
+    }
+
+    @Test
     void updateStatus_validTransition_succeeds_andInvalid_fails() throws Exception {
         String body = mockMvc.perform(post("/api/events")
                         .header("Authorization", "Bearer " + token)

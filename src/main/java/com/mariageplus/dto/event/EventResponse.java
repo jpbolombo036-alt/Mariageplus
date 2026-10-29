@@ -39,6 +39,8 @@ public class EventResponse {
     private Boolean active;
     private Long organizationId;
     private Boolean hasImage;
+    /** Nombre d'invités enregistrés pour cet événement. */
+    private long guestCount;
     private WeddingDetailsResponse weddingDetails;
     private List<EventSessionResponse> sessions;
 }

@@ -23,6 +23,7 @@ public interface EventMapper {
     @Mapping(target = "dressColors", expression = "java(com.mariageplus.util.DressColors.codes(event.getDressColors()))")
     @Mapping(target = "hasDressImage", expression = "java((event.getDressImageKey() != null && !event.getDressImageKey().isBlank()) || (event.getDressImage() != null && event.getDressImage().length > 0))")
     @Mapping(target = "hasImage", expression = "java((event.getImageKey() != null && !event.getImageKey().isBlank()) || (event.getImage() != null && event.getImage().length > 0))")
+    @Mapping(target = "guestCount", ignore = true)
     EventResponse toResponse(Event event);
 
     default EventResponse toResponse(Event event, WeddingDetails details, List<EventSession> sessions) {

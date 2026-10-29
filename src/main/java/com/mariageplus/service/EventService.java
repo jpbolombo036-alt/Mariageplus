@@ -16,6 +16,7 @@ import com.mariageplus.exception.ResourceNotFoundException;
 import com.mariageplus.mapper.EventMapper;
 import com.mariageplus.repository.EventRepository;
 import com.mariageplus.repository.EventSessionRepository;
+import com.mariageplus.repository.GuestRepository;
 import com.mariageplus.repository.WeddingDetailsRepository;
 import com.mariageplus.security.SecurityUtils;
 import com.mariageplus.util.DressColors;
@@ -29,7 +30,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -49,6 +52,7 @@ public class EventService {
     private final OrganizationSettingsService organizationSettingsService;
     private final WeddingDetailsRepository weddingDetailsRepository;
     private final EventSessionRepository eventSessionRepository;
+    private final GuestRepository guestRepository;
     private final EventMapper eventMapper;
     private final SecurityUtils securityUtils;
     private final StorageService storageService;
@@ -159,8 +163,11 @@ public class EventService {
                     : eventRepository.findByOrganizationIdAndType(organizationId, type, pageable);
         }
 
-        List<EventResponse> content = eventPage.getContent().stream()
-                .map(this::loadFullResponse).collect(Collectors.toList());
+        List<Event> events = eventPage.getContent();
+        Map<Long, Long> guestCounts = loadGuestCounts(events);
+        List<EventResponse> content = events.stream()
+                .map(event -> loadFullResponse(event, guestCounts.getOrDefault(event.getId(), 0L)))
+                .collect(Collectors.toList());
         return PageResponse.of(content, eventPage);
     }
 
@@ -241,11 +248,28 @@ public class EventService {
      * Construit la réponse complète : socle + weddingDetails (si WEDDING) + sessions.
      */
     private EventResponse loadFullResponse(Event event) {
+        return loadFullResponse(event, guestRepository.countByWeddingId(event.getId()));
+    }
+
+    private EventResponse loadFullResponse(Event event, long guestCount) {
         WeddingDetails details = event.getType() == EventType.WEDDING
                 ? weddingDetailsRepository.findByEventId(event.getId()).orElse(null)
                 : null;
         List<EventSession> sessions = eventSessionRepository.findByEventId(event.getId());
-        return eventMapper.toResponse(event, details, sessions);
+        EventResponse response = eventMapper.toResponse(event, details, sessions);
+        response.setGuestCount(guestCount);
+        return response;
+    }
+
+    private Map<Long, Long> loadGuestCounts(List<Event> events) {
+        if (events.isEmpty()) {
+            return Map.of();
+        }
+        List<Long> eventIds = events.stream().map(Event::getId).toList();
+        Map<Long, Long> counts = new HashMap<>();
+        guestRepository.countByWeddingIds(eventIds)
+                .forEach(row -> counts.put(row.getWeddingId(), row.getGuestCount()));
+        return counts;
     }
 
     /** Taille maximale de la photo d'événement (2 Mo). */
