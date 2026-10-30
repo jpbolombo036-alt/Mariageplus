@@ -127,9 +127,18 @@ public class BulkSendService {
                 .build());
 
         List<Long> invitationIds = invitations.stream().map(Invitation::getId).toList();
+        // Stocke les IDs en base pour permettre le réessai si le batch reste PENDING
+        // (ex : file d'attente pleine ou exécuteur non disponible au premier essai).
+        batch.setInvitationIds(invitationIds.stream()
+                .map(String::valueOf)
+                .collect(java.util.stream.Collectors.joining(",")));
+        int reminderLimit = effectiveMaxReminders();
+        batch.setReminderLimit(reminderLimit);
+        batch = batchRepository.save(batch);
+
         String imageUrl = resolveEventImageUrl(event);
         worker.processBatch(batch.getId(), weddingId, invitationIds, imageUrl,
-                request.isResend() || request.isOnlyPendingRsvp(), effectiveMaxReminders());
+                request.isResend() || request.isOnlyPendingRsvp(), reminderLimit);
 
         log.info("Envoi en masse démarré : batch={}, mariage={}, cibles={}",
                 batch.getId(), weddingId, invitationIds.size());

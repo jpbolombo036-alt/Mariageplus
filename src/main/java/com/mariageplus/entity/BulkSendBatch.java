@@ -3,6 +3,9 @@ package com.mariageplus.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Un envoi en masse d'invitations pour un mariage (canal WHATSAPP en V1).
  * Déclenché par l'organisateur ("envoyer à tous" / par catégorie / relance des
@@ -57,4 +60,12 @@ public class BulkSendBatch extends BaseEntity {
 
     @Column(name = "created_by")
     private Long createdBy;
+
+    /** Liste des IDs d'invitations ciblées (stockée CSV pour réessai). */
+    @Column(name = "invitation_ids", length = 4000)
+    private String invitationIds;
+
+    /** Plafond de relances utilisé pour ce batch (stocké pour réessai). */
+    @Column(name = "reminder_limit")
+    private Integer reminderLimit;
 }

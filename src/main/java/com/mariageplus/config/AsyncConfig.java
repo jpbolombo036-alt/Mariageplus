@@ -7,6 +7,9 @@ import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
+import java.util.concurrent.RejectedExecutionHandler;
+import java.util.concurrent.ThreadPoolExecutor;
+
 /**
  * Executeur dedie aux envois en masse : N workers (configurable via
  * app.whatsapp.bulk.workers, defaut 2) afin qu'un gros batch d'une organisation
@@ -31,8 +34,12 @@ public class AsyncConfig {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(workers);
         executor.setMaxPoolSize(workers);
-        executor.setQueueCapacity(50);
+        executor.setQueueCapacity(100);
         executor.setThreadNamePrefix("bulk-send-");
+        // Rejet silencieux : le batch sera repris par le scheduled recovery
+        // (voir BulkSendWorker.recoverStuckPendingBatches) au lieu de faire
+        // lacher le thread HTTP ou de perdre le batch dans l'ombre.
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
         executor.initialize();
         return executor;
     }

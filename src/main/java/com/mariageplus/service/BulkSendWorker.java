@@ -1,5 +1,6 @@
 package com.mariageplus.service;
 
+import com.mariageplus.dto.whatsapp.WhatsAppErrorCategory;
 import com.mariageplus.entity.BulkSendBatch;
 import com.mariageplus.entity.Event;
 import com.mariageplus.entity.Guest;
@@ -8,7 +9,6 @@ import com.mariageplus.entity.InvitationStatus;
 import com.mariageplus.entity.NotificationLog;
 import com.mariageplus.exception.WhatsAppDeliveryException;
 import com.mariageplus.exception.WhatsAppRateLimitException;
-import com.mariageplus.dto.whatsapp.WhatsAppErrorCategory;
 import com.mariageplus.repository.BulkSendBatchRepository;
 import com.mariageplus.repository.EventRepository;
 import com.mariageplus.repository.GuestRepository;
@@ -21,9 +21,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -56,6 +58,14 @@ public class BulkSendWorker {
     @Value("${app.whatsapp.default-country-code:}")
     private String defaultCountryCode;
 
+    /** Période de réessai des batchs PENDING coincés (défaut : 30 s). */
+    @Value("${app.whatsapp.bulk.pending-retry-ms:30000}")
+    private long pendingRetryMs;
+
+    /** Âge minimal d'un batch PENDING pour être considéré coincé (défaut : 60 s). */
+    @Value("${app.whatsapp.bulk.pending-stale-seconds:60}")
+    private int pendingStaleSeconds;
+
     /**
      * Au démarrage : les batchs restés IN_PROGRESS (crash / redéploiement en
      * cours d'envoi) sont marqués FAILED — sans quoi ils resteraient bloqués
@@ -71,6 +81,32 @@ public class BulkSendWorker {
     }
 
     /**
+     * Réessai périodique des batchs PENDING coincés : un batch peut rester PENDING
+     * si l'@Async a échoué silencieusement (ex : file d'attente pleine avant le
+     * redressement, ou exécuteur non encore initialisé au premier démarrage).
+     * On repousse le traitement au prochain passage au lieu de le laisser
+     * bloquant indéfiniment.
+     */
+    @Scheduled(fixedDelayString = "${app.whatsapp.bulk.pending-retry-ms:30000}")
+    public void retryStuckPendingBatches() {
+        LocalDateTime staleThreshold = LocalDateTime.now().minusSeconds(pendingStaleSeconds);
+        List<BulkSendBatch> stuck = batchRepository.findByStatusAndCreatedAtBefore("PENDING", staleThreshold);
+        for (BulkSendBatch batch : stuck) {
+            log.info("Batch {} PENDING coincé → relance du traitement", batch.getId());
+            // Repousse le batch dans la file d'attente ; si l'exécuteur est
+            // disponible, le traitement démarre immédiatement.
+            try {
+                int reminderLimit = batch.getReminderLimit() != null && batch.getReminderLimit() > 0
+                        ? batch.getReminderLimit() : 3;
+                processBatch(batch.getId(), batch.getWeddingId(), null, null,
+                        false, reminderLimit);
+            } catch (Exception ex) {
+                log.error("Échec du réessai du batch {}", batch.getId(), ex);
+            }
+        }
+    }
+
+    /**
      * Traite le batch : s'exécute sur l'exécuteur dédié "bulkSendExecutor"
      * (un seul worker → cadencement et ordre garantis).
      */
@@ -81,6 +117,19 @@ public class BulkSendWorker {
         if (batch == null) {
             log.error("Batch d'envoi en masse introuvable : {}", batchId);
             return;
+        }
+        // Si les IDs ne sont pas fournis (réessai depuis le scheduled job), les
+        // relit depuis le stockage CSV du batch.
+        if (invitationIds == null || invitationIds.isEmpty()) {
+            invitationIds = parseInvitationIds(batch.getInvitationIds());
+            if (invitationIds.isEmpty()) {
+                finish(batch, "FAILED", "Aucune invitation ciblée enregistrée sur le batch");
+                return;
+            }
+        }
+        // Plafond de relances : priorité au paramètre, sinon valeur stockée sur le batch.
+        if (reminderLimit <= 0 && batch.getReminderLimit() != null && batch.getReminderLimit() > 0) {
+            reminderLimit = batch.getReminderLimit();
         }
         Event event = eventRepository.findById(weddingId).orElse(null);
         if (event == null) {
@@ -245,5 +294,19 @@ public class BulkSendWorker {
             return null;
         }
         return message.length() > 500 ? message.substring(0, 497) + "..." : message;
+    }
+
+    /** Parse le stockage CSV des IDs d'invitations du batch. */
+    private List<Long> parseInvitationIds(String raw) {
+        List<Long> result = new ArrayList<>();
+        if (raw == null || raw.isBlank()) {
+            return result;
+        }
+        for (String part : raw.split(",")) {
+            try {
+                result.add(Long.parseLong(part.trim()));
+            } catch (NumberFormatException ignored) { /* ignore */ }
+        }
+        return result;
     }
 }
