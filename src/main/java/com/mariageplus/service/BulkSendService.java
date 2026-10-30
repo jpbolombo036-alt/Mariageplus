@@ -160,6 +160,7 @@ public class BulkSendService {
                         .channel(log.getChannel())
                         .status(log.getStatus())
                         .errorMessage(log.getErrorMessage())
+                        .errorCode(log.getErrorCode())
                         .createdAt(log.getCreatedAt())
                         .build())
                 .toList();

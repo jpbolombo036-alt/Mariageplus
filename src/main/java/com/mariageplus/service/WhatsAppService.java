@@ -2,6 +2,7 @@ package com.mariageplus.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mariageplus.dto.whatsapp.WhatsAppErrorCategory;
 import com.mariageplus.entity.Event;
 import com.mariageplus.entity.Guest;
 import com.mariageplus.exception.WhatsAppDeliveryException;
@@ -109,11 +110,11 @@ public class WhatsAppService {
      *         null si WhatsApp n'est pas configuré ou si l'API ne renvoie pas d'identifiant
      * @throws WhatsAppDeliveryException si l'API rejette le message
      */
-    public String sendInvitationTemplate(String whatsAppId,
-                                         Guest guest,
-                                         Event event,
-                                         String publicInviteUrl,
-                                         String imageUrl) {
+public String sendInvitationTemplate(String whatsAppId,
+                                          Guest guest,
+                                          Event event,
+                                          String publicInviteUrl,
+                                          String imageUrl) {
         if (!isConfigured()) {
             log.warn("WhatsApp non configuré : aucun envoi tenté");
             return null;
@@ -136,13 +137,14 @@ public class WhatsAppService {
             // statuts de livraison (delivered/read/failed) reçus via le webhook.
             return json.path("messages").get(0).path("id").asText(null);
         } catch (RestClientResponseException ex) {
-            String detail = extractApiError(ex);
-            log.error("Échec d'envoi WhatsApp vers {} : {}", whatsAppId, detail);
+            ApiError apiError = extractApiError(ex);
+            log.error("Échec d'envoi WhatsApp vers {} : {}", whatsAppId, apiError.detail);
             if (ex.getStatusCode().value() == 429) {
                 // Limite de débit Meta : le worker effectue une pause puis réessaie.
-                throw new WhatsAppRateLimitException("Limite de débit Meta atteinte (429) : " + detail, ex);
+                throw new WhatsAppRateLimitException("Limite de débit Meta atteinte (429) : " + apiError.detail, ex);
             }
-            throw new WhatsAppDeliveryException("Échec d'envoi WhatsApp : " + detail, ex);
+            throw new WhatsAppDeliveryException("Échec d'envoi WhatsApp : " + apiError.detail,
+                    apiError.category, apiError.code, ex);
         } catch (WhatsAppDeliveryException ex) {
             throw ex;
         } catch (Exception ex) {
@@ -221,22 +223,25 @@ public class WhatsAppService {
         return StringUtils.hasText(label) ? label : "lieu " + A_CONFIRMER;
     }
 
-    private String extractApiError(RestClientResponseException ex) {
+    private ApiError extractApiError(RestClientResponseException ex) {
         try {
             JsonNode json = objectMapper.readTree(ex.getResponseBodyAsString());
             JsonNode error = json.path("error");
-            String details = error.path("error_data").path("details").asText(null);
-            if (details != null && !details.isBlank()) {
-                return details;
-            }
+            int code = error.path("code").asInt(0);
             String message = error.path("message").asText(null);
-            if (message != null && !message.isBlank()) {
-                return message;
-            }
+            String details = error.path("error_data").path("details").asText(null);
+            String text = (details != null && !details.isBlank()) ? details
+                    : (message != null && !message.isBlank()) ? message : null;
+            WhatsAppErrorCategory category = WhatsAppErrorCategory.fromCode(code);
+            return new ApiError(
+                    code,
+                    category,
+                    text != null ? text : "HTTP " + ex.getStatusCode().value());
         } catch (Exception ignored) {
             // réponse non JSON : on retombe sur le statut HTTP
+            return new ApiError(0, WhatsAppErrorCategory.UNKNOWN,
+                    "HTTP " + ex.getStatusCode().value());
         }
-        return "HTTP " + ex.getStatusCode().value();
     }
 
     private String extractToken(String publicInviteUrl) {
@@ -252,4 +257,7 @@ public class WhatsAppService {
     private String safe(String value) {
         return value == null ? "" : value;
     }
+
+    /** Résultat structuré de l'extraction d'une erreur Meta. */
+    private record ApiError(int code, WhatsAppErrorCategory category, String detail) {}
 }

@@ -23,5 +23,7 @@ public class NotificationLogResponse {
     private String channel;
     private String status;
     private String errorMessage;
+    /** Code d'erreur Meta (0 = inconnu). */
+    private int errorCode;
     private LocalDateTime createdAt;
 }

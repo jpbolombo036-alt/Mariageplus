@@ -47,4 +47,8 @@ public class NotificationLog extends BaseEntity {
     /** Identifiant de message Meta (wamid.*) reçu à l'envoi : clé des statuts webhook. */
     @Column(name = "message_id", length = 128)
     private String messageId;
+
+    /** Code d'erreur Meta (0 = inconnu) pour diagnostic. */
+    @Column(name = "error_code")
+    private int errorCode;
 }

@@ -2,6 +2,7 @@ package com.mariageplus.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.mariageplus.dto.whatsapp.WhatsAppErrorCategory;
 import com.mariageplus.entity.Invitation;
 import com.mariageplus.entity.NotificationLog;
 import com.mariageplus.repository.InvitationRepository;
@@ -159,17 +160,33 @@ public class WhatsAppWebhookService {
             return;
         }
         String detail = null;
+        int errorCode = 0;
+        WhatsAppErrorCategory category = WhatsAppErrorCategory.UNKNOWN;
         if (errors.isArray() && errors.size() > 0) {
             JsonNode error = errors.get(0);
-            int code = error.path("code").asInt(0);
+            errorCode = error.path("code").asInt(0);
+            category = WhatsAppErrorCategory.fromCode(errorCode);
             String message = error.path("message").asText(null);
             String title = error.path("title").asText(null);
             String text = (message != null && !message.isBlank()) ? message : title;
-            detail = (code > 0 ? "[" + code + "] " : "") + text;
+            detail = (errorCode > 0 ? "[" + errorCode + "] " : "") + text;
         }
         notificationLog.setStatus("FAILED");
+        notificationLog.setErrorCode(errorCode);
         notificationLog.setErrorMessage(detail != null ? abbreviate(detail) : "Échec de livraison (webhook Meta)");
         logRepository.save(notificationLog);
+
+        // Log spécifique selon la catégorie pour faciliter le diagnostic
+        if (category.requiresAdminAction()) {
+            log.error("Échec WhatsApp nécessitant une action admin : invitationId={}, code={}",
+                    notificationLog.getInvitationId(), errorCode);
+        } else if (category.excludesRecipient()) {
+            log.warn("Échec WhatsApp : destinataire à exclure, invitationId={}, code={}",
+                    notificationLog.getInvitationId(), errorCode);
+        } else if (category.isReversible()) {
+            log.info("Échec WhatsApp réversible : invitationId={}, code={}",
+                    notificationLog.getInvitationId(), errorCode);
+        }
     }
 
     /** Pose deliveredAt sur l'invitation (idempotent). */

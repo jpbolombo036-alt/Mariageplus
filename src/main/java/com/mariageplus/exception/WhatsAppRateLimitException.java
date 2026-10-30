@@ -1,5 +1,7 @@
 package com.mariageplus.exception;
 
+import com.mariageplus.dto.whatsapp.WhatsAppErrorCategory;
+
 /**
  * Rejet par Meta pour dépassement de la limite de débit (HTTP 429 / codes
  * 130429, 131048). Le worker d'envoi en masse s'en sert pour marquer une
@@ -8,6 +10,6 @@ package com.mariageplus.exception;
 public class WhatsAppRateLimitException extends WhatsAppDeliveryException {
 
     public WhatsAppRateLimitException(String message, Throwable cause) {
-        super(message, cause);
+        super(message, WhatsAppErrorCategory.RATE_LIMIT, 131047, cause);
     }
 }

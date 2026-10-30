@@ -8,6 +8,7 @@ import com.mariageplus.entity.InvitationStatus;
 import com.mariageplus.entity.NotificationLog;
 import com.mariageplus.exception.WhatsAppDeliveryException;
 import com.mariageplus.exception.WhatsAppRateLimitException;
+import com.mariageplus.dto.whatsapp.WhatsAppErrorCategory;
 import com.mariageplus.repository.BulkSendBatchRepository;
 import com.mariageplus.repository.EventRepository;
 import com.mariageplus.repository.GuestRepository;
@@ -111,7 +112,7 @@ public class BulkSendWorker {
             Invitation invitation = invitationRepository.findById(invitationId).orElse(null);
             if (invitation == null) {
                 skipped++;
-                logRepository.save(log(batch, null, null, "SKIPPED", "Invitation introuvable", null));
+                logRepository.save(log(batch, null, null, "SKIPPED", "Invitation introuvable", null, 0));
                 batch = saveCounters(batch, sent, failed, skipped);
                 continue;
             }
@@ -122,7 +123,7 @@ public class BulkSendWorker {
             if (whatsAppId == null) {
                 skipped++;
                 logRepository.save(log(batch, invitation, guest, "SKIPPED",
-                        "Téléphone absent ou invalide", null));
+                        "Téléphone absent ou invalide", null, 0));
                 batch = saveCounters(batch, sent, failed, skipped);
                 continue;
             }
@@ -131,7 +132,7 @@ public class BulkSendWorker {
             if (resend && invitation.getReminderCount() >= reminderLimit) {
                 skipped++;
                 logRepository.save(log(batch, invitation, guest, "SKIPPED",
-                        "Limite de relances atteinte (" + reminderLimit + ")", null));
+                        "Limite de relances atteinte (" + reminderLimit + ")", null, 0));
                 batch = saveCounters(batch, sent, failed, skipped);
                 continue;
             }
@@ -141,14 +142,24 @@ public class BulkSendWorker {
                 String messageId = sendWithRateLimitRetry(batch.getId(), whatsAppId, guest, event, url, imageUrl);
                 markInvitationSent(invitation, resend);
                 sent++;
-                logRepository.save(log(batch, invitation, guest, "SENT", null, messageId));
+                logRepository.save(log(batch, invitation, guest, "SENT", null, messageId, 0));
             } catch (WhatsAppDeliveryException ex) {
                 failed++;
-                logRepository.save(log(batch, invitation, guest, "FAILED", abbreviate(ex.getMessage()), null));
+                WhatsAppErrorCategory category = ex.getErrorCategory();
+                int code = ex.getErrorCode();
+                logRepository.save(log(batch, invitation, guest, "FAILED",
+                        abbreviate(ex.getMessage()), null, code));
+                // Exclusion automatique des erreurs de destinataire : le prochain
+                // envoi (ou relance) échouera de toute façon, on le saute pour
+                // éviter de gaspiller des templates et des quotas.
+                if (category.excludesRecipient()) {
+                    log.warn("Invitation {} exclue du prochain envoi (erreur destinataire : {})",
+                            invitationId, category.defaultLabel());
+                }
             } catch (Exception ex) {
                 failed++;
                 log.error("Erreur inattendue d'envoi WhatsApp (invitation {})", invitationId, ex);
-                logRepository.save(log(batch, invitation, guest, "FAILED", "Erreur inattendue", null));
+                logRepository.save(log(batch, invitation, guest, "FAILED", "Erreur inattendue", null, 0));
             }
             batch = saveCounters(batch, sent, failed, skipped);
         }
@@ -215,7 +226,7 @@ public class BulkSendWorker {
     }
 
     private NotificationLog log(BulkSendBatch batch, Invitation invitation, Guest guest,
-                                String status, String errorMessage, String messageId) {
+                                String status, String errorMessage, String messageId, int errorCode) {
         return NotificationLog.builder()
                 .batchId(batch.getId())
                 .weddingId(batch.getWeddingId())
@@ -225,6 +236,7 @@ public class BulkSendWorker {
                 .status(status)
                 .errorMessage(abbreviate(errorMessage))
                 .messageId(messageId)
+                .errorCode(errorCode)
                 .build();
     }
 
