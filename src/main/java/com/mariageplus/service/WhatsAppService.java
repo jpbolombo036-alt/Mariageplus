@@ -16,6 +16,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
+import java.net.URI;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -228,21 +229,57 @@ public String sendInvitationTemplate(String whatsAppId,
      * au dernier moment avant la création du payload.
      */
     private String resolveHeaderImageUrl(String eventImageUrl) {
-        if (StringUtils.hasText(eventImageUrl)) {
-            return eventImageUrl.trim();
+        String normalizedEventImageUrl = normalizePublicImageUrl(eventImageUrl);
+        if (normalizedEventImageUrl != null) {
+            return normalizedEventImageUrl;
         }
-        if (StringUtils.hasText(defaultHeaderImageUrl)) {
-            return defaultHeaderImageUrl.trim();
+        if (StringUtils.hasText(eventImageUrl)) {
+            log.warn("URL de couverture WhatsApp invalide (repli sur l'image par défaut) : {}",
+                    eventImageUrl);
+        }
+
+        String normalizedDefaultUrl = normalizePublicImageUrl(defaultHeaderImageUrl);
+        if (normalizedDefaultUrl != null) {
+            return normalizedDefaultUrl;
         }
         if (StringUtils.hasText(frontendUrl)) {
             String base = frontendUrl.trim();
-            return (base.endsWith("/") ? base : base + "/") + "logo.png";
+            String logoUrl = (base.endsWith("/") ? base : base + "/") + "logo.png";
+            String normalizedLogoUrl = normalizePublicImageUrl(logoUrl);
+            if (normalizedLogoUrl != null) {
+                return normalizedLogoUrl;
+            }
         }
         throw new WhatsAppDeliveryException(
                 "Le modèle WhatsApp exige une image d'en-tête, mais aucune URL publique "
                         + "n'est configurée. Définissez WHATSAPP_DEFAULT_HEADER_IMAGE_URL.",
                 WhatsAppErrorCategory.TEMPLATE_FORMAT_MISMATCH,
                 WhatsAppErrorCategory.TEMPLATE_FORMAT_MISMATCH.code());
+    }
+
+    /**
+     * Meta exige une URI HTTP(S) absolue. Railway et certains hébergeurs exposent
+     * parfois leur domaine sans schéma : on ajoute alors HTTPS avant validation.
+     */
+    private String normalizePublicImageUrl(String rawUrl) {
+        if (!StringUtils.hasText(rawUrl)) {
+            return null;
+        }
+        String candidate = rawUrl.trim();
+        if (!candidate.matches("(?i)^https?://.*")) {
+            candidate = "https://" + candidate;
+        }
+        try {
+            URI uri = URI.create(candidate);
+            String scheme = uri.getScheme();
+            if (("https".equalsIgnoreCase(scheme) || "http".equalsIgnoreCase(scheme))
+                    && StringUtils.hasText(uri.getHost())) {
+                return uri.toASCIIString();
+            }
+        } catch (IllegalArgumentException ignored) {
+            // L'appelant appliquera l'image de secours ou lèvera une erreur explicite.
+        }
+        return null;
     }
 
     /** Lieu lisible : nom de salle + adresse + ville (seuls les champs renseignés). */

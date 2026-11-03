@@ -212,6 +212,35 @@ class WhatsAppServiceTest {
     }
 
     @Test
+    void payload_normalizesEventCoverWithoutScheme() throws Exception {
+        AtomicReference<MockClientHttpRequest> capturedRequest = new AtomicReference<>();
+        WhatsAppService w = capturingService(capturedRequest);
+
+        assertEquals("wamid.1", w.sendInvitationTemplate("2250701020304", guest(), event(),
+                "https://front/invitations/tok123",
+                "mariageplus-production-a657.up.railway.app/api/events/1000007/image"));
+
+        JsonNode header = findComponent(capturedRequest, "header");
+        assertEquals("https://mariageplus-production-a657.up.railway.app/api/events/1000007/image",
+                header.path("parameters").get(0).path("image").path("link").asText());
+    }
+
+    @Test
+    void payload_rejectsMalformedEventCoverAndUsesFallback() throws Exception {
+        AtomicReference<MockClientHttpRequest> capturedRequest = new AtomicReference<>();
+        WhatsAppService w = capturingService(capturedRequest);
+        ReflectionTestUtils.setField(w, "defaultHeaderImageUrl",
+                "https://static.example.com/default-wedding.jpg");
+
+        assertEquals("wamid.1", w.sendInvitationTemplate("2250701020304", guest(), event(),
+                "https://front/invitations/tok123", "http://[invalid-uri"));
+
+        JsonNode header = findComponent(capturedRequest, "header");
+        assertEquals("https://static.example.com/default-wedding.jpg",
+                header.path("parameters").get(0).path("image").path("link").asText());
+    }
+
+    @Test
     void payload_usesConfiguredFallbackWhenEventHasNoPhoto() throws Exception {
         AtomicReference<MockClientHttpRequest> capturedRequest = new AtomicReference<>();
         WhatsAppService w = capturingService(capturedRequest);
