@@ -2,6 +2,7 @@ package com.mariageplus.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.SQLRestriction;
 
 /**
  * Invité d'un mariage. Appartient obligatoirement à un mariage ({@code weddingId}).
@@ -10,6 +11,7 @@ import lombok.*;
  * 1 + allowedCompanions). La logique Invitation/RSVP n'est pas traitée à cette étape.
  */
 @Entity
+@SQLRestriction("deleted_at IS NULL")
 @Table(name = "guests", indexes = {
         @Index(name = "idx_guests_wedding", columnList = "wedding_id"),
         @Index(name = "idx_guests_category", columnList = "category_id")
