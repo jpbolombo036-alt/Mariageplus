@@ -37,10 +37,9 @@ import java.util.Map;
  *   {{3}} = date, {{4}} = heure, {{5}} = lieu,
  *   bouton URL index 0 = {{1}} → publicToken.
  *
- * L'image d'en-tête n'est PAS envoyée par défaut (app.whatsapp.send-header-image /
- * env WHATSAPP_SEND_HEADER_IMAGE) : le modèle texte + bouton reste identique
- * quel que soit l'événement. Une future variante « média header » (créée via API)
- * permettra de réactiver l'image par message.
+ * Le template de production attend un en-tête IMAGE. La couverture de l'événement
+ * est utilisée en priorité ; si elle est absente, une image publique de secours est
+ * envoyée afin d'éviter l'erreur Meta 132012 (format attendu IMAGE, reçu UNKNOWN).
  */
 @Service
 @Slf4j
@@ -74,12 +73,19 @@ public class WhatsAppService {
     private String apiVersion;
 
     /**
-     * Faux (défaut) = aucun composant header dans le payload — modèle texte + bouton,
-     * identique pour tous les événements. Vrai = ajoute l'image de couverture en
-     * en-tête si fournie (à n'activer qu'avec un modèle à en-tête média variable).
+     * Vrai (défaut) = envoie toujours le composant IMAGE attendu par le template
+     * de production. Peut rester faux uniquement avec un autre template sans média.
      */
-    @Value("${app.whatsapp.send-header-image:false}")
+    @Value("${app.whatsapp.send-header-image:true}")
     private boolean sendHeaderImage;
+
+    /** Image publique utilisée quand l'événement ne possède pas de couverture. */
+    @Value("${app.whatsapp.default-header-image-url:}")
+    private String defaultHeaderImageUrl;
+
+    /** Permet de dériver /logo.png si aucune image de secours explicite n'est fournie. */
+    @Value("${app.frontend.url:https://eventiaeasy.vercel.app}")
+    private String frontendUrl;
 
     /**
      * @param apiBaseUrl base de l'API Graph Meta (ex : https://graph.facebook.com) ;
@@ -105,7 +111,7 @@ public class WhatsAppService {
      * @param event           événement (nom → {{2}}, message + date → {{3}})
      * @param publicInviteUrl lien public complet (le publicToken alimente le bouton URL)
      * @param imageUrl        URL publique de la photo de couverture (en-tête, si
-     *                        {@code send-header-image} est actif) ; null = sans image
+     *                        {@code send-header-image} est actif) ; null = image de secours
      * @return l'identifiant de message Meta (wamid.*) si l'API a accepté le message ;
      *         null si WhatsApp n'est pas configuré ou si l'API ne renvoie pas d'identifiant
      * @throws WhatsAppDeliveryException si l'API rejette le message
@@ -175,10 +181,13 @@ public String sendInvitationTemplate(String whatsAppId,
     private Map<String, Object> buildPayload(String whatsAppId, Guest guest, Event event,
                                              String publicInviteUrl, String imageUrl) {
         List<Map<String, Object>> components = new ArrayList<>();
-        if (sendHeaderImage && StringUtils.hasText(imageUrl)) {
+        if (sendHeaderImage) {
+            String headerImageUrl = resolveHeaderImageUrl(imageUrl);
             components.add(Map.of(
                     "type", "header",
-                    "parameters", List.of(Map.of("type", "image", "image", Map.of("link", imageUrl)))));
+                    "parameters", List.of(Map.of(
+                            "type", "image",
+                            "image", Map.of("link", headerImageUrl)))));
         }
         List<Map<String, Object>> bodyParams = new ArrayList<>();
         bodyParams.add(Map.of("type", "text", "text", safe(guest.getFirstName())));
@@ -211,6 +220,29 @@ public String sendInvitationTemplate(String whatsAppId,
         payload.put("type", "template");
         payload.put("template", template);
         return payload;
+    }
+
+    /**
+     * Le modèle Meta exige toujours une image. Une reprise de batch ne conserve pas
+     * nécessairement l'URL de couverture : le repli doit donc être appliqué ici,
+     * au dernier moment avant la création du payload.
+     */
+    private String resolveHeaderImageUrl(String eventImageUrl) {
+        if (StringUtils.hasText(eventImageUrl)) {
+            return eventImageUrl.trim();
+        }
+        if (StringUtils.hasText(defaultHeaderImageUrl)) {
+            return defaultHeaderImageUrl.trim();
+        }
+        if (StringUtils.hasText(frontendUrl)) {
+            String base = frontendUrl.trim();
+            return (base.endsWith("/") ? base : base + "/") + "logo.png";
+        }
+        throw new WhatsAppDeliveryException(
+                "Le modèle WhatsApp exige une image d'en-tête, mais aucune URL publique "
+                        + "n'est configurée. Définissez WHATSAPP_DEFAULT_HEADER_IMAGE_URL.",
+                WhatsAppErrorCategory.TEMPLATE_FORMAT_MISMATCH,
+                WhatsAppErrorCategory.TEMPLATE_FORMAT_MISMATCH.code());
     }
 
     /** Lieu lisible : nom de salle + adresse + ville (seuls les champs renseignés). */

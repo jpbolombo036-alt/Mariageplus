@@ -66,6 +66,8 @@ class WhatsAppServiceTest {
         ReflectionTestUtils.setField(w, "phoneNumberId", "123456789");
         ReflectionTestUtils.setField(w, "templateName", "invitation_mariage");
         ReflectionTestUtils.setField(w, "templateLanguage", "fr");
+        ReflectionTestUtils.setField(w, "sendHeaderImage", true);
+        ReflectionTestUtils.setField(w, "frontendUrl", "https://eventiaeasy.vercel.app");
         return w;
     }
 
@@ -193,5 +195,93 @@ class WhatsAppServiceTest {
                 bodyComp.path("parameters").get(4).path("text").asText());
         assertTrue(button != null, "Bouton URL requis");
         assertEquals("tok123", button.path("parameters").get(0).path("text").asText());
+    }
+
+    @Test
+    void payload_usesEventCoverAsRequiredImageHeader() throws Exception {
+        AtomicReference<MockClientHttpRequest> capturedRequest = new AtomicReference<>();
+        WhatsAppService w = capturingService(capturedRequest);
+
+        assertEquals("wamid.1", w.sendInvitationTemplate("2250701020304", guest(), event(),
+                "https://front/invitations/tok123", "https://cdn.example.com/cover.jpg"));
+
+        JsonNode header = findComponent(capturedRequest, "header");
+        assertEquals("image", header.path("parameters").get(0).path("type").asText());
+        assertEquals("https://cdn.example.com/cover.jpg",
+                header.path("parameters").get(0).path("image").path("link").asText());
+    }
+
+    @Test
+    void payload_usesConfiguredFallbackWhenEventHasNoPhoto() throws Exception {
+        AtomicReference<MockClientHttpRequest> capturedRequest = new AtomicReference<>();
+        WhatsAppService w = capturingService(capturedRequest);
+        ReflectionTestUtils.setField(w, "defaultHeaderImageUrl",
+                "https://static.example.com/default-wedding.jpg");
+
+        assertEquals("wamid.1", w.sendInvitationTemplate("2250701020304", guest(), event(),
+                "https://front/invitations/tok123", null));
+
+        JsonNode header = findComponent(capturedRequest, "header");
+        assertEquals("https://static.example.com/default-wedding.jpg",
+                header.path("parameters").get(0).path("image").path("link").asText());
+    }
+
+    @Test
+    void payload_usesFrontendLogoWhenNoCoverAndNoExplicitFallback() throws Exception {
+        AtomicReference<MockClientHttpRequest> capturedRequest = new AtomicReference<>();
+        WhatsAppService w = capturingService(capturedRequest);
+        ReflectionTestUtils.setField(w, "defaultHeaderImageUrl", "");
+        ReflectionTestUtils.setField(w, "frontendUrl", "https://eventiaeasy.vercel.app/");
+
+        assertEquals("wamid.1", w.sendInvitationTemplate("2250701020304", guest(), event(),
+                "https://front/invitations/tok123", null));
+
+        JsonNode header = findComponent(capturedRequest, "header");
+        assertEquals("https://eventiaeasy.vercel.app/logo.png",
+                header.path("parameters").get(0).path("image").path("link").asText());
+    }
+
+    @Test
+    void missingRequiredHeaderImage_failsBeforeCallingMeta() {
+        ReflectionTestUtils.setField(service, "sendHeaderImage", true);
+        ReflectionTestUtils.setField(service, "defaultHeaderImageUrl", "");
+        ReflectionTestUtils.setField(service, "frontendUrl", "");
+
+        WhatsAppDeliveryException exception = assertThrows(WhatsAppDeliveryException.class,
+                () -> service.sendInvitationTemplate("2250701020304", guest(), event(),
+                        "https://front/invitations/tok123", null));
+        assertEquals(132012, exception.getErrorCode());
+    }
+
+    private WhatsAppService capturingService(AtomicReference<MockClientHttpRequest> capturedRequest) {
+        RestClient.Builder builder = RestClient.builder().requestFactory((uri, method) -> {
+            MockClientHttpRequest request = new MockClientHttpRequest(method, uri);
+            request.setResponse(new MockClientHttpResponse(
+                    "{\"messages\":[{\"id\":\"wamid.1\"}]}".getBytes(), HttpStatus.OK));
+            capturedRequest.set(request);
+            return request;
+        });
+        WhatsAppService w = new WhatsAppService(builder, new ObjectMapper(),
+                "https://graph.facebook.com");
+        ReflectionTestUtils.setField(w, "token", "test-token");
+        ReflectionTestUtils.setField(w, "phoneNumberId", "123456789");
+        ReflectionTestUtils.setField(w, "templateName", "invitation_mariage");
+        ReflectionTestUtils.setField(w, "templateLanguage", "fr");
+        ReflectionTestUtils.setField(w, "sendHeaderImage", true);
+        ReflectionTestUtils.setField(w, "frontendUrl", "https://eventiaeasy.vercel.app");
+        return w;
+    }
+
+    private JsonNode findComponent(AtomicReference<MockClientHttpRequest> capturedRequest,
+                                   String type) throws Exception {
+        JsonNode components = new ObjectMapper()
+                .readTree(capturedRequest.get().getBodyAsString())
+                .path("template").path("components");
+        for (JsonNode component : components) {
+            if (type.equals(component.path("type").asText())) {
+                return component;
+            }
+        }
+        throw new AssertionError("Composant WhatsApp absent : " + type);
     }
 }

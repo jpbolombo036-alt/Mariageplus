@@ -29,6 +29,8 @@ public enum WhatsAppErrorCategory {
     // --- Erreurs de configuration (action admin requise) ---
     /** Template non approuvé ou inexistant. */
     TEMPLATE_NOT_APPROVED(131021, "Template non approuvé"),
+    /** Le payload ne fournit pas le média attendu par le template. */
+    TEMPLATE_FORMAT_MISMATCH(132012, "Format du template incompatible"),
     /** Token d'accès expiré ou révoqué. */
     TOKEN_EXPIRED(131025, "Token d'accès expiré"),
     /** Phone number ID invalide ou compte suspendu. */
@@ -85,7 +87,8 @@ public enum WhatsAppErrorCategory {
 
     /** true si l'erreur nécessite une action de l'administrateur. */
     public boolean requiresAdminAction() {
-        return this == TEMPLATE_NOT_APPROVED || this == TOKEN_EXPIRED
+        return this == TEMPLATE_NOT_APPROVED || this == TEMPLATE_FORMAT_MISMATCH
+                || this == TOKEN_EXPIRED
                 || this == ACCOUNT_SUSPENDED || this == BUSINESS_RESTRICTED;
     }
 

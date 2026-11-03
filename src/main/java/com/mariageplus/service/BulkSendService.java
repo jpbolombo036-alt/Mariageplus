@@ -223,11 +223,16 @@ public class BulkSendService {
     /**
      * URL publique de la photo de couverture pour l'en-tête du template :
      * priorité au CDN S3 (S3_PUBLIC_BASE_URL + clé), sinon l'endpoint public
-     * de l'API (PUBLIC_API_BASE_URL + /api/events/{id}/image). Null si aucune
-     * URL publique n'est configurable → template envoyé sans en-tête image.
+     * de l'API (PUBLIC_API_BASE_URL + /api/events/{id}/image). Null si l'événement
+     * n'a pas d'image : WhatsAppService ajoutera alors l'image de secours.
      */
     private String resolveEventImageUrl(Event event) {
-        if (event.getImageKey() != null && !event.getImageKey().isBlank()
+        boolean hasImageKey = event.getImageKey() != null && !event.getImageKey().isBlank();
+        boolean hasDatabaseImage = event.getImage() != null && event.getImage().length > 0;
+        if (!hasImageKey && !hasDatabaseImage) {
+            return null;
+        }
+        if (hasImageKey
                 && s3PublicBaseUrl != null && !s3PublicBaseUrl.isBlank()) {
             String base = s3PublicBaseUrl.trim();
             return base.endsWith("/") ? base + event.getImageKey() : base + "/" + event.getImageKey();

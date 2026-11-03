@@ -109,8 +109,10 @@ app:
     phone-number-id: ${WHATSAPP_PHONE_NUMBER_ID:}
     template-name: ${WHATSAPP_TEMPLATE_NAME:invitation_mariage}
     template-language: ${WHATSAPP_TEMPLATE_LANGUAGE:fr}
-    # Faux = modèle texte + bouton sans composant header (recommandé).
-    send-header-image: ${WHATSAPP_SEND_HEADER_IMAGE:false}
+    # Le template de production exige un header IMAGE. La couverture de l'événement
+    # est prioritaire ; sinon l'image ci-dessous, puis APP_FRONTEND_URL/logo.png.
+    send-header-image: ${WHATSAPP_SEND_HEADER_IMAGE:true}
+    default-header-image-url: ${WHATSAPP_DEFAULT_HEADER_IMAGE_URL:}
     # Webhook Meta (statuts de livraison delivered/read/failed) :
     #   WHATSAPP_WEBHOOK_VERIFY_TOKEN = valeur à copier dans le dashboard Meta
     #   (WhatsApp → Configuration → Webhooks) pour le handshake GET ; refusé si vide.
