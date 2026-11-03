@@ -271,15 +271,18 @@ class WhatsAppServiceTest {
     }
 
     @Test
-    void missingRequiredHeaderImage_failsBeforeCallingMeta() {
-        ReflectionTestUtils.setField(service, "sendHeaderImage", true);
-        ReflectionTestUtils.setField(service, "defaultHeaderImageUrl", "");
-        ReflectionTestUtils.setField(service, "frontendUrl", "");
+    void missingConfiguredHeaderImage_usesBuiltInPublicFallback() throws Exception {
+        AtomicReference<MockClientHttpRequest> capturedRequest = new AtomicReference<>();
+        WhatsAppService w = capturingService(capturedRequest);
+        ReflectionTestUtils.setField(w, "defaultHeaderImageUrl", "");
+        ReflectionTestUtils.setField(w, "frontendUrl", "");
 
-        WhatsAppDeliveryException exception = assertThrows(WhatsAppDeliveryException.class,
-                () -> service.sendInvitationTemplate("2250701020304", guest(), event(),
-                        "https://front/invitations/tok123", null));
-        assertEquals(132012, exception.getErrorCode());
+        assertEquals("wamid.1", w.sendInvitationTemplate("2250701020304", guest(), event(),
+                "https://front/invitations/tok123", null));
+
+        JsonNode header = findComponent(capturedRequest, "header");
+        assertEquals("https://eventiaeasy.vercel.app/logo.png",
+                header.path("parameters").get(0).path("image").path("link").asText());
     }
 
     private WhatsAppService capturingService(AtomicReference<MockClientHttpRequest> capturedRequest) {

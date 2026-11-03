@@ -52,6 +52,10 @@ public class WhatsAppService {
     private static final DateTimeFormatter TIME_FR =
             DateTimeFormatter.ofPattern("HH'h'mm", Locale.FRENCH);
 
+    /** Dernier repli indépendant des variables d'environnement de l'hébergeur. */
+    private static final String BUILT_IN_HEADER_IMAGE_URL =
+            "https://eventiaeasy.vercel.app/logo.png";
+
     /** Libellé utilisé quand une information (date, heure, lieu) n'est pas renseignée. */
     private static final String A_CONFIRMER = "à confirmer";
 
@@ -249,6 +253,10 @@ public String sendInvitationTemplate(String whatsAppId,
             if (normalizedLogoUrl != null) {
                 return normalizedLogoUrl;
             }
+        }
+        String builtInFallback = normalizePublicImageUrl(BUILT_IN_HEADER_IMAGE_URL);
+        if (builtInFallback != null) {
+            return builtInFallback;
         }
         throw new WhatsAppDeliveryException(
                 "Le modèle WhatsApp exige une image d'en-tête, mais aucune URL publique "
