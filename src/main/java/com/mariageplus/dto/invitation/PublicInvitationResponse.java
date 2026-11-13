@@ -15,6 +15,8 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class PublicInvitationResponse {
 
+    private String invitationCardTemplate;
+
     private String guestFirstName;
     private String guestLastName;
 

@@ -27,6 +27,9 @@ public class UpdateEventRequest {
     @Size(max = 2000, message = "Le message d'invitation ne doit pas dépasser 2000 caractères")
     private String message;
 
+    @Pattern(regexp = "STANDARD|ROMANCE|PRESTIGE", message = "Modèle de carte invalide")
+    private String invitationCardTemplate;
+
     private LocalDate eventDate;
 
     private LocalTime startTime;

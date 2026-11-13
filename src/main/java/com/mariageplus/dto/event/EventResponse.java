@@ -19,6 +19,8 @@ public class EventResponse {
     private String type;
     private String description;
     private String message;
+    private String invitationCardTemplate;
+
     private LocalDate eventDate;
     private LocalTime startTime;
     private LocalTime endTime;

@@ -67,6 +67,20 @@ class RsvpServiceTest {
     }
 
     @Test
+    void publicInvitation_exposesEventCardTemplate() {
+        stubGuestAndInvitation();
+        when(eventRepository.findById(1L)).thenReturn(Optional.of(Event.builder()
+                .name("Reception").invitationCardTemplate("PRESTIGE").build()));
+        assertEquals("PRESTIGE", rsvpService.getPublicInvitation("tok").getInvitationCardTemplate());
+    }
+
+    @Test
+    void publicInvitation_usesStandardForMissingEvent() {
+        stubGuestAndInvitation();
+        assertEquals("STANDARD", rsvpService.getPublicInvitation("tok").getInvitationCardTemplate());
+    }
+
+    @Test
     void getPublicPage_mapsWeddingData_andCapacity() {
         when(invitationService.resolvePublicInvitation("tok")).thenReturn(invitation);
         when(guestRepository.findById(7L)).thenReturn(Optional.of(guest));

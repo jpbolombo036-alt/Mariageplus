@@ -167,6 +167,7 @@ public class RsvpService {
                 : (details != null ? details.getDisplayName() : null);
 
         return PublicInvitationResponse.builder()
+                .invitationCardTemplate(event != null && event.getInvitationCardTemplate() != null ? event.getInvitationCardTemplate() : "STANDARD")
                 .guestFirstName(guest != null ? guest.getFirstName() : null)
                 .guestLastName(guest != null ? guest.getLastName() : null)
                 .weddingDisplayName(displayName)

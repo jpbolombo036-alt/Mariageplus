@@ -76,6 +76,7 @@ public class EventService {
                 .name(request.getName())
                 .type(request.getType())
                 .description(request.getDescription())
+                .invitationCardTemplate(request.getInvitationCardTemplate() == null ? "STANDARD" : request.getInvitationCardTemplate())
                 .message(request.getMessage())
                 .eventDate(request.getEventDate())
                 .startTime(request.getStartTime())
@@ -571,6 +572,7 @@ public class EventService {
     }
 
     private void applyUpdate(Event event, UpdateEventRequest request) {
+        if (request.getInvitationCardTemplate() != null) event.setInvitationCardTemplate(request.getInvitationCardTemplate());
         if (request.getName() != null) event.setName(request.getName());
         if (request.getDescription() != null) event.setDescription(request.getDescription());
         if (request.getMessage() != null) event.setMessage(request.getMessage());

@@ -43,6 +43,10 @@ public class Event extends BaseEntity {
     @Column(length = 2000)
     private String message;
 
+    @Builder.Default
+    @Column(name = "invitation_card_template", nullable = false, length = 20)
+    private String invitationCardTemplate = "STANDARD";
+
     @Column(name = "event_date")
     private java.time.LocalDate eventDate;
 

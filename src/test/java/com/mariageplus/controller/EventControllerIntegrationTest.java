@@ -75,6 +75,39 @@ class EventControllerIntegrationTest {
     }
 
     @Test
+    void cardTemplate_isPersisted_andUnrelatedUpdatesPreserveIt() throws Exception {
+        var request = weddingRequest();
+        request.setInvitationCardTemplate("ROMANCE");
+        var result = mockMvc.perform(post("/api/events")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.invitationCardTemplate").value("ROMANCE"))
+                .andReturn();
+        long id = objectMapper.readTree(result.getResponse().getContentAsString()).get("id").asLong();
+        mockMvc.perform(put("/api/events/{id}", id)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"invitationCardTemplate\":\"PRESTIGE\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.invitationCardTemplate").value("PRESTIGE"));
+        mockMvc.perform(put("/api/events/{id}", id)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Reception actualisee\"}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/events/{id}", id).header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.invitationCardTemplate").value("PRESTIGE"));
+        mockMvc.perform(put("/api/events/{id}", id)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"invitationCardTemplate\":\"UNKNOWN\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void createWeddingEvent_returns201_withWeddingDetails() throws Exception {
         MvcResult result = mockMvc.perform(post("/api/events")
                         .header("Authorization", "Bearer " + token)
