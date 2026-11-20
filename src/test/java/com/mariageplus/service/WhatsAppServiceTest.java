@@ -285,6 +285,69 @@ class WhatsAppServiceTest {
                 header.path("parameters").get(0).path("image").path("link").asText());
     }
 
+    @Test
+    void recoveredBatch_rebuildsDatabaseCoverWithoutChangingTemplate() throws Exception {
+        AtomicReference<MockClientHttpRequest> request = new AtomicReference<>();
+        WhatsAppService w = capturingService(request);
+        ReflectionTestUtils.setField(w, "publicApiBaseUrl", "https://api.example.test/");
+        Event e = event();
+        e.setId(42L);
+        e.setImage(new byte[] { 1, 2, 3 });
+
+        w.sendInvitationTemplate("2250701020304", guest(), e, "https://front/invitations/tok123", null);
+
+        assertEquals("https://api.example.test/api/events/42/image",
+                findComponent(request, "header").path("parameters").get(0).path("image").path("link").asText());
+        JsonNode template = new ObjectMapper().readTree(request.get().getBodyAsString()).path("template");
+        assertEquals("invitation_mariage", template.path("name").asText());
+        assertEquals("fr", template.path("language").path("code").asText());
+        assertEquals(5, findComponent(request, "body").path("parameters").size());
+        assertEquals("tok123", findComponent(request, "button").path("parameters").get(0).path("text").asText());
+    }
+
+    @Test
+    void recoveredBatch_usesRailwayDomainForObjectCover() throws Exception {
+        AtomicReference<MockClientHttpRequest> request = new AtomicReference<>();
+        WhatsAppService w = capturingService(request);
+        ReflectionTestUtils.setField(w, "railwayPublicDomain", "backend.example.test");
+        Event e = event();
+        e.setId(42L);
+        e.setImageKey("events/42/cover.jpg");
+
+        w.sendInvitationTemplate("2250701020304", guest(), e, "https://front/invitations/tok123", null);
+
+        assertEquals("https://backend.example.test/api/events/42/image",
+                findComponent(request, "header").path("parameters").get(0).path("image").path("link").asText());
+    }
+
+    @Test
+    void missingApiOrigin_usesFrontendProxyForExistingCover() throws Exception {
+        AtomicReference<MockClientHttpRequest> request = new AtomicReference<>();
+        WhatsAppService w = capturingService(request);
+        Event e = event();
+        e.setId(42L);
+        e.setImage(new byte[] { 1 });
+
+        w.sendInvitationTemplate("2250701020304", guest(), e, "https://front/invitations/tok123", " ");
+
+        assertEquals("https://eventiaeasy.vercel.app/api/events/42/image",
+                findComponent(request, "header").path("parameters").get(0).path("image").path("link").asText());
+    }
+
+    @Test
+    void recoveredBatch_withoutCoverKeepsExistingFallback() throws Exception {
+        AtomicReference<MockClientHttpRequest> request = new AtomicReference<>();
+        WhatsAppService w = capturingService(request);
+        ReflectionTestUtils.setField(w, "publicApiBaseUrl", "https://api.example.test");
+        Event e = event();
+        e.setId(42L);
+
+        w.sendInvitationTemplate("2250701020304", guest(), e, "https://front/invitations/tok123", null);
+
+        assertEquals("https://eventiaeasy.vercel.app/logo.png",
+                findComponent(request, "header").path("parameters").get(0).path("image").path("link").asText());
+    }
+
     private WhatsAppService capturingService(AtomicReference<MockClientHttpRequest> capturedRequest) {
         RestClient.Builder builder = RestClient.builder().requestFactory((uri, method) -> {
             MockClientHttpRequest request = new MockClientHttpRequest(method, uri);
