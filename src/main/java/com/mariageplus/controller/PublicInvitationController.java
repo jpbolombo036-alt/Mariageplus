@@ -4,6 +4,7 @@ import com.mariageplus.dto.invitation.PublicInvitationResponse;
 import com.mariageplus.dto.rsvp.PublicRsvpResponse;
 import com.mariageplus.dto.rsvp.SubmitRsvpRequest;
 import com.mariageplus.service.InvitationCardService;
+import com.mariageplus.service.InvitationService;
 import com.mariageplus.service.RsvpService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -31,6 +32,14 @@ public class PublicInvitationController {
 
     private final RsvpService rsvpService;
     private final InvitationCardService invitationCardService;
+    private final InvitationService invitationService;
+
+    @PostMapping("/{publicToken}/opened")
+    @Operation(summary = "Enregistrer la première ouverture de la page invité (idempotent)")
+    public ResponseEntity<Void> markOpened(@PathVariable String publicToken) {
+        invitationService.markOpened(publicToken);
+        return ResponseEntity.noContent().build();
+    }
 
     @GetMapping("/{publicToken}")
     @Operation(summary = "Données minimales d'une invitation (avec réponse RSVP courante)")
