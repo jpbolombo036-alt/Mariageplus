@@ -92,6 +92,12 @@ public class WhatsAppService {
     @Value("${app.frontend.url:https://eventiaeasy.vercel.app}")
     private String frontendUrl;
 
+    @Value("${app.whatsapp.public-api-base-url:}")
+    private String publicApiBaseUrl;
+
+    @Value("${RAILWAY_PUBLIC_DOMAIN:}")
+    private String railwayPublicDomain;
+
     /**
      * @param apiBaseUrl base de l'API Graph Meta (ex : https://graph.facebook.com) ;
      *                   obligatoire pour rendre l'URI de requête absolue en production.
@@ -116,7 +122,8 @@ public class WhatsAppService {
      * @param event           événement (nom → {{2}}, message + date → {{3}})
      * @param publicInviteUrl lien public complet (le publicToken alimente le bouton URL)
      * @param imageUrl        URL publique de la photo de couverture (en-tête, si
-     *                        {@code send-header-image} est actif) ; null = image de secours
+     *                        {@code send-header-image} est actif) ; null = reconstruire
+     *                        l'URL de couverture avant d'utiliser l'image de secours
      * @return l'identifiant de message Meta (wamid.*) si l'API a accepté le message ;
      *         null si WhatsApp n'est pas configuré ou si l'API ne renvoie pas d'identifiant
      * @throws WhatsAppDeliveryException si l'API rejette le message
@@ -131,7 +138,10 @@ public String sendInvitationTemplate(String whatsAppId,
             return null;
         }
 
-        Map<String, Object> payload = buildPayload(whatsAppId, guest, event, publicInviteUrl, imageUrl);
+        // Scheduled batch recovery does not retain imageUrl. Rebuild it from the
+        // persisted event before falling back to the application logo.
+        String resolvedImageUrl = StringUtils.hasText(imageUrl) ? imageUrl : resolveEventCoverUrl(event);
+        Map<String, Object> payload = buildPayload(whatsAppId, guest, event, publicInviteUrl, resolvedImageUrl);
         try {
             String body = restClient.post()
                     .uri("/{apiVersion}/{phoneNumberId}/messages", apiVersion, phoneNumberId)
@@ -227,11 +237,28 @@ public String sendInvitationTemplate(String whatsAppId,
         return payload;
     }
 
-    /**
-     * Le modèle Meta exige toujours une image. Une reprise de batch ne conserve pas
-     * nécessairement l'URL de couverture : le repli doit donc être appliqué ici,
-     * au dernier moment avant la création du payload.
-     */
+    /** Reconstruit la couverture persistée, notamment lors de la reprise d'un lot. */
+    private String resolveEventCoverUrl(Event event) {
+        if (event == null || event.getId() == null) {
+            return null;
+        }
+        boolean hasObjectImage = StringUtils.hasText(event.getImageKey());
+        boolean hasDatabaseImage = event.getImage() != null && event.getImage().length > 0;
+        if (!hasObjectImage && !hasDatabaseImage) {
+            return null;
+        }
+        // The frontend's /api rewrite is a last resort when no backend origin is
+        // configured. The public endpoint serves both object and database images.
+        for (String base : new String[] { publicApiBaseUrl, railwayPublicDomain, frontendUrl }) {
+            String normalizedBase = normalizePublicImageUrl(base);
+            if (normalizedBase != null) {
+                return normalizedBase.replaceAll("/+$", "") + "/api/events/" + event.getId() + "/image";
+            }
+        }
+        return null;
+    }
+
+    /** Conserve l'image de secours pour les événements sans couverture exploitable. */
     private String resolveHeaderImageUrl(String eventImageUrl) {
         String normalizedEventImageUrl = normalizePublicImageUrl(eventImageUrl);
         if (normalizedEventImageUrl != null) {
