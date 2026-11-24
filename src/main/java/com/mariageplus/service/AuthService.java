@@ -48,6 +48,7 @@ public class AuthService {
     private final OrganizationSettingsService organizationSettingsService;
     private final SuperAdminNotificationService superAdminNotificationService;
     private final AuditService auditService;
+    private final AdminNotificationService adminNotificationService;
 
     @org.springframework.beans.factory.annotation.Value("${app.security.max-login-attempts:5}")
     private int maxLoginAttempts;
@@ -140,6 +141,9 @@ public class AuthService {
                         + " (verrouillée jusqu'à activation par le SUPER_ADMIN)");
         superAdminNotificationService.notifyNewOrganization(savedOrg.getId(), savedOrg.getName(),
                 saved.getFirstName() + " " + saved.getLastName(), saved.getEmail());
+        // Cloche in-app : visible par les SUPER_ADMIN même sans SMTP configuré.
+        adminNotificationService.notifyOrganizationRegistered(savedOrg.getId(), savedOrg.getName(),
+                saved.getId(), saved.getFirstName() + " " + saved.getLastName(), saved.getEmail());
 
         UserPrincipal principal = UserPrincipal.create(
                 saved.getId(), saved.getEmail(), saved.getPasswordHash(),
