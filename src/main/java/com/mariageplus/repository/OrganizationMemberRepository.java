@@ -2,6 +2,8 @@ package com.mariageplus.repository;
 
 import com.mariageplus.entity.OrganizationMember;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -20,6 +22,13 @@ public interface OrganizationMemberRepository extends JpaRepository<Organization
     List<OrganizationMember> findAllByUser_IdAndActiveTrue(Long userId);
 
     List<OrganizationMember> findByOrganization_Id(Long organizationId);
+
+    /** Membres actifs d'une organisation avec un rôle donné, dont le compte est actif. */
+    @Query("select m from OrganizationMember m "
+            + "where m.organization.id = :organizationId and m.role.code = :roleCode "
+            + "and m.active = true and m.user.active = true")
+    List<OrganizationMember> findActiveByOrganizationAndRole(@Param("organizationId") Long organizationId,
+                                                             @Param("roleCode") String roleCode);
 
     boolean existsByUser_IdAndOrganization_Id(Long userId, Long organizationId);
 
