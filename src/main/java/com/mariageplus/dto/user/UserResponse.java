@@ -25,4 +25,6 @@ public class UserResponse {
     private List<String> roles;
     private List<String> permissions;
     private Long organizationId;
+    /** Vrai après une réinitialisation SUPER_ADMIN : le front ouvre l'écran de changement. */
+    private boolean mustChangePassword;
 }

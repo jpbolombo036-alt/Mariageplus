@@ -1,7 +1,9 @@
 package com.mariageplus.service;
 
 import com.mariageplus.dto.PageResponse;
+import com.mariageplus.dto.user.TemporaryPasswordResponse;
 import com.mariageplus.dto.user.UserRequest;
+import com.mariageplus.util.PhoneNormalizer;
 import com.mariageplus.dto.user.UserResponse;
 import com.mariageplus.entity.Role;
 import com.mariageplus.entity.User;
@@ -13,6 +15,7 @@ import com.mariageplus.repository.UserRepository;
 import com.mariageplus.repository.UserRoleRepository;
 import com.mariageplus.repository.OrganizationMemberRepository;
 import com.mariageplus.repository.RolePermissionRepository;
+import com.mariageplus.repository.RefreshTokenRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -37,6 +40,8 @@ public class UserService {
     private final OrganizationMemberRepository organizationMemberRepository;
     private final RolePermissionRepository rolePermissionRepository;
     private final PasswordEncoder passwordEncoder;
+    private final RefreshTokenRepository refreshTokenRepository;
+    private final AuditService auditService;
 
     public PageResponse<UserResponse> getAll(int page, int size, String sortBy, String sortDir) {
         Sort safeSort = Sort.unsorted();
@@ -75,6 +80,7 @@ public class UserService {
                     .active(user.isActive())
                     .emailVerified(user.isEmailVerified())
                     .lastLoginAt(user.getLastLoginAt())
+                    .mustChangePassword(user.isMustChangePassword())
                     .roles(new ArrayList<>())
                     .permissions(new ArrayList<>())
                     .organizationId(null)
@@ -172,8 +178,67 @@ public class UserService {
         if (newPassword == null || newPassword.length() < 8) {
             throw new IllegalArgumentException("Le nouveau mot de passe doit contenir au moins 8 caractères");
         }
+        if (user.isMustChangePassword() && passwordEncoder.matches(newPassword, user.getPasswordHash())) {
+            throw new IllegalArgumentException("Choisissez un mot de passe différent du mot de passe temporaire");
+        }
         user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.setMustChangePassword(false);
         userRepository.save(user);
+    }
+
+    /**
+     * Génère un mot de passe temporaire, l'applique (sessions révoquées) et impose
+     * son changement à la prochaine connexion. Le mot de passe n'est renvoyé
+     * qu'ici : il n'est stocké que sous forme de hash.
+     */
+    @Transactional
+    public TemporaryPasswordResponse issueTemporaryPassword(Long id, Long adminId) {
+        String temporary = generateTemporaryPassword();
+        resetPasswordByAdmin(id, adminId, temporary);
+        User user = getUser(id);
+        String e164 = PhoneNormalizer.toE164(user.getPhone(), defaultCountryCode);
+        String whatsappNumber = e164 == null ? null : e164.substring(1);
+        return new TemporaryPasswordResponse(temporary, user.getFirstName(), user.getLastName(),
+                user.getEmail(), user.getPhone(), whatsappNumber);
+    }
+
+    /** Sans caractères ambigus (0/O, 1/l/I) : il est recopié depuis un message WhatsApp. */
+    private static final String TEMP_PASSWORD_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+    private static final java.security.SecureRandom RANDOM = new java.security.SecureRandom();
+
+    static String generateTemporaryPassword() {
+        StringBuilder sb = new StringBuilder(14);
+        for (int i = 0; i < 12; i++) {
+            if (i == 4 || i == 8) sb.append('-');
+            sb.append(TEMP_PASSWORD_ALPHABET.charAt(RANDOM.nextInt(TEMP_PASSWORD_ALPHABET.length())));
+        }
+        return sb.toString();
+    }
+
+    @org.springframework.beans.factory.annotation.Value("${app.whatsapp.default-country-code:}")
+    private String defaultCountryCode;
+
+    @Transactional
+    public void resetPasswordByAdmin(Long id, Long adminId, String newPassword) {
+        if (id.equals(adminId)) {
+            throw new IllegalArgumentException(
+                    "Utilisez la rubrique Profil pour modifier votre propre mot de passe");
+        }
+        if (newPassword == null || newPassword.length() < 8 || newPassword.length() > 128) {
+            throw new IllegalArgumentException(
+                    "Le nouveau mot de passe doit contenir entre 8 et 128 caractères");
+        }
+
+        User user = getUser(id);
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.setTokenVersion(user.getTokenVersion() + 1);
+        user.setFailedLoginAttempts(0);
+        user.setLockedUntil(null);
+        user.setMustChangePassword(true);
+        userRepository.save(user);
+        refreshTokenRepository.deleteByUserIdAndDeletedAtIsNull(id);
+        auditService.record("ADMIN_PASSWORD_RESET", id, "User", adminId, null,
+                "Mot de passe réinitialisé par un SUPER_ADMIN ; sessions révoquées");
     }
 
     /** Taille maximale de la photo de profil (2 Mo). */
@@ -297,6 +362,7 @@ public class UserService {
                 .active(user.isActive())
                 .emailVerified(user.isEmailVerified())
                 .lastLoginAt(user.getLastLoginAt())
+                .mustChangePassword(user.isMustChangePassword())
                 .roles(new ArrayList<>(roles))
                 .permissions(permissions)
                 .organizationId(orgId)

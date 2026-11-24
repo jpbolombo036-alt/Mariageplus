@@ -40,6 +40,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
 
         String jwt = getJwtFromRequest(request);
+        boolean passwordChangeRequired = false;
 
         if (StringUtils.hasText(jwt) && tokenProvider.validateToken(jwt)) {
             try {
@@ -58,13 +59,37 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         userDetails, null, userDetails.getAuthorities());
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authentication);
+                passwordChangeRequired = ((UserPrincipal) userDetails).isMustChangePassword();
             } catch (Exception ex) {
                 log.warn("Authentification refusée (token invalide ou compte inactif) pour {}", request.getRequestURI());
                 SecurityContextHolder.clearContext();
             }
         }
 
+        if (passwordChangeRequired && !allowedDuringPasswordChange(request)) {
+            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            response.setContentType("application/json");
+            response.setCharacterEncoding("UTF-8");
+            response.getWriter().write("{\"error\":\"Choisissez un nouveau mot de passe avant de continuer.\","
+                    + "\"code\":\"PASSWORD_CHANGE_REQUIRED\"}");
+            return;
+        }
+
         filterChain.doFilter(request, response);
+    }
+
+    /**
+     * Seules routes ouvertes avec un mot de passe temporaire : session (/auth),
+     * lecture de son profil et changement de son mot de passe.
+     */
+    static boolean allowedDuringPasswordChange(HttpServletRequest request) {
+        String path = request.getRequestURI().substring(request.getContextPath().length());
+        String method = request.getMethod();
+        if (path.startsWith("/auth/")) return true;
+        if ("GET".equalsIgnoreCase(method) && (path.equals("/api/users/me") || path.equals("/api/users/me/avatar"))) {
+            return true;
+        }
+        return "PUT".equalsIgnoreCase(method) && path.equals("/api/users/me/password");
     }
 
     private String getJwtFromRequest(HttpServletRequest request) {

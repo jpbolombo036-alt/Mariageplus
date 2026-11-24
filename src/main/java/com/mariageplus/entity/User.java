@@ -61,6 +61,11 @@ public class User extends BaseEntity {
     @Column(name = "token_version", nullable = false)
     private long tokenVersion = 0;
 
+    /** Posé par une réinitialisation SUPER_ADMIN : l'API exige un nouveau mot de passe avant tout. */
+    @Builder.Default
+    @Column(name = "must_change_password", nullable = false)
+    private boolean mustChangePassword = false;
+
     /** Photo de profil (image stockée en base, max 2 Mo, validée côté service). */
     @Column(name = "avatar")
     private byte[] avatar;

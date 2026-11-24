@@ -19,6 +19,9 @@ public class AuthRateLimiter {
     private final int registerPerIp;
     private final int refreshPerIp;
     private final long windowSeconds;
+    /** Champ (et non paramètre du constructeur) pour garder la signature utilisée par les tests. */
+    @Value("${app.rate-limit.auth.password-reset-per-ip:5}")
+    private int passwordResetPerIp = 5;
     private final int maxCounters = 100_000;
     private final ConcurrentHashMap<String, WindowCounter> counters = new ConcurrentHashMap<>();
 
@@ -38,6 +41,7 @@ public class AuthRateLimiter {
             case "login" -> loginPerIp;
             case "register" -> registerPerIp;
             case "refresh" -> refreshPerIp;
+            case "password-reset" -> passwordResetPerIp;
             default -> throw new IllegalArgumentException("Route d'authentification inconnue");
         };
         Instant now = Instant.now();

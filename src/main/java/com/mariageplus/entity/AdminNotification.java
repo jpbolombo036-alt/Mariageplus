@@ -20,6 +20,7 @@ public class AdminNotification extends BaseEntity {
 
     public static final String TYPE_ORGANIZATION_REGISTERED = "ORGANIZATION_REGISTERED";
     public static final String TYPE_CONTACT_MESSAGE = "CONTACT_MESSAGE";
+    public static final String TYPE_PASSWORD_RESET_REQUEST = "PASSWORD_RESET_REQUEST";
 
     @Column(nullable = false, length = 40)
     private String type;

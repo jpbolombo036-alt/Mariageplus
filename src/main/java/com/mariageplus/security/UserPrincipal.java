@@ -32,6 +32,8 @@ public class UserPrincipal implements UserDetails {
     private long tokenVersion;
     private boolean active;
     private Collection<? extends GrantedAuthority> authorities;
+    /** Mot de passe temporaire en cours : seul le changement de mot de passe est permis. */
+    private boolean mustChangePassword;
 
     public static UserPrincipal create(Long id, String email, String password,
                                         List<String> roleCodes, List<String> permissions,
@@ -44,7 +46,7 @@ public class UserPrincipal implements UserDetails {
             authorities.add(new SimpleGrantedAuthority("ROLE_USER"));
         }
         return new UserPrincipal(id, email, password, roleCodes, permissions, organizationId, weddingIds,
-                tokenVersion, active, authorities);
+                tokenVersion, active, authorities, false);
     }
 
     @Override

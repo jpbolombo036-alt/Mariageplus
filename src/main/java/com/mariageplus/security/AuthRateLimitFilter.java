@@ -49,6 +49,7 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
             case "/auth/login" -> "login";
             case "/auth/register" -> "register";
             case "/auth/refresh" -> "refresh";
+            case "/auth/password-reset-requests" -> "password-reset";
             default -> null;
         };
     }

@@ -21,6 +21,8 @@ public interface AdminNotificationRepository extends JpaRepository<AdminNotifica
 
     boolean existsByTypeAndUserIdAndCreatedAtAfter(String type, Long userId, LocalDateTime after);
 
+    boolean existsByTypeAndUserIdAndReadAtIsNullAndCreatedAtAfter(String type, Long userId, LocalDateTime after);
+
     @Modifying
     @Query("update AdminNotification n set n.readAt = :now where n.readAt is null")
     int markAllRead(@Param("now") LocalDateTime now);

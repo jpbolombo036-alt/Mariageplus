@@ -7,6 +7,7 @@ import com.mariageplus.exception.ConflictException;
 import com.mariageplus.exception.ResourceNotFoundException;
 import com.mariageplus.repository.OrganizationMemberRepository;
 import com.mariageplus.repository.RoleRepository;
+import com.mariageplus.repository.RefreshTokenRepository;
 import com.mariageplus.repository.UserRepository;
 import com.mariageplus.repository.UserRoleRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,6 +37,10 @@ class UserServiceTest {
     private OrganizationMemberRepository organizationMemberRepository;
     @Mock
     private PasswordEncoder passwordEncoder;
+    @Mock
+    private RefreshTokenRepository refreshTokenRepository;
+    @Mock
+    private AuditService auditService;
 
     @InjectMocks
     private UserService userService;
@@ -117,5 +122,36 @@ class UserServiceTest {
         UserResponse result = userService.toggleActive(1L);
         assertNotNull(result);
         assertFalse(result.isActive());
+    }
+
+    @Test
+    void resetPasswordByAdmin_ShouldReplacePasswordUnlockAndRevokeSessions() {
+        testUser.setFailedLoginAttempts(5);
+        testUser.setLockedUntil(java.time.LocalDateTime.now().plusMinutes(10));
+        testUser.setTokenVersion(3);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+        when(passwordEncoder.encode("NouveauMotDePasse123")).thenReturn("new-encoded");
+
+        userService.resetPasswordByAdmin(1L, 99L, "NouveauMotDePasse123");
+
+        assertEquals("new-encoded", testUser.getPasswordHash());
+        assertEquals(4, testUser.getTokenVersion());
+        assertEquals(0, testUser.getFailedLoginAttempts());
+        assertNull(testUser.getLockedUntil());
+        assertTrue(testUser.isMustChangePassword());
+        verify(userRepository).save(testUser);
+        verify(refreshTokenRepository).deleteByUserIdAndDeletedAtIsNull(1L);
+        verify(auditService).record(eq("ADMIN_PASSWORD_RESET"), eq(1L), eq("User"),
+                eq(99L), isNull(), contains("sessions révoquées"));
+    }
+
+    @Test
+    void resetPasswordByAdmin_ShouldRejectSelfReset() {
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> userService.resetPasswordByAdmin(1L, 1L, "NouveauMotDePasse123"));
+
+        assertTrue(error.getMessage().contains("Profil"));
+        verifyNoInteractions(passwordEncoder, refreshTokenRepository, auditService);
+        verify(userRepository, never()).save(any());
     }
 }

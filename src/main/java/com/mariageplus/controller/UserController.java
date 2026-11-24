@@ -1,7 +1,9 @@
 package com.mariageplus.controller;
 
 import com.mariageplus.dto.PageResponse;
+import com.mariageplus.dto.user.AdminPasswordResetRequest;
 import com.mariageplus.dto.user.PasswordChangeRequest;
+import com.mariageplus.dto.user.TemporaryPasswordResponse;
 import com.mariageplus.dto.user.UserRequest;
 import com.mariageplus.dto.user.UserResponse;
 import com.mariageplus.security.CurrentUser;
@@ -66,6 +68,26 @@ public class UserController {
     @Operation(summary = "Activer / désactiver un utilisateur (SUPER_ADMIN)")
     public ResponseEntity<UserResponse> toggleActive(@PathVariable Long id) {
         return ResponseEntity.ok(userService.toggleActive(id));
+    }
+
+    @PutMapping("/{id}/password")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Réinitialiser le mot de passe d'un utilisateur (SUPER_ADMIN)")
+    public ResponseEntity<Void> resetPassword(@PathVariable Long id,
+                                              @CurrentUser UserInfo currentUser,
+                                              @Valid @RequestBody AdminPasswordResetRequest request) {
+        userService.resetPasswordByAdmin(id, currentUser.getId(), request.getNewPassword());
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/temporary-password")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @Operation(summary = "Générer un mot de passe temporaire à transmettre (SUPER_ADMIN), changement imposé ensuite")
+    public ResponseEntity<TemporaryPasswordResponse> temporaryPassword(@PathVariable Long id,
+                                                                       @CurrentUser UserInfo currentUser) {
+        return ResponseEntity.ok()
+                .header("Cache-Control", "no-store")
+                .body(userService.issueTemporaryPassword(id, currentUser.getId()));
     }
 
     @DeleteMapping("/{id}")

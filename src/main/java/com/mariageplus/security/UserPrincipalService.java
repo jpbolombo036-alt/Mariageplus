@@ -66,7 +66,7 @@ public class UserPrincipalService implements UserDetailsService {
                 .filter(java.util.Objects::nonNull)
                 .toList();
 
-        return UserPrincipal.create(
+        UserPrincipal principal = UserPrincipal.create(
                 user.getId(),
                 user.getEmail(),
                 user.getPasswordHash(),
@@ -77,5 +77,7 @@ public class UserPrincipalService implements UserDetailsService {
                 user.getTokenVersion(),
                 user.isActive()
         );
+        principal.setMustChangePassword(user.isMustChangePassword());
+        return principal;
     }
 }

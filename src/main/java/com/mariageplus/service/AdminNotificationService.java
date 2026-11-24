@@ -83,6 +83,38 @@ public class AdminNotificationService {
                 "Message envoyé à l'équipe de la plateforme");
     }
 
+    /**
+     * « Mot de passe oublié » sans SMTP : prévient les SUPER_ADMIN, qui génèrent un
+     * mot de passe temporaire et le transmettent (WhatsApp). Ne révèle jamais si
+     * l'adresse existe : l'appelant répond toujours la même chose. Une demande
+     * encore non lue de moins d'une heure n'est pas dupliquée.
+     */
+    @Transactional
+    public void requestPasswordReset(String email) {
+        String normalized = email == null ? "" : email.trim();
+        if (normalized.isEmpty()) return;
+        User user = userRepository.findByEmail(normalized)
+                .or(() -> userRepository.findByEmail(normalized.toLowerCase(java.util.Locale.ROOT)))
+                .filter(User::isActive)
+                .orElse(null);
+        if (user == null) return;
+        if (repository.existsByTypeAndUserIdAndReadAtIsNullAndCreatedAtAfter(
+                AdminNotification.TYPE_PASSWORD_RESET_REQUEST, user.getId(), LocalDateTime.now().minusHours(1))) {
+            return;
+        }
+        String phone = user.getPhone() == null || user.getPhone().isBlank() ? "non renseigné" : user.getPhone();
+        repository.save(AdminNotification.builder()
+                .type(AdminNotification.TYPE_PASSWORD_RESET_REQUEST)
+                .title(truncate("Mot de passe oublié : " + user.getFirstName() + " " + user.getLastName(), 255))
+                .message("Demande de réinitialisation du mot de passe. Téléphone : " + phone
+                        + ". Générez un mot de passe temporaire depuis Console → Utilisateurs.")
+                .userId(user.getId())
+                .senderEmail(user.getEmail())
+                .build());
+        auditService.record("PASSWORD_RESET_REQUESTED", user.getId(), "User", user.getId(), null,
+                "Demande de réinitialisation transmise aux SUPER_ADMIN");
+    }
+
     @Transactional(readOnly = true)
     public AdminNotificationListResponse list() {
         var items = repository.findAllBy(PageRequest.of(0, LIST_SIZE, Sort.by(Sort.Direction.DESC, "createdAt", "id")))
