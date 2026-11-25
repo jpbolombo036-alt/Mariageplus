@@ -51,6 +51,10 @@ public interface InvitationRepository extends JpaRepository<Invitation, Long> {
 
     long countByWeddingIdAndStatus(Long weddingId, InvitationStatus status);
 
+    long countByWeddingIdAndSentAtIsNotNull(Long weddingId);
+
+    long countByWeddingIdAndOpenedAtIsNotNull(Long weddingId);
+
     /** Invitations envoyées que l'invité n'a jamais ouvertes. */
     long countByWeddingIdAndStatusAndOpenedAtIsNull(Long weddingId, InvitationStatus status);
 

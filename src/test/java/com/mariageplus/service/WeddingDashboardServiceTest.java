@@ -20,6 +20,13 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.mariageplus.entity.AuditLog;
+import com.mariageplus.repository.AuditLogRepository;
+import org.mockito.ArgumentCaptor;
+import org.springframework.data.domain.Pageable;
+
+import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -42,6 +49,7 @@ class WeddingDashboardServiceTest {
     @Mock private GuestCategoryRepository guestCategoryRepository;
     @Mock private EventService eventService;
     @Mock private SecurityUtils securityUtils;
+    @Mock private AuditLogRepository auditLogRepository;
 
     @InjectMocks private WeddingDashboardService dashboardService;
 
@@ -143,6 +151,35 @@ class WeddingDashboardServiceTest {
         assertEquals(2L, r.getCategories().get(0).getDeclined());
         assertEquals(2L, r.getCategories().get(0).getPending());
         assertEquals(8L, r.getCategories().get(0).getExpectedAttendees());
+    }
+
+    @Test
+    void dashboard_countsSentAndOpenedInvitations() {
+        weddingDashboardEmpty();
+        when(invitationRepository.countByWeddingIdAndSentAtIsNotNull(1L)).thenReturn(228L);
+        when(invitationRepository.countByWeddingIdAndOpenedAtIsNotNull(1L)).thenReturn(196L);
+
+        WeddingDashboardResponse r = dashboardService.getDashboard(1L);
+        assertEquals(228, r.getInvitations().getSent());
+        assertEquals(196, r.getInvitations().getOpened());
+    }
+
+    @Test
+    void recentActivity_leavesOutTechnicalTraces() {
+        AuditLog guest = AuditLog.builder().action("GUEST_CREATE").details("Invité ajouté").performedAt(LocalDateTime.now()).build();
+        guest.setId(5L);
+        when(auditLogRepository.findByOrganizationIdAndActionNotIn(eq(100L), anyCollection(), any(Pageable.class)))
+                .thenReturn(List.of(guest));
+
+        var items = dashboardService.getRecentActivity(1L, 5);
+
+        assertEquals(List.of("GUEST_CREATE"), items.stream().map(i -> i.getAction()).toList());
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Collection<String>> excluded = ArgumentCaptor.forClass(Collection.class);
+        verify(auditLogRepository).findByOrganizationIdAndActionNotIn(eq(100L), excluded.capture(), any(Pageable.class));
+        assertTrue(excluded.getValue().containsAll(List.of("LOGIN_SUCCESS", "LOGOUT", "INVITATION_QR_ROTATE")));
+        assertFalse(excluded.getValue().contains("GUEST_CREATE"));
+        verify(auditLogRepository, never()).findByOrganizationId(any(), any());
     }
 
     @Test

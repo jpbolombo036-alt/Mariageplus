@@ -72,6 +72,8 @@ public class WeddingDashboardService {
         long accepted = rsvpRepository.countByStatusForWedding(weddingId, RsvpStatus.ACCEPTED);
         long declined = rsvpRepository.countByStatusForWedding(weddingId, RsvpStatus.DECLINED);
         long pending = Math.max(0, totalInvitations - accepted - declined);
+        long sent = invitationRepository.countByWeddingIdAndSentAtIsNotNull(weddingId);
+        long opened = invitationRepository.countByWeddingIdAndOpenedAtIsNotNull(weddingId);
         double responseRate = totalInvitations == 0 ? 0 : round2((accepted + declined) * 100.0 / totalInvitations);
 
         long expected = rsvpRepository.sumAcceptedAttendeesByWedding(weddingId);
@@ -101,7 +103,7 @@ public class WeddingDashboardService {
                     .guests(GuestStatisticsResponse.builder().total(totalGuests).unassigned(unassigned).build())
                     .invitations(InvitationStatisticsResponse.builder()
                             .total(totalInvitations).accepted(accepted).declined(declined).pending(pending)
-                            .responseRate(responseRate).build())
+                            .responseRate(responseRate).sent(sent).opened(opened).build())
                     .attendance(AttendanceStatisticsResponse.builder()
                             .expected(expected).checkedIn(checkedIn).remaining(remaining).checkInRate(checkInRate).build())
                     .tables(TableStatisticsResponse.builder()
@@ -116,7 +118,7 @@ public class WeddingDashboardService {
                     .guests(GuestStatisticsResponse.builder().total(totalGuests).unassigned(unassigned).build())
                     .invitations(InvitationStatisticsResponse.builder()
                             .total(totalInvitations).accepted(accepted).declined(declined).pending(pending)
-                            .responseRate(responseRate).build())
+                            .responseRate(responseRate).sent(sent).opened(opened).build())
                     .categories(categories)
                     .build();
         }
@@ -214,8 +216,8 @@ public class WeddingDashboardService {
         Event event = eventService.loadInOrgScope(weddingId);
 
         int safeLimit = Math.min(Math.max(limit, 1), 50);
-        List<AuditLog> logs = auditLogRepository.findByOrganizationId(
-                event.getOrganizationId(),
+        List<AuditLog> logs = auditLogRepository.findByOrganizationIdAndActionNotIn(
+                event.getOrganizationId(), TECHNICAL_ACTIONS,
                 PageRequest.of(0, safeLimit, Sort.by(Sort.Direction.DESC, "performedAt")));
 
         return logs.stream()
@@ -230,6 +232,13 @@ public class WeddingDashboardService {
                         .build())
                 .collect(Collectors.toList());
     }
+
+    /** Traces utiles à la sécurité, pas à l'organisateur : absentes de l'activité du dashboard. */
+    static final List<String> TECHNICAL_ACTIONS = List.of(
+            "LOGIN_SUCCESS", "LOGIN_FAILED", "LOGIN_BLOCKED", "LOGOUT",
+            "INVITATION_QR_ROTATE", "PASSWORD_RESET_REQUESTED", "ADMIN_PASSWORD_RESET",
+            "CONTACT_MESSAGE_SENT", "ORGANIZATION_REGISTERED", "ADMIN_MESSAGE_SENT",
+            "DRINK_CATALOG_CREATE", "DRINK_CATALOG_UPDATE", "DRINK_CATALOG_DELETE", "DRINK_CATALOG_SET_ACTIVE");
 
     private double round2(double value) {
         return Math.round(value * 100.0) / 100.0;

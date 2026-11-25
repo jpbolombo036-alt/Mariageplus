@@ -5,6 +5,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 
 @Repository
@@ -15,5 +16,8 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
      * dashboard). Utiliser avec un PageRequest trié par performedAt desc.
      */
     List<AuditLog> findByOrganizationId(Long organizationId, Pageable pageable);
+
+    /** Même chose sans les traces techniques (connexions, sécurité, plateforme). */
+    List<AuditLog> findByOrganizationIdAndActionNotIn(Long organizationId, Collection<String> actions, Pageable pageable);
 }
 
