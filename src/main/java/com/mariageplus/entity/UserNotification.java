@@ -19,6 +19,11 @@ import java.time.LocalDateTime;
 public class UserNotification extends BaseEntity {
 
     public static final String TYPE_ADMIN_MESSAGE = "ADMIN_MESSAGE";
+    public static final String TYPE_EVENT_REMINDER = "EVENT_REMINDER";
+
+    /** Événement concerné (rappels), pour un lien direct depuis la cloche. */
+    @Column(name = "event_id")
+    private Long eventId;
 
     @Column(name = "user_id", nullable = false)
     private Long userId;

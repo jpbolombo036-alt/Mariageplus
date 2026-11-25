@@ -11,12 +11,13 @@ public record UserNotificationResponse(
         String title,
         String message,
         boolean broadcast,
+        Long eventId,
         LocalDateTime createdAt,
         LocalDateTime readAt
 ) {
     public static UserNotificationResponse from(UserNotification n) {
         return new UserNotificationResponse(n.getId(), n.getType(), n.getTitle(), n.getMessage(),
-                n.isBroadcast(), n.getCreatedAt(), n.getReadAt());
+                n.isBroadcast(), n.getEventId(), n.getCreatedAt(), n.getReadAt());
     }
 
     public record ListResponse(long unreadCount, List<UserNotificationResponse> items) {

@@ -51,6 +51,9 @@ public interface InvitationRepository extends JpaRepository<Invitation, Long> {
 
     long countByWeddingIdAndStatus(Long weddingId, InvitationStatus status);
 
+    /** Invitations envoyées que l'invité n'a jamais ouvertes. */
+    long countByWeddingIdAndStatusAndOpenedAtIsNull(Long weddingId, InvitationStatus status);
+
     /** Invitations envoyées (SENT) d'un mariage qui n'ont pas encore de réponse RSVP (non-répondants). */
     @Query("select i from Invitation i where i.weddingId = :weddingId and i.status = 'SENT' "
             + "and i.deletedAt is null and not exists "

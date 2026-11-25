@@ -142,6 +142,14 @@ app:
     # Quand la date est dépassée : PUBLISHED -> ACTIVE (jour J), ACTIVE -> COMPLETED.
     autocomplete-enabled: ${EVENT_AUTOCOMPLETE_ENABLED:true}
     autocomplete-cron: ${EVENT_AUTOCOMPLETE_CRON:0 15 0 * * *}
+    # Rappels des événements proches dans la cloche des organisateurs (J-X, veille, jour J).
+    # Réglables dans l'application (global, organisation, événement). reminder-zone et
+    # reminder-send-from-hour ne sont que les valeurs par défaut sous le réglage global.
+    # reminders-enabled=false coupe tout, quels que soient les réglages.
+    reminders-enabled: ${EVENT_REMINDERS_ENABLED:true}
+    reminder-zone: ${EVENT_REMINDER_ZONE:Africa/Kinshasa}
+    reminder-send-from-hour: ${EVENT_REMINDER_SEND_FROM_HOUR:8}
+    reminder-cron: ${EVENT_REMINDER_CRON:0 0 * * * *}
 
   checkin:
     offline-sync-enabled: ${CHECKIN_OFFLINE_SYNC_ENABLED:true}

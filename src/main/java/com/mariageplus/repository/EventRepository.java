@@ -34,4 +34,7 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 
     /** Événements dans un statut donné dont la date est strictement antérieure à aujourd'hui. */
     List<Event> findByStatusInAndEventDateBefore(Collection<EventStatus> statuses, LocalDate date);
+
+    /** Événements proches (rappels automatiques), bornes incluses. */
+    List<Event> findByStatusInAndEventDateBetween(Collection<EventStatus> statuses, LocalDate from, LocalDate to);
 }

@@ -42,6 +42,11 @@ app:
     reminder-days-before: 7
     reminder-cron: 0 0 0 1 1 *  # jamais exécuté en test
     max-reminders: 3
+  event:
+    # La tâche horaire ne doit pas déposer de notifications pendant les autres tests ;
+    # EventReminderIntegrationTest appelle remindDue() directement.
+    reminders-enabled: false
+    reminder-cron: 0 0 0 1 1 *
 
 logging:
   level:
