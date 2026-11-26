@@ -108,6 +108,48 @@ class VenueAgentRoleIntegrationTest {
     }
 
     @Test
+    void myCash_showsOnlyWhatEachPersonCollected() throws Exception {
+        perform(post("/api/venues/exchange-rate").contentType(MediaType.APPLICATION_JSON)
+                .content(body(Map.of("cdfPerUsd", 2800))), owner, 200);
+        long bookingId = json(perform(post("/api/bookings").contentType(MediaType.APPLICATION_JSON).content(body(Map.of(
+                "venueId", venueId, "basePrice", 2000, "startAt", "2027-06-10T10:00:00", "endAt", "2027-06-10T22:00:00",
+                "client", Map.of("lastName", "Caisse")))), agent, 201)).path("id").asLong();
+
+        // Le caissier encaisse 300 USD en espèces et 280 000 CDF par M-Pesa ; le gérant 100 USD.
+        perform(post("/api/bookings/{id}/payments", bookingId).contentType(MediaType.APPLICATION_JSON)
+                .content(body(Map.of("amount", 300, "method", "ESPECES"))), agent, 201);
+        perform(post("/api/bookings/{id}/payments", bookingId).contentType(MediaType.APPLICATION_JSON)
+                .content(body(Map.of("amount", 280000, "currency", "CDF", "method", "MPESA", "reference", "MP-77"))), agent, 201);
+        perform(post("/api/bookings/{id}/payments", bookingId).contentType(MediaType.APPLICATION_JSON)
+                .content(body(Map.of("amount", 100, "method", "ESPECES"))), owner, 201);
+
+        JsonNode cash = json(perform(get("/api/venues/my-cash"), agent, 200));
+        assertThat(amount(cash.path("today"), "USD")).isEqualByComparingTo("300");
+        assertThat(amount(cash.path("today"), "CDF")).isEqualByComparingTo("280000");
+        assertThat(amount(cash.path("collected"), "USD")).isEqualByComparingTo("300");
+        assertThat(cash.path("paymentCount").asLong()).isEqualTo(2);
+        assertThat(cash.path("movements")).hasSize(2);
+        assertThat(cash.path("movements").toString()).contains("Caisse").contains("MP-77");
+        assertThat(cash.path("byMethod").toString()).contains("ESPECES").contains("MPESA");
+        assertThat(cash.path("upcoming")).isNotNull();
+
+        // Le gérant ne voit dans « Ma caisse » que ses propres 100 USD.
+        JsonNode ownerCash = json(perform(get("/api/venues/my-cash"), owner, 200));
+        assertThat(amount(ownerCash.path("collected"), "USD")).isEqualByComparingTo("100");
+        assertThat(amount(ownerCash.path("collected"), "CDF")).isEqualByComparingTo("0");
+        assertThat(ownerCash.path("movements")).hasSize(1);
+    }
+
+    private java.math.BigDecimal amount(JsonNode list, String currency) {
+        for (JsonNode n : list) {
+            if (currency.equals(n.path("currency").asText())) {
+                return n.path("amount").decimalValue();
+            }
+        }
+        return java.math.BigDecimal.ZERO;
+    }
+
+    @Test
     void agent_cannotSeeReports_norManageVenuesRatesEventsOrClientAccess() throws Exception {
         perform(get("/api/venues/dashboard"), agent, 403);
         perform(get("/api/venues/export.xlsx"), agent, 403);

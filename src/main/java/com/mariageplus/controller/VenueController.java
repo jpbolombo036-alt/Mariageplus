@@ -2,6 +2,7 @@ package com.mariageplus.controller;
 
 import com.mariageplus.dto.venue.*;
 import com.mariageplus.service.VenueBookingService;
+import com.mariageplus.service.VenueCashierService;
 import com.mariageplus.service.VenueExchangeRateService;
 import com.mariageplus.service.VenueModuleGuard;
 import com.mariageplus.service.VenueReportService;
@@ -34,6 +35,7 @@ public class VenueController {
     private final VenueReportService reportService;
     private final VenueModuleGuard guard;
     private final VenueExchangeRateService exchangeRateService;
+    private final VenueCashierService cashierService;
 
     @GetMapping("/module-status")
     @Operation(summary = "Le module Salles est-il activé pour mon organisation ?")
@@ -163,6 +165,14 @@ public class VenueController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required = false) Long venueId) {
         return ResponseEntity.ok(reportService.dashboard(from, to, venueId));
+    }
+
+    @GetMapping("/my-cash")
+    @Operation(summary = "Ma caisse : mes encaissements (aujourd'hui, période, par mode) et les réservations à venir")
+    public ResponseEntity<VenueCashierSummary> myCash(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        return ResponseEntity.ok(cashierService.myCash(from, to));
     }
 
     @GetMapping("/export.xlsx")
