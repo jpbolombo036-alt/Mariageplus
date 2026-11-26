@@ -63,6 +63,13 @@ server:
   forward-headers-strategy: framework
 
 app:
+  venue:
+    # Module « Salles » : durée d'une OPTION sans acompte avant libération de la date.
+    option-days: ${VENUE_OPTION_DAYS:7}
+    # Libération des options échues (toutes les heures, à la demie).
+    option-expiry-cron: ${VENUE_OPTION_EXPIRY_CRON:0 30 * * * *}
+    # Indicatif des numéros locaux des clients (08… → +243…).
+    default-country-code: ${VENUE_DEFAULT_COUNTRY_CODE:243}
   flyway:
     # Dépannage ponctuel uniquement : exécute flyway.repair() avant migrate().
     repair-on-start: ${FLYWAY_REPAIR_ON_START:false}

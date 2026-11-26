@@ -37,13 +37,17 @@ public class AdminOrganizationSettingsController {
     }
 
     @PutMapping
-    @Operation(summary = "Modifier whatsappEnabled / eventCreationEnabled (true, false ou \"inherit\")")
+    @Operation(summary = "Modifier whatsappEnabled / eventCreationEnabled / venueModuleEnabled (true, false ou \"inherit\")")
     public ResponseEntity<Map<String, Object>> update(@PathVariable Long organizationId,
             @RequestBody(required = false) Map<String, Object> body) {
         if (body != null) {
             if (body.containsKey("whatsappEnabled")) {
                 organizationSettingsService.setWhatsappEnabled(organizationId,
                         parseOverride(body.get("whatsappEnabled")));
+            }
+            if (body.containsKey("venueModuleEnabled")) {
+                organizationSettingsService.setVenueModuleEnabled(organizationId,
+                        parseOverride(body.get("venueModuleEnabled")));
             }
             if (body.containsKey("eventCreationEnabled")) {
                 organizationSettingsService.setEventCreationEnabled(organizationId,
@@ -58,6 +62,8 @@ public class AdminOrganizationSettingsController {
         Map<String, Object> result = new HashMap<>();
         result.put("whatsappEnabled", s == null ? null : s.getWhatsappEnabled());
         result.put("eventCreationEnabled", s == null ? null : s.getEventCreationEnabled());
+        result.put("venueModuleEnabled", s == null ? null : s.getVenueModuleEnabled());
+        result.put("effectiveVenueModule", organizationSettingsService.isVenueModuleEnabled(organizationId));
         result.put("effectiveWhatsapp", organizationSettingsService.isWhatsappAllowed(organizationId));
         result.put("effectiveEventCreation", organizationSettingsService.isEventCreationAllowed(organizationId));
         return result;

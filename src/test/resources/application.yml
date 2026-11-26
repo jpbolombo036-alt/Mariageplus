@@ -48,6 +48,9 @@ app:
     reminders-enabled: false
     reminder-cron: 0 0 0 1 1 *
 
+  venue:
+    option-expiry-cron: 0 0 0 1 1 *  # jamais exécuté en test ; VenueModuleIntegrationTest appelle expireOptions()
+
 logging:
   level:
     com.mariageplus: WARN
