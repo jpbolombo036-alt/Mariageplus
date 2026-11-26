@@ -28,6 +28,9 @@ public class VenueDashboardResponse {
     /** Remboursé pendant la période, par devise du remboursement. */
     private List<CurrencyAmount> refunded;
 
+    /** Remboursements de la période, les plus récents d'abord. */
+    private List<VenueRefundLine> refunds;
+
     /** Valeur des réservations confirmées / réalisées de la période, par devise. */
     private List<CurrencyAmount> bookedValue;
 

@@ -401,6 +401,14 @@ class VenueModuleIntegrationTest {
         assertThat(amount(dashboard.path("collected"), "CDF")).isEqualByComparingTo("422500");
         assertThat(amount(dashboard.path("refunded"), "USD")).isEqualByComparingTo("400");
         assertThat(amount(dashboard.path("refunded"), "CDF")).isEqualByComparingTo("142500");
+        // Liste des remboursements du mois : les plus récents d'abord, avec réservation et client.
+        JsonNode refunds = dashboard.path("refunds");
+        assertThat(refunds).hasSize(2);
+        assertThat(refunds.get(0).path("receiptNumber").asText()).isEqualTo(refundCdf.path("receiptNumber").asText());
+        assertThat(refunds.get(0).path("clientName").asText()).isEqualTo("Rembourse");
+        assertThat(refunds.get(0).path("venueName").asText()).isEqualTo("Salle Remboursements");
+        assertThat(refunds.get(1).path("amount").decimalValue()).isEqualByComparingTo("400");
+        assertThat(refunds.get(1).path("reference").asText()).isEqualTo("Caisse");
     }
 
     @Test

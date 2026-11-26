@@ -3,6 +3,7 @@ package com.mariageplus.service;
 import com.mariageplus.dto.venue.CurrencyAmount;
 import com.mariageplus.dto.venue.VenueBookingResponse;
 import com.mariageplus.dto.venue.VenueDashboardResponse;
+import com.mariageplus.dto.venue.VenueRefundLine;
 import com.mariageplus.entity.*;
 import com.mariageplus.repository.VenueBookingPaymentRepository;
 import com.mariageplus.repository.VenueBookingRepository;
@@ -141,6 +142,7 @@ public class VenueReportService {
                 .bookingsByStatus(byStatus)
                 .collected(toList(collected))
                 .refunded(toList(refundedTotals))
+                .refunds(refundLines(payments))
                 .bookedValue(toList(booked))
                 .outstanding(toList(outstanding))
                 .occupancyRate(rate)
@@ -202,6 +204,44 @@ public class VenueReportService {
         } catch (Exception ex) {
             throw new IllegalStateException("Impossible de générer le fichier Excel", ex);
         }
+    }
+
+    /** Lignes des remboursements (réservation, client, salle) pour la liste du tableau de bord. */
+    private List<VenueRefundLine> refundLines(List<VenueBookingPayment> payments) {
+        List<VenueBookingPayment> refunds = payments.stream()
+                .filter(p -> p.getKind() == VenuePaymentKind.REFUND)
+                .sorted(Comparator.comparing(VenueBookingPayment::getPaidAt).reversed())
+                .toList();
+        if (refunds.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, VenueBooking> bookings = bookingRepository.findAllById(
+                        refunds.stream().map(VenueBookingPayment::getBookingId).collect(Collectors.toSet())).stream()
+                .collect(Collectors.toMap(VenueBooking::getId, Function.identity()));
+        Map<Long, VenueClient> clients = clientRepository.findByIdIn(bookings.values().stream()
+                        .map(VenueBooking::getClientId).collect(Collectors.toSet())).stream()
+                .collect(Collectors.toMap(VenueClient::getId, Function.identity()));
+        Map<Long, Venue> venues = venueRepository.findAllById(bookings.values().stream()
+                        .map(VenueBooking::getVenueId).collect(Collectors.toSet())).stream()
+                .collect(Collectors.toMap(Venue::getId, Function.identity()));
+        return refunds.stream().map(p -> {
+            VenueBooking b = bookings.get(p.getBookingId());
+            VenueClient c = b == null ? null : clients.get(b.getClientId());
+            Venue v = b == null ? null : venues.get(b.getVenueId());
+            return VenueRefundLine.builder()
+                    .paymentId(p.getId())
+                    .receiptNumber(VenueBookingService.receiptNumber(p))
+                    .bookingId(p.getBookingId())
+                    .bookingReference(b == null ? null : VenueBookingService.reference(b))
+                    .clientName(c == null ? null : c.getFullName())
+                    .venueName(v == null ? null : v.getName())
+                    .amount(p.getAmount())
+                    .currency(p.getCurrency())
+                    .method(p.getMethod())
+                    .reference(p.getReference())
+                    .paidAt(p.getPaidAt())
+                    .build();
+        }).toList();
     }
 
     private void sheet(Workbook wb, CellStyle head, String name, List<String> headers, List<List<Object>> rows) {
