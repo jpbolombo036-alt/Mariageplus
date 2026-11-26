@@ -2,11 +2,14 @@ package com.mariageplus.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.SQLRestriction;
 
 import java.math.BigDecimal;
 
 /** Tarif d'une salle (ex : Journée, Soirée, Week-end). */
 @Entity
+// Redéclaré ici : le @SQLRestriction de BaseEntity (@MappedSuperclass) n'est pas hérité.
+@SQLRestriction("deleted_at IS NULL")
 @Table(name = "venue_rates")
 @Getter
 @Setter
