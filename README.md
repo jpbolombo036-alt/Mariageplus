@@ -5,6 +5,7 @@ API Java/Spring Boot pour gérer des mariages : organisations, invités, invitat
 - Java 17, Spring Boot 3.2, PostgreSQL (prod) / H2 (local)
 - Port : **8000**
 - Contrat Flutter : [docs/FRONTEND_FLUTTER.md](docs/FRONTEND_FLUTTER.md)
+- Module « Salles » (gestion de salle de fête) : [docs/MODULE_SALLES.md](docs/MODULE_SALLES.md)
 - Limites & reste à faire : [docs/STATUS.md](docs/STATUS.md)
 
 ## Lancer en local (H2, sans PostgreSQL)

@@ -17,9 +17,10 @@ Le backend Spring Boot est utilise avec le frontend web du depot separe `Mariage
 - Import CSV/XLSX des invites.
 - Uploads d'images et stockage S3-compatible avec fallback base de donnees.
 - Envoi groupe et notifications WhatsApp preparees.
-- Migrations Flyway jusqu'a V53.
+- Migrations Flyway jusqu'a V54.
 - Check-in hors ligne idempotent, galeries, boissons, rappels automatiques d'evenements, notifications in-app.
 - Mot de passe oublie traite par le SUPER_ADMIN (sans SMTP).
+- Module Salles (V54) : salles, clients, reservations sans double reservation, paiements USD/CDF, devis et recus PDF, tableau de bord, export Excel, evenement lie et acces client. Voir `docs/MODULE_SALLES.md`.
 - Docker multi-stage et deploiement Railway.
 
 Le parcours principal frontend/backend a ete teste :
