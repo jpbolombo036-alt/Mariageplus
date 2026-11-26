@@ -17,7 +17,7 @@ Le backend Spring Boot est utilise avec le frontend web du depot separe `Mariage
 - Import CSV/XLSX des invites.
 - Uploads d'images et stockage S3-compatible avec fallback base de donnees.
 - Envoi groupe et notifications WhatsApp preparees.
-- Migrations Flyway jusqu'a V54.
+- Migrations Flyway jusqu'a V56.
 - Check-in hors ligne idempotent, galeries, boissons, rappels automatiques d'evenements, notifications in-app.
 - Mot de passe oublie traite par le SUPER_ADMIN (sans SMTP).
 - Module Salles (V54) : salles, clients, reservations sans double reservation, paiements USD/CDF, devis et recus PDF, tableau de bord, export Excel, evenement lie et acces client. Voir `docs/MODULE_SALLES.md`.
@@ -61,7 +61,7 @@ Le parcours principal frontend/backend a ete teste :
 3. Configurer SMTP si requis.
 4. Etendre la CI au typecheck et au build frontend (les tests Maven y tournent deja).
 5. Ajouter monitoring, alertes et sauvegardes PostgreSQL.
-6. Ajouter Redis pour le rate limiting multi-instance et un verrou partage (ex. ShedLock) pour les taches `@Scheduled`.
+6. Ajouter Redis pour le rate limiting multi-instance (les taches `@Scheduled` partagees sont deja verrouillees par ShedLock, V56).
 7. Completer les exports, rapports et fonctions RGPD.
 
 ## 6. Lancement local

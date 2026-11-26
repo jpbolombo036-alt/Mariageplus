@@ -1,5 +1,6 @@
 package com.mariageplus.service;
 
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import com.mariageplus.dto.whatsapp.WhatsAppErrorCategory;
 import com.mariageplus.entity.BulkSendBatch;
 import com.mariageplus.entity.Event;
@@ -88,6 +89,7 @@ public class BulkSendWorker {
      * bloquant indéfiniment.
      */
     @Scheduled(fixedDelayString = "${app.whatsapp.bulk.pending-retry-ms:30000}")
+    @SchedulerLock(name = "bulkSendRetryStuckBatches", lockAtMostFor = "PT5M", lockAtLeastFor = "PT10S")
     public void retryStuckPendingBatches() {
         LocalDateTime staleThreshold = LocalDateTime.now().minusSeconds(pendingStaleSeconds);
         List<BulkSendBatch> stuck = batchRepository.findByStatusAndCreatedAtBefore("PENDING", staleThreshold);

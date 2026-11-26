@@ -1,5 +1,6 @@
 package com.mariageplus.service;
 
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import com.mariageplus.entity.Event;
 import com.mariageplus.entity.EventStatus;
 import com.mariageplus.repository.EventRepository;
@@ -39,6 +40,7 @@ public class EventAutoLifecycleService {
     private boolean autoEnabled;
 
     @Scheduled(cron = "${app.event.autocomplete-cron:0 15 0 * * *}")
+    @SchedulerLock(name = "eventAutoAdvancePastEvents", lockAtMostFor = "PT30M", lockAtLeastFor = "PT1M")
     @Transactional
     public void autoAdvancePastEvents() {
         if (!autoEnabled) {

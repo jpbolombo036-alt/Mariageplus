@@ -1,5 +1,6 @@
 package com.mariageplus.service;
 
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import com.mariageplus.dto.notification.ReminderSettingsDto;
 import com.mariageplus.entity.Event;
 import com.mariageplus.entity.ReminderSettings;
@@ -93,6 +94,7 @@ public class EventReminderService {
 
     /** Toutes les heures : chaque événement est rappelé selon ses propres réglages (heure, fuseau). */
     @Scheduled(cron = "${app.event.reminder-cron:0 0 * * * *}")
+    @SchedulerLock(name = "eventReminders", lockAtMostFor = "PT30M", lockAtLeastFor = "PT1M")
     public void run() {
         if (!enabled) {
             log.debug("Rappels d'événements désactivés par l'exploitation");
