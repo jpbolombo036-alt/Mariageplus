@@ -309,9 +309,20 @@ class VenueModuleIntegrationTest {
         long rateId = json(perform(get("/api/venues/{id}", venueId), tokenVenueOwner, 200)).path("rates").get(0).path("id").asLong();
         perform(delete("/api/venues/{id}/rates/{rid}", venueId, rateId), tokenVenueOwner, 204);
         assertThat(json(perform(get("/api/venues/{id}", venueId), tokenVenueOwner, 200)).path("rates")).isEmpty();
+        // Salle avec une réservation à venir : suppression refusée.
+        perform(delete("/api/venues/{id}", venueId), tokenVenueOwner, 409);
+        perform(post("/api/bookings/{id}/cancel", bookingId), tokenVenueOwner, 200);
         perform(delete("/api/venues/{id}", venueId), tokenVenueOwner, 204);
         assertThat(json(perform(get("/api/venues"), tokenVenueOwner, 200)).toString()).doesNotContain("Salle Suppressions");
         perform(get("/api/venues/{id}", venueId), tokenVenueOwner, 404);
+
+        // Restauration : listée parmi les supprimées, une autre organisation ne peut pas la restaurer.
+        assertThat(json(perform(get("/api/venues/deleted"), tokenVenueOwner, 200)).toString()).contains("Salle Suppressions");
+        perform(post("/api/venues/{id}/restore", venueId), tokenOtherOwner, 404);
+        perform(post("/api/venues/{id}/restore", venueId), tokenVenueOwner, 200);
+        perform(get("/api/venues/{id}", venueId), tokenVenueOwner, 200);
+        assertThat(json(perform(get("/api/venues/deleted"), tokenVenueOwner, 200)).toString()).doesNotContain("Salle Suppressions");
+        perform(post("/api/venues/{id}/restore", venueId), tokenVenueOwner, 404);
     }
 
     @Test

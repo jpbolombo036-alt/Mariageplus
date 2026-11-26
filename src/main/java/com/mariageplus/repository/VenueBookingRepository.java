@@ -51,4 +51,7 @@ public interface VenueBookingRepository extends JpaRepository<VenueBooking, Long
     List<VenueBooking> findByStatusAndOptionExpiresAtBefore(VenueBookingStatus status, LocalDateTime limit);
 
     Optional<VenueBooking> findFirstByEventId(Long eventId);
+
+    /** Réservations encore actives (option, confirmée) qui ne sont pas terminées. */
+    long countByVenueIdAndStatusInAndEndAtAfter(Long venueId, Collection<VenueBookingStatus> statuses, LocalDateTime now);
 }

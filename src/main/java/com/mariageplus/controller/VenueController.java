@@ -51,6 +51,18 @@ public class VenueController {
         return ResponseEntity.status(HttpStatus.CREATED).body(venueService.create(request));
     }
 
+    @GetMapping("/deleted")
+    @Operation(summary = "Salles supprimées (pour les restaurer)")
+    public ResponseEntity<List<VenueResponse>> listDeleted() {
+        return ResponseEntity.ok(venueService.listDeleted());
+    }
+
+    @PostMapping("/{venueId}/restore")
+    @Operation(summary = "Restaurer une salle supprimée")
+    public ResponseEntity<VenueResponse> restore(@PathVariable Long venueId) {
+        return ResponseEntity.ok(venueService.restore(venueId));
+    }
+
     @GetMapping("/{venueId}")
     @Operation(summary = "Détail d'une salle et ses tarifs")
     public ResponseEntity<VenueResponse> get(@PathVariable Long venueId) {
@@ -64,7 +76,7 @@ public class VenueController {
     }
 
     @DeleteMapping("/{venueId}")
-    @Operation(summary = "Supprimer une salle (suppression logique)")
+    @Operation(summary = "Supprimer une salle (suppression logique ; 409 si réservations à venir)")
     public ResponseEntity<Void> delete(@PathVariable Long venueId) {
         venueService.delete(venueId);
         return ResponseEntity.noContent().build();
