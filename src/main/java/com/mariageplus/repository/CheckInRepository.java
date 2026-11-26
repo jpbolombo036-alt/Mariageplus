@@ -38,12 +38,27 @@ public interface CheckInRepository extends JpaRepository<CheckIn, Long> {
     /**
      * Idempotence du rejeu hors ligne : la paire (device, sequence) ne doit
      * jamais être insérée deux fois (index unique uq_checkins_device_sequence).
+     * Requête native : un check-in annulé (supprimé logiquement) compte aussi,
+     * sinon son rejeu violerait l'index unique.
      */
-    boolean existsByDeviceIdAndSequenceNumber(String deviceId, Long sequenceNumber);
+    @Query(value = "SELECT COUNT(*) FROM checkins WHERE device_id = :deviceId AND sequence_number = :sequence",
+            nativeQuery = true)
+    long countByDeviceAndSequenceIncludingDeleted(@Param("deviceId") String deviceId, @Param("sequence") Long sequenceNumber);
+
+    default boolean existsByDeviceIdAndSequenceNumber(String deviceId, Long sequenceNumber) {
+        return countByDeviceAndSequenceIncludingDeleted(deviceId, sequenceNumber) > 0;
+    }
 
     /**
      * Fallback d'idempotence hors ligne pour un appareil qui n'envoie pas de
-     * sequence : même invitation, même horodatage de scan, origine hors ligne.
+     * sequence : même invitation, même horodatage de scan, origine hors ligne
+     * (check-ins annulés compris, comme ci-dessus).
      */
-    boolean existsByInvitationIdAndCheckedInAtAndOfflineTrue(Long invitationId, LocalDateTime checkedInAt);
+    @Query(value = "SELECT COUNT(*) FROM checkins WHERE invitation_id = :invitationId "
+            + "AND checked_in_at = :checkedInAt AND is_offline = TRUE", nativeQuery = true)
+    long countOfflineIncludingDeleted(@Param("invitationId") Long invitationId, @Param("checkedInAt") LocalDateTime checkedInAt);
+
+    default boolean existsByInvitationIdAndCheckedInAtAndOfflineTrue(Long invitationId, LocalDateTime checkedInAt) {
+        return countOfflineIncludingDeleted(invitationId, checkedInAt) > 0;
+    }
 }

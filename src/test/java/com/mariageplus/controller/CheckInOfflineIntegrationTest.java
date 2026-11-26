@@ -22,6 +22,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -272,6 +273,33 @@ class CheckInOfflineIntegrationTest {
         assertThat(replay.getResults().get(0).getStatus()).isEqualTo("DUPLICATE");
         assertThat(replay.getResults().get(0).getReason()).contains("synchronisé");
         assertThat(replay.getResults().get(0).getTotalAttendees()).isEqualTo(1);
+    }
+
+    @Test
+    void cancelledCheckIn_isNotCounted_andItsReplayStaysADuplicate() throws Exception {
+        long before = checkedIn();
+        SyncCheckInResponse first = postSync(syncRequest(publicToken2, 1, "DEVICE-ANNUL", 9100L,
+                LocalDateTime.now().minusMinutes(8)));
+        assertThat(first.getResults().get(0).getStatus()).isEqualTo("ACCEPTED");
+        assertThat(checkedIn()).isEqualTo(before + 1);
+
+        // Check-in annulé par l'agent : il ne compte plus dans les présents de l'événement.
+        mockMvc.perform(delete("/api/checkins/{id}", first.getResults().get(0).getCheckInId())
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().is2xxSuccessful());
+        assertThat(checkedIn()).isEqualTo(before);
+
+        // Le même lot renvoyé par l'appareil reste reconnu comme déjà traité (pas d'erreur de doublon en base).
+        SyncCheckInResponse replay = postSync(syncRequest(publicToken2, 1, "DEVICE-ANNUL", 9100L,
+                LocalDateTime.now().minusMinutes(2)));
+        assertThat(replay.getResults().get(0).getStatus()).isEqualTo("DUPLICATE");
+        assertThat(checkedIn()).isEqualTo(before);
+    }
+
+    private long checkedIn() throws Exception {
+        String body = mockMvc.perform(get("/api/events/{id}/dashboard", eventId).header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        return objectMapper.readTree(body).path("attendance").path("checkedIn").asLong();
     }
 
     @Test

@@ -1,5 +1,7 @@
 package com.mariageplus.entity;
 
+import org.hibernate.annotations.SQLRestriction;
+
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -13,6 +15,8 @@ import java.time.LocalTime;
  * Les dates / heures et le lieu sont validés côté service.
  */
 @Entity
+// Redéclaré ici : le @SQLRestriction de BaseEntity (@MappedSuperclass) n'est pas hérité.
+@SQLRestriction("deleted_at IS NULL")
 @Table(name = "event_sessions", indexes = {
         @Index(name = "idx_event_sessions_event", columnList = "event_id"),
         @Index(name = "idx_event_sessions_event_date", columnList = "event_id, session_date")

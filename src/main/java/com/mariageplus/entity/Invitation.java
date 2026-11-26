@@ -1,5 +1,7 @@
 package com.mariageplus.entity;
 
+import org.hibernate.annotations.SQLRestriction;
+
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -16,6 +18,8 @@ import java.time.LocalDateTime;
  * L'invité et le mariage doivent correspondre : guest.weddingId == weddingId.
  */
 @Entity
+// Redéclaré ici : le @SQLRestriction de BaseEntity (@MappedSuperclass) n'est pas hérité.
+@SQLRestriction("deleted_at IS NULL")
 @Table(name = "invitations", indexes = {
         @Index(name = "idx_invitations_wedding", columnList = "wedding_id"),
         @Index(name = "idx_invitations_guest", columnList = "guest_id")

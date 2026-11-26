@@ -1,5 +1,7 @@
 package com.mariageplus.entity;
 
+import org.hibernate.annotations.SQLRestriction;
+
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -14,6 +16,8 @@ import lombok.*;
  * {@code deletedAt} sont hérités de {@link BaseEntity}.
  */
 @Entity
+// Redéclaré ici : le @SQLRestriction de BaseEntity (@MappedSuperclass) n'est pas hérité.
+@SQLRestriction("deleted_at IS NULL")
 @Table(name = "events", indexes = {
         @Index(name = "idx_events_org", columnList = "organization_id"),
         @Index(name = "idx_events_org_date", columnList = "organization_id, event_date"),
