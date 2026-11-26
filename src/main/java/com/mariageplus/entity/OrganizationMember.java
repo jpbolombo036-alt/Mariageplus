@@ -1,5 +1,7 @@
 package com.mariageplus.entity;
 
+import org.hibernate.annotations.SQLRestriction;
+
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -10,6 +12,8 @@ import lombok.*;
  * données de l'organisation pour laquelle il est membre.
  */
 @Entity
+// Redéclaré ici : le @SQLRestriction de BaseEntity (@MappedSuperclass) n'est pas hérité.
+@SQLRestriction("deleted_at IS NULL")
 @Table(name = "organization_members")
 @Getter
 @Setter

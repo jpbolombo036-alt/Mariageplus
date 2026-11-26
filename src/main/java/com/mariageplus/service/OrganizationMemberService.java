@@ -86,6 +86,9 @@ public class OrganizationMemberService {
             throw new ConflictException("Ce membre est déjà rattaché à ce mariage avec ce rôle");
         }
 
+        if (weddingId != null) {
+            organizationMemberRepository.purgeRemovedAssignment(user.getId(), organizationId, role.getId(), weddingId);
+        }
         OrganizationMember member = OrganizationMember.builder()
                 .user(user)
                 .organization(organization)
@@ -162,6 +165,8 @@ public class OrganizationMemberService {
                         member.getUser().getId(), organizationId, newRole.getId(), resolvedWeddingId)) {
                     throw new ConflictException("Ce membre est déjà rattaché à ce mariage avec ce rôle");
                 }
+                organizationMemberRepository.purgeRemovedAssignment(
+                        member.getUser().getId(), organizationId, newRole.getId(), resolvedWeddingId);
             }
 
             User user = member.getUser();
@@ -181,6 +186,8 @@ public class OrganizationMemberService {
                     member.getUser().getId(), organizationId, member.getRole().getId(), request.getWeddingId())) {
                 throw new ConflictException("Ce membre est déjà rattaché à ce mariage avec ce rôle");
             }
+            organizationMemberRepository.purgeRemovedAssignment(
+                    member.getUser().getId(), organizationId, member.getRole().getId(), request.getWeddingId());
             member.setWeddingId(request.getWeddingId());
         }
 

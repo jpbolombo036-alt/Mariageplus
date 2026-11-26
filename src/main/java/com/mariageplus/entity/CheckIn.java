@@ -1,5 +1,7 @@
 package com.mariageplus.entity;
 
+import org.hibernate.annotations.SQLRestriction;
+
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -15,6 +17,8 @@ import java.time.LocalDateTime;
  * {@code checkedInBy} trace l'agent ayant réalisé le contrôle (audit).
  */
 @Entity
+// Redéclaré ici : le @SQLRestriction de BaseEntity (@MappedSuperclass) n'est pas hérité.
+@SQLRestriction("deleted_at IS NULL")
 @Table(name = "checkins", indexes = {
         @Index(name = "idx_checkins_invitation", columnList = "invitation_id"),
         @Index(name = "idx_checkins_checked_at", columnList = "checked_in_at"),

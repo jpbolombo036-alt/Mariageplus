@@ -1,5 +1,7 @@
 package com.mariageplus.entity;
 
+import org.hibernate.annotations.SQLRestriction;
+
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -9,6 +11,8 @@ import lombok.*;
  * les boissons de ce catalogue pour leurs événements (pivot {@link EventDrink}).
  */
 @Entity
+// Redéclaré ici : le @SQLRestriction de BaseEntity (@MappedSuperclass) n'est pas hérité.
+@SQLRestriction("deleted_at IS NULL")
 @Table(name = "drink_catalog", indexes = {
         @Index(name = "idx_drink_catalog_name", columnList = "name")
 })
