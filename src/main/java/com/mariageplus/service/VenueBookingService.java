@@ -1,5 +1,6 @@
 package com.mariageplus.service;
 
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import com.mariageplus.dto.PageResponse;
 import com.mariageplus.dto.venue.*;
 import com.mariageplus.entity.*;
@@ -260,6 +261,12 @@ public class VenueBookingService {
      * si plusieurs instances l'exécutent en même temps.
      */
     @Scheduled(cron = "${app.venue.option-expiry-cron:0 30 * * * *}")
+    @SchedulerLock(name = "venueOptionExpiry", lockAtMostFor = "PT30M", lockAtLeastFor = "PT1M")
+    public void expireOptionsScheduled() {
+        expireOptions();
+    }
+
+    /** Traitement de l'expiration (sans verrou : appelé par la tâche planifiée et par les tests). */
     @Transactional
     public int expireOptions() {
         int count = 0;

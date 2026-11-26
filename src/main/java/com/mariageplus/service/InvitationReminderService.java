@@ -1,5 +1,6 @@
 package com.mariageplus.service;
 
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import com.mariageplus.entity.Invitation;
 import com.mariageplus.entity.InvitationStatus;
 import com.mariageplus.entity.EventSession;
@@ -45,6 +46,7 @@ public class InvitationReminderService {
     private boolean reminderEnabled;
 
     @Scheduled(cron = "${app.invitation.reminder-cron:0 0 8 * * *}")
+    @SchedulerLock(name = "invitationReminders", lockAtMostFor = "PT30M", lockAtLeastFor = "PT1M")
     @Transactional
     public void remindPendingInvitations() {
         if (!reminderEnabled) {

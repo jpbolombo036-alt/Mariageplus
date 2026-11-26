@@ -20,6 +20,7 @@
     <properties>
         <java.version>17</java.version>
         <jjwt.version>0.12.3</jjwt.version>
+        <shedlock.version>5.10.0</shedlock.version>
         <mapstruct.version>1.6.0</mapstruct.version>
         <lombok.version>1.18.46</lombok.version>
     </properties>
@@ -130,6 +131,17 @@
             <scope>test</scope>
         </dependency>
         <!-- Stockage objet S3-compatible (AWS S3, Cloudflare R2, Backblaze B2, MinIO...) -->
+        <!-- Verrou partagé des tâches planifiées (une seule instance exécute chaque tâche). -->
+        <dependency>
+            <groupId>net.javacrumbs.shedlock</groupId>
+            <artifactId>shedlock-spring</artifactId>
+            <version>${shedlock.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>net.javacrumbs.shedlock</groupId>
+            <artifactId>shedlock-provider-jdbc-template</artifactId>
+            <version>${shedlock.version}</version>
+        </dependency>
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>s3</artifactId>
