@@ -1,6 +1,7 @@
 package com.mariageplus.service;
 
 import com.mariageplus.dto.venue.CurrencyAmount;
+import com.mariageplus.dto.venue.VenueCashierTotal;
 import com.mariageplus.dto.venue.VenueBookingResponse;
 import com.mariageplus.dto.venue.VenueDashboardResponse;
 import com.mariageplus.dto.venue.VenueRefundLine;
@@ -8,6 +9,7 @@ import com.mariageplus.entity.*;
 import com.mariageplus.repository.VenueBookingPaymentRepository;
 import com.mariageplus.repository.VenueBookingRepository;
 import com.mariageplus.repository.VenueClientRepository;
+import com.mariageplus.repository.UserRepository;
 import com.mariageplus.repository.VenueRepository;
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.*;
@@ -40,6 +42,7 @@ public class VenueReportService {
     private final VenueClientRepository clientRepository;
     private final VenueBookingService bookingService;
     private final VenueModuleGuard guard;
+    private final UserRepository userRepository;
 
     /**
      * @param from premier jour inclus (défaut : 1er du mois courant)
@@ -143,6 +146,7 @@ public class VenueReportService {
                 .collected(toList(collected))
                 .refunded(toList(refundedTotals))
                 .refunds(refundLines(payments))
+                .byCashier(byCashier(orgId, venueId, payments))
                 .bookedValue(toList(booked))
                 .outstanding(toList(outstanding))
                 .occupancyRate(rate)
@@ -204,6 +208,57 @@ public class VenueReportService {
         } catch (Exception ex) {
             throw new IllegalStateException("Impossible de générer le fichier Excel", ex);
         }
+    }
+
+    /**
+     * Encaissements par personne sur la période (et aujourd'hui), nets des
+     * remboursements, avec la part espèces / Mobile Money / virement : le gérant
+     * rapproche ainsi la caisse de chaque employé.
+     */
+    private List<VenueCashierTotal> byCashier(Long orgId, Long venueId, List<VenueBookingPayment> periodPayments) {
+        LocalDate today = LocalDate.now();
+        List<VenueBookingPayment> todays = paymentRepository.findByOrganizationPaidBetween(
+                orgId, today.atStartOfDay(), today.plusDays(1).atStartOfDay());
+        if (venueId != null && !todays.isEmpty()) {
+            Set<Long> venueBookings = bookingRepository.findAllById(
+                            todays.stream().map(VenueBookingPayment::getBookingId).collect(Collectors.toSet())).stream()
+                    .filter(b -> b.getVenueId().equals(venueId)).map(VenueBooking::getId).collect(Collectors.toSet());
+            todays = todays.stream().filter(p -> venueBookings.contains(p.getBookingId())).toList();
+        }
+        Map<Long, List<VenueBookingPayment>> period = periodPayments.stream().filter(p -> p.getRecordedBy() != null)
+                .collect(Collectors.groupingBy(VenueBookingPayment::getRecordedBy, LinkedHashMap::new, Collectors.toList()));
+        Map<Long, List<VenueBookingPayment>> ofToday = todays.stream().filter(p -> p.getRecordedBy() != null)
+                .collect(Collectors.groupingBy(VenueBookingPayment::getRecordedBy));
+        Set<Long> userIds = new LinkedHashSet<>(period.keySet());
+        userIds.addAll(ofToday.keySet());
+        if (userIds.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, String> names = userRepository.findAllById(userIds).stream()
+                .collect(Collectors.toMap(User::getId, u -> (nz(u.getFirstName()) + " " + nz(u.getLastName())).trim()));
+        Set<VenuePaymentMethod> mobile = EnumSet.of(VenuePaymentMethod.MPESA, VenuePaymentMethod.ORANGE_MONEY,
+                VenuePaymentMethod.AIRTEL_MONEY);
+        return userIds.stream().map(id -> {
+            List<VenueBookingPayment> mine = period.getOrDefault(id, List.of());
+            return VenueCashierTotal.builder()
+                    .userId(id)
+                    .name(names.getOrDefault(id, "Utilisateur #" + id))
+                    .today(netTotals(ofToday.getOrDefault(id, List.of())))
+                    .collected(netTotals(mine))
+                    .cash(netTotals(mine.stream().filter(p -> p.getMethod() == VenuePaymentMethod.ESPECES).toList()))
+                    .mobileMoney(netTotals(mine.stream().filter(p -> mobile.contains(p.getMethod())).toList()))
+                    .transfer(netTotals(mine.stream().filter(p -> p.getMethod() == VenuePaymentMethod.VIREMENT).toList()))
+                    .paymentCount(mine.stream().filter(p -> p.getKind() != VenuePaymentKind.REFUND).count())
+                    .refundCount(mine.stream().filter(p -> p.getKind() == VenuePaymentKind.REFUND).count())
+                    .build();
+        }).sorted(Comparator.comparing(VenueCashierTotal::getPaymentCount).reversed()).toList();
+    }
+
+    private static List<CurrencyAmount> netTotals(List<VenueBookingPayment> payments) {
+        Map<VenueCurrency, BigDecimal> sums = new EnumMap<>(VenueCurrency.class);
+        payments.forEach(p -> sums.merge(p.getCurrency(),
+                p.getKind() == VenuePaymentKind.REFUND ? p.getAmount().negate() : p.getAmount(), BigDecimal::add));
+        return toList(sums);
     }
 
     /** Lignes des remboursements (réservation, client, salle) pour la liste du tableau de bord. */

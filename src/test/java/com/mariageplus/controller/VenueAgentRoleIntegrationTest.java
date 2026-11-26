@@ -138,6 +138,26 @@ class VenueAgentRoleIntegrationTest {
         assertThat(amount(ownerCash.path("collected"), "USD")).isEqualByComparingTo("100");
         assertThat(amount(ownerCash.path("collected"), "CDF")).isEqualByComparingTo("0");
         assertThat(ownerCash.path("movements")).hasSize(1);
+
+        // Tableau de bord du gérant : encaissements par personne, avec la part espèces / Mobile Money.
+        JsonNode byCashier = json(perform(get("/api/venues/dashboard"), owner, 200)).path("byCashier");
+        assertThat(byCashier).hasSize(2);
+        JsonNode cashier = null;
+        JsonNode manager = null;
+        for (JsonNode c : byCashier) {
+            if (c.path("name").asText().startsWith("Caissier")) cashier = c;
+            if (c.path("name").asText().startsWith("Gerant")) manager = c;
+        }
+        assertThat(cashier).as("le caissier apparaît").isNotNull();
+        assertThat(manager).as("le gérant apparaît").isNotNull();
+        assertThat(cashier.path("paymentCount").asLong()).isEqualTo(2);
+        assertThat(amount(cashier.path("today"), "USD")).isEqualByComparingTo("300");
+        assertThat(amount(cashier.path("cash"), "USD")).isEqualByComparingTo("300");
+        assertThat(amount(cashier.path("mobileMoney"), "CDF")).isEqualByComparingTo("280000");
+        assertThat(amount(cashier.path("cash"), "CDF")).isEqualByComparingTo("0");
+        assertThat(amount(manager.path("collected"), "USD")).isEqualByComparingTo("100");
+        // Le caissier, lui, n'a pas accès à ce tableau de bord.
+        perform(get("/api/venues/dashboard"), agent, 403);
     }
 
     private java.math.BigDecimal amount(JsonNode list, String currency) {

@@ -31,6 +31,9 @@ public class VenueDashboardResponse {
     /** Remboursements de la période, les plus récents d'abord. */
     private List<VenueRefundLine> refunds;
 
+    /** Encaissements par personne (caissiers, gérant) : contrôle de caisse. */
+    private List<VenueCashierTotal> byCashier;
+
     /** Valeur des réservations confirmées / réalisées de la période, par devise. */
     private List<CurrencyAmount> bookedValue;
 
