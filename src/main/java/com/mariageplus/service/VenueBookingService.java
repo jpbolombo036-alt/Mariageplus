@@ -250,7 +250,7 @@ public class VenueBookingService {
         VenueBooking booking = loadInScope(bookingId);
         cancelInternal(booking, blankToNull(reason));
         if (refund != null) {
-            securityUtils.assertPermission("BOOKING_PAYMENT_RECORD");
+            securityUtils.assertPermission("BOOKING_REFUND");
             addMovement(booking, refund, VenuePaymentKind.REFUND);
         }
         return toDetail(booking);
@@ -347,7 +347,7 @@ public class VenueBookingService {
     /** Remboursement au client d'une réservation annulée (total ou partiel). */
     @Transactional
     public VenuePaymentResponse recordRefund(Long bookingId, VenuePaymentRequest request) {
-        securityUtils.assertPermission("BOOKING_PAYMENT_RECORD");
+        securityUtils.assertPermission("BOOKING_REFUND");
         VenueBooking booking = loadInScope(bookingId);
         return toPaymentResponse(addMovement(booking, request, VenuePaymentKind.REFUND));
     }
@@ -413,7 +413,8 @@ public class VenueBookingService {
     /** Annule un paiement saisi par erreur (suppression logique, tracée dans l'audit). */
     @Transactional
     public void deletePayment(Long bookingId, Long paymentId) {
-        securityUtils.assertPermission("BOOKING_PAYMENT_RECORD");
+        // Annuler un encaissement = sortie d'argent : réservé au gérant, comme un remboursement.
+        securityUtils.assertPermission("BOOKING_REFUND");
         VenueBooking booking = loadInScope(bookingId);
         VenueBookingPayment payment = paymentRepository.findByIdAndBookingId(paymentId, booking.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Paiement introuvable : " + paymentId));
@@ -431,6 +432,7 @@ public class VenueBookingService {
     @Transactional
     public VenueBookingResponse createEvent(Long bookingId, CreateEventFromBookingRequest request) {
         securityUtils.assertPermission("BOOKING_MANAGE");
+        securityUtils.assertPermission("EVENT_CREATE");
         VenueBooking booking = loadInScope(bookingId);
         if (booking.getStatus() != VenueBookingStatus.CONFIRMEE) {
             throw new IllegalArgumentException("L'événement se crée depuis une réservation CONFIRMEE");
@@ -448,6 +450,8 @@ public class VenueBookingService {
     @Transactional
     public VenueClientAccessResponse grantClientAccess(Long bookingId, VenueClientAccessRequest request) {
         securityUtils.assertPermission("BOOKING_MANAGE");
+        // Créer un compte pour le client = gérer l'équipe de l'organisation.
+        securityUtils.assertPermission("ORGANIZATION_MANAGE_MEMBERS");
         VenueBooking booking = loadInScope(bookingId);
         if (booking.getStatus() == VenueBookingStatus.ANNULEE) {
             throw new IllegalArgumentException("Réservation annulée");

@@ -30,6 +30,12 @@ autorisée pour l'organisation (`eventCreationEnabled`).
 | `BOOKING_VIEW` / `BOOKING_MANAGE` | réservations, calendrier, prestations, événement, accès client |
 | `BOOKING_PAYMENT_RECORD` | enregistrer / annuler un paiement |
 | `VENUE_REPORT_VIEW` | tableau de bord, export Excel |
+| `BOOKING_REFUND` | rembourser un client, annuler un paiement (V57) |
+
+**Rôle `AGENT_SALLE`** (caissier, V57) : `VENUE_VIEW`, `VENUE_CLIENT_MANAGE`, `BOOKING_VIEW`, `BOOKING_MANAGE`,
+`BOOKING_PAYMENT_RECORD`. Il réserve et encaisse sur toutes les salles de l'organisation (jamais rattaché à un
+événement), mais ne rembourse pas, n'annule pas de paiement, ne voit pas les rapports, ne gère ni les salles ni le
+taux du jour, et ne crée ni l'événement MariagePlus ni l'accès client (`EVENT_CREATE`, `ORGANIZATION_MANAGE_MEMBERS`).
 
 ## Règles métier
 

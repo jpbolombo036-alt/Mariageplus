@@ -42,7 +42,10 @@ public class OrganizationMemberService {
      * un SUPER_ADMIN déjà authentifié.
      */
     private static final Set<String> ORGANIZATION_ROLE_CODES = Set.of(
-            "ORGANISATEUR", "GESTIONNAIRE_INVITES", "AGENT_ACCUEIL");
+            "ORGANISATEUR", "GESTIONNAIRE_INVITES", "AGENT_ACCUEIL", "AGENT_SALLE");
+
+    /** Rôles valables sur toute l'organisation : jamais rattachés à un événement. */
+    private static final Set<String> ORGANIZATION_WIDE_ROLE_CODES = Set.of("AGENT_SALLE");
 
     private final OrganizationMemberRepository organizationMemberRepository;
     private final OrganizationService organizationService;
@@ -67,7 +70,8 @@ public class OrganizationMemberService {
         Role role = roleRepository.findByCode(request.getRoleCode())
                 .orElseThrow(() -> new ResourceNotFoundException("Rôle introuvable: " + request.getRoleCode()));
 
-        Long weddingId = request.getWeddingId();
+        // Agent de salle : toutes les salles de l'organisation, pas d'événement.
+        Long weddingId = ORGANIZATION_WIDE_ROLE_CODES.contains(role.getCode()) ? null : request.getWeddingId();
         boolean agent = isAgentRole(role.getCode());
         if (agent && weddingId == null) {
             throw new IllegalArgumentException("Le weddingId est requis pour le rôle " + role.getCode());
