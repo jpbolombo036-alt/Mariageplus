@@ -2,6 +2,7 @@ package com.mariageplus.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.SQLRestriction;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -13,6 +14,8 @@ import java.time.LocalDateTime;
  * {@code amountInBookingCurrency}, utilisé pour le reste à payer.
  */
 @Entity
+// Redéclaré ici : le @SQLRestriction de BaseEntity (@MappedSuperclass) n'est pas hérité.
+@SQLRestriction("deleted_at IS NULL")
 @Table(name = "venue_booking_payments")
 @Getter
 @Setter

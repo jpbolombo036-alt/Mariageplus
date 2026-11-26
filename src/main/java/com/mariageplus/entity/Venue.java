@@ -2,9 +2,12 @@ package com.mariageplus.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.SQLRestriction;
 
 /** Salle de fête appartenant à une organisation (module « Salles »). */
 @Entity
+// Redéclaré ici : le @SQLRestriction de BaseEntity (@MappedSuperclass) n'est pas hérité.
+@SQLRestriction("deleted_at IS NULL")
 @Table(name = "venues")
 @Getter
 @Setter

@@ -284,6 +284,37 @@ class VenueModuleIntegrationTest {
     }
 
     @Test
+    void deletedPaymentsExtrasRatesAndVenues_disappear() throws Exception {
+        long venueId = createVenue("Salle Suppressions", "400");
+        long bookingId = createBooking(venueId, "2027-09-10T10:00:00", "2027-09-10T20:00:00", "Suppression");
+        JsonNode withExtra = json(perform(post("/api/bookings/{id}/extras", bookingId).contentType(MediaType.APPLICATION_JSON)
+                .content(body(Map.of("label", "Nettoyage", "quantity", 1, "unitPrice", 100))), tokenVenueOwner, 201));
+        long extraId = withExtra.path("extras").get(0).path("id").asLong();
+        long paymentId = json(perform(post("/api/bookings/{id}/payments", bookingId).contentType(MediaType.APPLICATION_JSON)
+                .content(body(Map.of("amount", 150, "method", "ESPECES"))), tokenVenueOwner, 201)).path("id").asLong();
+
+        // Paiement annulé : il ne compte plus, et une seconde annulation ne le retrouve pas.
+        perform(delete("/api/bookings/{id}/payments/{pid}", bookingId, paymentId), tokenVenueOwner, 204);
+        perform(delete("/api/bookings/{id}/payments/{pid}", bookingId, paymentId), tokenVenueOwner, 404);
+        JsonNode booking = json(perform(get("/api/bookings/{id}", bookingId), tokenVenueOwner, 200));
+        assertThat(booking.path("payments")).isEmpty();
+        assertThat(booking.path("paidAmount").decimalValue()).isEqualByComparingTo("0");
+
+        // Prestation retirée : absente de la liste et du total.
+        booking = json(perform(delete("/api/bookings/{id}/extras/{eid}", bookingId, extraId), tokenVenueOwner, 200));
+        assertThat(booking.path("extras")).isEmpty();
+        assertThat(booking.path("totalAmount").decimalValue()).isEqualByComparingTo("300");
+
+        // Tarif puis salle supprimés : plus listés.
+        long rateId = json(perform(get("/api/venues/{id}", venueId), tokenVenueOwner, 200)).path("rates").get(0).path("id").asLong();
+        perform(delete("/api/venues/{id}/rates/{rid}", venueId, rateId), tokenVenueOwner, 204);
+        assertThat(json(perform(get("/api/venues/{id}", venueId), tokenVenueOwner, 200)).path("rates")).isEmpty();
+        perform(delete("/api/venues/{id}", venueId), tokenVenueOwner, 204);
+        assertThat(json(perform(get("/api/venues"), tokenVenueOwner, 200)).toString()).doesNotContain("Salle Suppressions");
+        perform(get("/api/venues/{id}", venueId), tokenVenueOwner, 404);
+    }
+
+    @Test
     void concurrentBookingsOfSameSlot_onlyOneSucceeds() throws Exception {
         long venueId = createVenue("Salle Concurrence", "1000");
         int attempts = 4;

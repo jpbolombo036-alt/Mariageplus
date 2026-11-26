@@ -2,9 +2,12 @@ package com.mariageplus.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.SQLRestriction;
 
 /** Fiche client d'une salle : aucun compte n'est requis. */
 @Entity
+// Redéclaré ici : le @SQLRestriction de BaseEntity (@MappedSuperclass) n'est pas hérité.
+@SQLRestriction("deleted_at IS NULL")
 @Table(name = "venue_clients")
 @Getter
 @Setter
