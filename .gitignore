@@ -12,3 +12,13 @@ _tail.txt
 .idea
 .vscode
 *.iml
+
+# Fichiers de debug / sorties d'outils locaux
+_diag.txt
+_inv.json
+_probe_out.json
+_*.json
+.playwright-cli/
+.tmp-frontend-*/
+output/
+.kilo/

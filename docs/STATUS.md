@@ -1,6 +1,6 @@
 # Etat du projet - MariagePlus backend
 
-Derniere mise a jour : septembre 2026.
+Derniere mise a jour : novembre 2026.
 
 Le backend Spring Boot est utilise avec le frontend web du depot separe `MariageWeb-main`.
 
@@ -17,7 +17,9 @@ Le backend Spring Boot est utilise avec le frontend web du depot separe `Mariage
 - Import CSV/XLSX des invites.
 - Uploads d'images et stockage S3-compatible avec fallback base de donnees.
 - Envoi groupe et notifications WhatsApp preparees.
-- Migrations Flyway jusqu'a V33.
+- Migrations Flyway jusqu'a V53.
+- Check-in hors ligne idempotent, galeries, boissons, rappels automatiques d'evenements, notifications in-app.
+- Mot de passe oublie traite par le SUPER_ADMIN (sans SMTP).
 - Docker multi-stage et deploiement Railway.
 
 Le parcours principal frontend/backend a ete teste :
@@ -38,9 +40,8 @@ Le parcours principal frontend/backend a ete teste :
 
 - Backend : depot GitHub `Mariageplus`, branche `main`.
 - Frontend : depot local/deploiement separe `MariageWeb-main`.
-- Dernier correctif backend pousse : `c88da91`.
-- Le dernier build Railway avait echoue sur un ancien test de compatibilite du controleur refresh.
-- Le test a ete corrige et pousse ; le nouveau build Railway doit etre confirme.
+- CI GitHub Actions : `./mvnw -B test` sur chaque push (398 tests, verts au 26/11/2026).
+- Flyway n'execute plus `repair()` a chaque demarrage ; `FLYWAY_REPAIR_ON_START=true` le reactive ponctuellement.
 
 ## 4. Limites actuelles
 
@@ -54,12 +55,12 @@ Le parcours principal frontend/backend a ete teste :
 
 ## 5. Priorites restantes
 
-1. Confirmer le nouveau deploiement Railway et l'execution de la migration V33.
+1. Verifier que `FLYWAY_REPAIR_ON_START` n'est pas active sur Railway.
 2. Verifier `CORS_ALLOWED_ORIGINS`, `JWT_SECRET` et desactiver `ADMIN_INIT_ENABLED` en production.
 3. Configurer SMTP si requis.
-4. Ajouter une CI qui execute les tests Maven, le typecheck et le build frontend.
+4. Etendre la CI au typecheck et au build frontend (les tests Maven y tournent deja).
 5. Ajouter monitoring, alertes et sauvegardes PostgreSQL.
-6. Ajouter Redis pour le rate limiting multi-instance.
+6. Ajouter Redis pour le rate limiting multi-instance et un verrou partage (ex. ShedLock) pour les taches `@Scheduled`.
 7. Completer les exports, rapports et fonctions RGPD.
 
 ## 6. Lancement local

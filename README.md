@@ -74,6 +74,6 @@ L'inscription (`POST /auth/register`) crée un organisateur et son organisation.
 
 ## Limites & suite
 
-Le backend V1 (API) est en place. Ce dépôt **ne contient pas** l’app Flutter ni la page publique RSVP.
+Le backend V1 (API) est en place. Ce dépôt contient la page publique d'invitation/RSVP (`/invitations/**`) mais **pas** l’app Flutter ni le frontend web (`MariageWeb-main`).
 
 Détail (ce qui marche, ce qui est limité, priorités P0–P3) : **[docs/STATUS.md](docs/STATUS.md)**.
