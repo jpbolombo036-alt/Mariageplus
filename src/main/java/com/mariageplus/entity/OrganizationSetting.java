@@ -35,6 +35,10 @@ public class OrganizationSetting {
     @Column(name = "event_creation_enabled")
     private Boolean eventCreationEnabled;
 
+    /** Module « Salles » : NULL ou false = désactivé (pas d'héritage global). */
+    @Column(name = "venue_module_enabled")
+    private Boolean venueModuleEnabled;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

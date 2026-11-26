@@ -40,6 +40,22 @@ public class OrganizationSettingsService {
         return override != null ? override : appSettingService.isWhatsappSendingEnabled();
     }
 
+    /**
+     * Le module « Salles » est-il activé pour cette organisation ? Activation
+     * explicite par le SUPER_ADMIN uniquement : NULL = désactivé.
+     */
+    @Transactional(readOnly = true)
+    public boolean isVenueModuleEnabled(Long organizationId) {
+        return Boolean.TRUE.equals(getOverride(organizationId, OrganizationSetting::getVenueModuleEnabled));
+    }
+
+    /** Active / désactive le module « Salles » d'une organisation (null = désactivé). */
+    @Transactional
+    public void setVenueModuleEnabled(Long organizationId, Boolean enabled) {
+        upsert(organizationId, s -> s.setVenueModuleEnabled(enabled));
+        log.info("Réglage organisation {} : venue_module_enabled = {}", organizationId, enabled);
+    }
+
     /** Ligne de réglages brute d'une organisation (null si jamais configurée). */
     @Transactional(readOnly = true)
     public OrganizationSetting getOrEmpty(Long organizationId) {
