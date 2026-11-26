@@ -25,7 +25,7 @@ public class VenuePaymentRequest {
     /** Défaut : devise de la réservation. */
     private VenueCurrency currency;
 
-    /** CDF pour 1 USD ; obligatoire si la devise diffère de celle de la réservation. */
+    /** CDF pour 1 USD ; défaut : taux du jour de la salle si la devise diffère de celle de la réservation. */
     @DecimalMin(value = "0.0001", message = "Le taux doit être positif")
     private BigDecimal exchangeRate;
 

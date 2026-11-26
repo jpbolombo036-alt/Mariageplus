@@ -151,8 +151,6 @@ class VenueModuleIntegrationTest {
         // Paiements : 500 USD, puis 280 000 CDF au taux de 2 800.
         perform(post("/api/bookings/{id}/payments", bookingId).contentType(MediaType.APPLICATION_JSON)
                 .content(body(Map.of("amount", 500, "method", "ESPECES"))), tokenVenueOwner, 201);
-        perform(post("/api/bookings/{id}/payments", bookingId).contentType(MediaType.APPLICATION_JSON)
-                .content(body(Map.of("amount", 280000, "currency", "CDF", "method", "MPESA"))), tokenVenueOwner, 400);
         JsonNode cdfPayment = json(perform(post("/api/bookings/{id}/payments", bookingId).contentType(MediaType.APPLICATION_JSON)
                 .content(body(Map.of("amount", 280000, "currency", "CDF", "exchangeRate", 2800, "method", "MPESA",
                         "reference", "MP-123"))), tokenVenueOwner, 201));
@@ -323,6 +321,86 @@ class VenueModuleIntegrationTest {
         perform(get("/api/venues/{id}", venueId), tokenVenueOwner, 200);
         assertThat(json(perform(get("/api/venues/deleted"), tokenVenueOwner, 200)).toString()).doesNotContain("Salle Suppressions");
         perform(post("/api/venues/{id}/restore", venueId), tokenVenueOwner, 404);
+    }
+
+    @Test
+    void paymentInOtherCurrency_withoutAnyRate_isRejected() throws Exception {
+        // Organisation neuve, sans taux du jour : un paiement en CDF sans taux saisi est refusé.
+        LoginResponse fresh = register("Salle Sans Taux");
+        organizationSettingsService.setVenueModuleEnabled(fresh.getUser().getOrganizationId(), true);
+        String token = fresh.getAccessToken();
+        long venueId = json(perform(post("/api/venues").contentType(MediaType.APPLICATION_JSON)
+                .content(body(Map.of("name", "Salle Sans Taux"))), token, 201)).path("id").asLong();
+        long bookingId = json(perform(post("/api/bookings").contentType(MediaType.APPLICATION_JSON).content(body(Map.of(
+                "venueId", venueId, "basePrice", 500, "startAt", "2027-11-05T10:00:00", "endAt", "2027-11-05T22:00:00",
+                "client", Map.of("lastName", "SansTaux")))), token, 201)).path("id").asLong();
+        MvcResult refused = perform(post("/api/bookings/{id}/payments", bookingId).contentType(MediaType.APPLICATION_JSON)
+                .content(body(Map.of("amount", 280000, "currency", "CDF", "method", "MPESA"))), token, 400);
+        assertThat(refused.getResponse().getContentAsString()).contains("taux");
+    }
+
+    @Test
+    void dailyExchangeRate_andRefundsOnCancellation() throws Exception {
+        // Taux du jour fixé par la salle : repris par défaut sur un paiement en CDF.
+        JsonNode rates = json(perform(post("/api/venues/exchange-rate").contentType(MediaType.APPLICATION_JSON)
+                .content(body(Map.of("cdfPerUsd", 2850, "note", "Taux marché"))), tokenVenueOwner, 200));
+        assertThat(rates.path("current").path("cdfPerUsd").decimalValue()).isEqualByComparingTo("2850");
+        perform(post("/api/venues/exchange-rate").contentType(MediaType.APPLICATION_JSON)
+                .content(body(Map.of("cdfPerUsd", 0))), tokenVenueOwner, 400);
+        // Chaque organisation a son propre taux.
+        assertThat(json(perform(get("/api/venues/exchange-rate"), tokenOtherOwner, 200)).path("current").isNull()).isTrue();
+
+        long venueId = createVenue("Salle Remboursements", "1000");
+        long bookingId = json(perform(post("/api/bookings").contentType(MediaType.APPLICATION_JSON).content(body(Map.of(
+                "venueId", venueId, "basePrice", 1000, "startAt", "2027-10-05T10:00:00", "endAt", "2027-10-05T22:00:00",
+                "client", Map.of("lastName", "Rembourse")))), tokenVenueOwner, 201)).path("id").asLong();
+
+        JsonNode cdf = json(perform(post("/api/bookings/{id}/payments", bookingId).contentType(MediaType.APPLICATION_JSON)
+                .content(body(Map.of("amount", 285000, "currency", "CDF", "method", "MPESA"))), tokenVenueOwner, 201));
+        assertThat(cdf.path("exchangeRate").decimalValue()).isEqualByComparingTo("2850");
+        assertThat(cdf.path("amountInBookingCurrency").decimalValue()).isEqualByComparingTo("100");
+        // Un taux saisi sur le paiement reste prioritaire.
+        JsonNode manual = json(perform(post("/api/bookings/{id}/payments", bookingId).contentType(MediaType.APPLICATION_JSON)
+                .content(body(Map.of("amount", 280000, "currency", "CDF", "exchangeRate", 2800, "method", "MPESA"))), tokenVenueOwner, 201));
+        assertThat(manual.path("amountInBookingCurrency").decimalValue()).isEqualByComparingTo("100");
+        perform(post("/api/bookings/{id}/payments", bookingId).contentType(MediaType.APPLICATION_JSON)
+                .content(body(Map.of("amount", 400, "method", "ESPECES"))), tokenVenueOwner, 201);
+
+        // Pas de remboursement tant que la réservation n'est pas annulée.
+        perform(post("/api/bookings/{id}/refunds", bookingId).contentType(MediaType.APPLICATION_JSON)
+                .content(body(Map.of("amount", 100, "method", "ESPECES"))), tokenVenueOwner, 400);
+
+        // Annulation avec remboursement partiel : 400 rendus sur 600 payés, 200 retenus.
+        JsonNode cancelled = json(perform(post("/api/bookings/{id}/cancel", bookingId).contentType(MediaType.APPLICATION_JSON)
+                .content(body(Map.of("reason", "Client empêché",
+                        "refund", Map.of("amount", 400, "method", "ESPECES", "reference", "Caisse")))), tokenVenueOwner, 200));
+        assertThat(cancelled.path("status").asText()).isEqualTo("ANNULEE");
+        assertThat(cancelled.path("paidAmount").decimalValue()).isEqualByComparingTo("600");
+        assertThat(cancelled.path("refundedAmount").decimalValue()).isEqualByComparingTo("400");
+        assertThat(cancelled.path("retainedAmount").decimalValue()).isEqualByComparingTo("200");
+        assertThat(cancelled.path("balance").decimalValue()).isEqualByComparingTo("0");
+
+        // On ne rembourse pas plus que ce qui reste encaissé.
+        perform(post("/api/bookings/{id}/refunds", bookingId).contentType(MediaType.APPLICATION_JSON)
+                .content(body(Map.of("amount", 300, "method", "ESPECES"))), tokenVenueOwner, 400);
+        JsonNode refundCdf = json(perform(post("/api/bookings/{id}/refunds", bookingId).contentType(MediaType.APPLICATION_JSON)
+                .content(body(Map.of("amount", 142500, "currency", "CDF", "method", "AIRTEL_MONEY"))), tokenVenueOwner, 201));
+        assertThat(refundCdf.path("kind").asText()).isEqualTo("REFUND");
+        assertThat(refundCdf.path("receiptNumber").asText()).startsWith("RMB-");
+        assertThat(refundCdf.path("amountInBookingCurrency").decimalValue()).isEqualByComparingTo("50");
+
+        JsonNode detail = json(perform(get("/api/bookings/{id}", bookingId), tokenVenueOwner, 200));
+        assertThat(detail.path("refundedAmount").decimalValue()).isEqualByComparingTo("450");
+        assertThat(detail.path("retainedAmount").decimalValue()).isEqualByComparingTo("150");
+        assertPdf(perform(get("/api/bookings/{id}/payments/{pid}/receipt.pdf", bookingId, refundCdf.path("id").asLong()),
+                tokenVenueOwner, 200));
+
+        // Tableau de bord : les remboursements sont déduits de l'encaissé et listés à part.
+        JsonNode dashboard = json(perform(get("/api/venues/dashboard?venueId=" + venueId), tokenVenueOwner, 200));
+        assertThat(amount(dashboard.path("collected"), "USD")).isEqualByComparingTo("0");
+        assertThat(amount(dashboard.path("collected"), "CDF")).isEqualByComparingTo("422500");
+        assertThat(amount(dashboard.path("refunded"), "USD")).isEqualByComparingTo("400");
+        assertThat(amount(dashboard.path("refunded"), "CDF")).isEqualByComparingTo("142500");
     }
 
     @Test

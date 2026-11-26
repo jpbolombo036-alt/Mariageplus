@@ -2,6 +2,7 @@ package com.mariageplus.controller;
 
 import com.mariageplus.dto.venue.*;
 import com.mariageplus.service.VenueBookingService;
+import com.mariageplus.service.VenueExchangeRateService;
 import com.mariageplus.service.VenueModuleGuard;
 import com.mariageplus.service.VenueReportService;
 import com.mariageplus.service.VenueService;
@@ -32,6 +33,7 @@ public class VenueController {
     private final VenueBookingService bookingService;
     private final VenueReportService reportService;
     private final VenueModuleGuard guard;
+    private final VenueExchangeRateService exchangeRateService;
 
     @GetMapping("/module-status")
     @Operation(summary = "Le module Salles est-il activé pour mon organisation ?")
@@ -49,6 +51,18 @@ public class VenueController {
     @Operation(summary = "Créer une salle")
     public ResponseEntity<VenueResponse> create(@Valid @RequestBody VenueRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(venueService.create(request));
+    }
+
+    @GetMapping("/exchange-rate")
+    @Operation(summary = "Taux du jour USD → CDF de la salle et historique")
+    public ResponseEntity<VenueExchangeRateResponse> exchangeRate() {
+        return ResponseEntity.ok(exchangeRateService.overview());
+    }
+
+    @PostMapping("/exchange-rate")
+    @Operation(summary = "Fixer le taux du jour (CDF pour 1 USD)")
+    public ResponseEntity<VenueExchangeRateResponse> setExchangeRate(@Valid @RequestBody VenueExchangeRateRequest request) {
+        return ResponseEntity.ok(exchangeRateService.setRate(request));
     }
 
     @GetMapping("/deleted")

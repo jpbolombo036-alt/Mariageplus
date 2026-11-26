@@ -1,6 +1,7 @@
 package com.mariageplus.dto.venue;
 
 import com.mariageplus.entity.VenueCurrency;
+import com.mariageplus.entity.VenuePaymentKind;
 import com.mariageplus.entity.VenuePaymentMethod;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -17,6 +18,9 @@ public class VenuePaymentResponse {
 
     private Long id;
     private Long bookingId;
+
+    /** PAYMENT ou REFUND. */
+    private VenuePaymentKind kind;
     private String receiptNumber;
     private BigDecimal amount;
     private VenueCurrency currency;

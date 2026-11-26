@@ -21,12 +21,17 @@ public interface VenueBookingPaymentRepository extends JpaRepository<VenueBookin
 
     boolean existsByBookingId(Long bookingId);
 
-    /** Total encaissé (converti dans la devise de la réservation) pour chaque réservation. */
-    @Query("SELECT p.bookingId AS bookingId, SUM(p.amountInBookingCurrency) AS paid "
+    /**
+     * Totaux par réservation, convertis dans la devise de la réservation :
+     * encaissé (paiements) et remboursé (remboursements).
+     */
+    @Query("SELECT p.bookingId AS bookingId, "
+            + "SUM(CASE WHEN p.kind = com.mariageplus.entity.VenuePaymentKind.PAYMENT THEN p.amountInBookingCurrency ELSE 0 END) AS paid, "
+            + "SUM(CASE WHEN p.kind = com.mariageplus.entity.VenuePaymentKind.REFUND THEN p.amountInBookingCurrency ELSE 0 END) AS refunded "
             + "FROM VenueBookingPayment p WHERE p.bookingId IN :ids GROUP BY p.bookingId")
     List<PaidTotal> sumPaidByBookingIds(@Param("ids") Collection<Long> bookingIds);
 
-    /** Paiements encaissés par l'organisation pendant [from, to[. */
+    /** Paiements et remboursements de l'organisation pendant [from, to[. */
     @Query("SELECT p FROM VenueBookingPayment p WHERE p.bookingId IN "
             + "(SELECT b.id FROM VenueBooking b WHERE b.organizationId = :orgId) "
             + "AND p.paidAt >= :from AND p.paidAt < :to ORDER BY p.paidAt")
@@ -38,5 +43,7 @@ public interface VenueBookingPaymentRepository extends JpaRepository<VenueBookin
         Long getBookingId();
 
         BigDecimal getPaid();
+
+        BigDecimal getRefunded();
     }
 }

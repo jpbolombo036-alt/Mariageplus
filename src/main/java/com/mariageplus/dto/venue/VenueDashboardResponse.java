@@ -22,8 +22,11 @@ public class VenueDashboardResponse {
     /** Nombre de réservations par statut (débutant dans la période). */
     private Map<String, Long> bookingsByStatus;
 
-    /** Encaissé pendant la période, par devise du paiement. */
+    /** Encaissé net pendant la période (paiements − remboursements), par devise du mouvement. */
     private List<CurrencyAmount> collected;
+
+    /** Remboursé pendant la période, par devise du remboursement. */
+    private List<CurrencyAmount> refunded;
 
     /** Valeur des réservations confirmées / réalisées de la période, par devise. */
     private List<CurrencyAmount> bookedValue;
