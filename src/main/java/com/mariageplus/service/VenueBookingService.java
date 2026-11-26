@@ -49,6 +49,7 @@ public class VenueBookingService {
     private final VenueService venueService;
     private final VenueClientService clientService;
     private final VenueEventLinkService eventLinkService;
+    private final VenueExchangeRateService exchangeRateService;
     private final VenueModuleGuard guard;
     private final SecurityUtils securityUtils;
     private final AuditService auditService;
@@ -237,11 +238,20 @@ public class VenueBookingService {
         return toDetail(saved);
     }
 
+    /**
+     * Annule la réservation et, si demandé, enregistre dans la même opération
+     * le remboursement du client. Ce qui n'est pas remboursé reste acquis à la
+     * salle (frais d'annulation) ; d'autres remboursements restent possibles ensuite.
+     */
     @Transactional
-    public VenueBookingResponse cancel(Long bookingId, String reason) {
+    public VenueBookingResponse cancel(Long bookingId, String reason, VenuePaymentRequest refund) {
         securityUtils.assertPermission("BOOKING_MANAGE");
         VenueBooking booking = loadInScope(bookingId);
         cancelInternal(booking, blankToNull(reason));
+        if (refund != null) {
+            securityUtils.assertPermission("BOOKING_PAYMENT_RECORD");
+            addMovement(booking, refund, VenuePaymentKind.REFUND);
+        }
         return toDetail(booking);
     }
 
@@ -324,17 +334,49 @@ public class VenueBookingService {
         if (booking.getStatus() == VenueBookingStatus.ANNULEE) {
             throw new IllegalArgumentException("Impossible d'encaisser sur une réservation annulée");
         }
+        return toPaymentResponse(addMovement(booking, request, VenuePaymentKind.PAYMENT));
+    }
+
+    /** Remboursement au client d'une réservation annulée (total ou partiel). */
+    @Transactional
+    public VenuePaymentResponse recordRefund(Long bookingId, VenuePaymentRequest request) {
+        securityUtils.assertPermission("BOOKING_PAYMENT_RECORD");
+        VenueBooking booking = loadInScope(bookingId);
+        return toPaymentResponse(addMovement(booking, request, VenuePaymentKind.REFUND));
+    }
+
+    /**
+     * Enregistre un paiement ou un remboursement. En autre devise que la
+     * réservation, le taux saisi est prioritaire, sinon le taux du jour de la salle.
+     * Un paiement ne peut pas dépasser le reste à payer ; un remboursement ne peut
+     * pas dépasser ce qui a été encaissé et pas encore rendu.
+     */
+    private VenueBookingPayment addMovement(VenueBooking booking, VenuePaymentRequest request, VenuePaymentKind kind) {
+        boolean refund = kind == VenuePaymentKind.REFUND;
+        if (refund && booking.getStatus() != VenueBookingStatus.ANNULEE) {
+            throw new IllegalArgumentException("Le remboursement se fait sur une réservation annulée");
+        }
         VenueCurrency currency = request.getCurrency() == null ? booking.getCurrency() : request.getCurrency();
         BigDecimal amount = VenueMoney.scale(request.getAmount());
-        BigDecimal rate = currency == booking.getCurrency() ? null : request.getExchangeRate();
+        BigDecimal rate = currency == booking.getCurrency() ? null
+                : exchangeRateService.resolve(booking.getOrganizationId(), request.getExchangeRate());
         BigDecimal converted = VenueMoney.convert(amount, currency, booking.getCurrency(), rate);
-        BigDecimal balance = booking.getTotalAmount().subtract(paidAmount(booking.getId()));
-        if (converted.compareTo(balance) > 0) {
-            throw new IllegalArgumentException("Le paiement (" + VenueMoney.format(converted, booking.getCurrency())
-                    + ") dépasse le reste à payer (" + VenueMoney.format(balance, booking.getCurrency()) + ")");
+        BigDecimal netPaid = paidAmount(booking.getId());
+        if (refund) {
+            if (converted.compareTo(netPaid) > 0) {
+                throw new IllegalArgumentException("Le remboursement (" + VenueMoney.format(converted, booking.getCurrency())
+                        + ") dépasse ce que le client a payé (" + VenueMoney.format(netPaid, booking.getCurrency()) + ")");
+            }
+        } else {
+            BigDecimal balance = booking.getTotalAmount().subtract(netPaid);
+            if (converted.compareTo(balance) > 0) {
+                throw new IllegalArgumentException("Le paiement (" + VenueMoney.format(converted, booking.getCurrency())
+                        + ") dépasse le reste à payer (" + VenueMoney.format(balance, booking.getCurrency()) + ")");
+            }
         }
         VenueBookingPayment payment = VenueBookingPayment.builder()
                 .bookingId(booking.getId())
+                .kind(kind)
                 .amount(amount)
                 .currency(currency)
                 .exchangeRate(rate)
@@ -346,9 +388,11 @@ public class VenueBookingService {
                 .recordedBy(securityUtils.getCurrentUserId())
                 .build();
         VenueBookingPayment saved = paymentRepository.save(payment);
-        audit("BOOKING_PAYMENT", booking, "Paiement " + receiptNumber(saved) + " de " + VenueMoney.format(amount, currency)
+        audit(refund ? "BOOKING_REFUND" : "BOOKING_PAYMENT", booking, (refund ? "Remboursement " : "Paiement ")
+                + receiptNumber(saved) + " de " + VenueMoney.format(amount, currency)
+                + (rate == null ? "" : " (1 USD = " + rate.stripTrailingZeros().toPlainString() + " CDF)")
                 + " (" + saved.getMethod() + ") sur " + reference(booking));
-        return toPaymentResponse(saved);
+        return saved;
     }
 
     @Transactional(readOnly = true)
@@ -368,7 +412,8 @@ public class VenueBookingService {
                 .orElseThrow(() -> new ResourceNotFoundException("Paiement introuvable : " + paymentId));
         payment.softDelete();
         paymentRepository.save(payment);
-        audit("BOOKING_PAYMENT_DELETE", booking, "Paiement " + receiptNumber(payment) + " de "
+        audit("BOOKING_PAYMENT_DELETE", booking, (payment.getKind() == VenuePaymentKind.REFUND ? "Remboursement " : "Paiement ")
+                + receiptNumber(payment) + " de "
                 + VenueMoney.format(payment.getAmount(), payment.getCurrency()) + " annulé sur " + reference(booking));
     }
 
@@ -419,19 +464,25 @@ public class VenueBookingService {
         return booking;
     }
 
+    /** Montant net encaissé (paiements - remboursements), dans la devise de la réservation. */
     public BigDecimal paidAmount(Long bookingId) {
         return paymentRepository.sumPaidByBookingIds(List.of(bookingId)).stream()
-                .map(VenueBookingPaymentRepository.PaidTotal::getPaid)
-                .filter(Objects::nonNull)
+                .map(t -> nz(t.getPaid()).subtract(nz(t.getRefunded())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private static BigDecimal nz(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
     }
 
     public static String reference(VenueBooking booking) {
         return "RES-" + String.format("%05d", booking.getId() == null ? 0 : booking.getId());
     }
 
+    /** REC-xxxxx pour un paiement, RMB-xxxxx pour un remboursement. */
     public static String receiptNumber(VenueBookingPayment payment) {
-        return "REC-" + String.format("%05d", payment.getId() == null ? 0 : payment.getId());
+        String prefix = payment.getKind() == VenuePaymentKind.REFUND ? "RMB-" : "REC-";
+        return prefix + String.format("%05d", payment.getId() == null ? 0 : payment.getId());
     }
 
     /** Résumés (sans prestations ni paiements) avec montants payés et noms chargés en lot. */
@@ -440,9 +491,8 @@ public class VenueBookingService {
             return List.of();
         }
         Set<Long> ids = bookings.stream().map(VenueBooking::getId).collect(Collectors.toSet());
-        Map<Long, BigDecimal> paid = paymentRepository.sumPaidByBookingIds(ids).stream()
-                .collect(Collectors.toMap(VenueBookingPaymentRepository.PaidTotal::getBookingId,
-                        t -> t.getPaid() == null ? BigDecimal.ZERO : t.getPaid()));
+        Map<Long, VenueBookingPaymentRepository.PaidTotal> totals = paymentRepository.sumPaidByBookingIds(ids).stream()
+                .collect(Collectors.toMap(VenueBookingPaymentRepository.PaidTotal::getBookingId, Function.identity()));
         Map<Long, Venue> venues = venueRepository.findAllById(
                         bookings.stream().map(VenueBooking::getVenueId).collect(Collectors.toSet())).stream()
                 .collect(Collectors.toMap(Venue::getId, Function.identity()));
@@ -450,8 +500,11 @@ public class VenueBookingService {
                         bookings.stream().map(VenueBooking::getClientId).collect(Collectors.toSet())).stream()
                 .collect(Collectors.toMap(VenueClient::getId, Function.identity()));
         return bookings.stream()
-                .map(b -> baseResponse(b, venues.get(b.getVenueId()), clients.get(b.getClientId()),
-                        paid.getOrDefault(b.getId(), BigDecimal.ZERO), null))
+                .map(b -> {
+                    VenueBookingPaymentRepository.PaidTotal t = totals.get(b.getId());
+                    return baseResponse(b, venues.get(b.getVenueId()), clients.get(b.getClientId()),
+                            t == null ? BigDecimal.ZERO : nz(t.getPaid()), t == null ? BigDecimal.ZERO : nz(t.getRefunded()), null);
+                })
                 .toList();
     }
 
@@ -460,9 +513,11 @@ public class VenueBookingService {
         VenueClient client = clientRepository.findById(booking.getClientId()).orElse(null);
         List<VenueBookingExtra> extras = extraRepository.findByBookingIdOrderByIdAsc(booking.getId());
         List<VenueBookingPayment> payments = paymentRepository.findByBookingIdOrderByPaidAtAscIdAsc(booking.getId());
-        BigDecimal paid = payments.stream().map(VenueBookingPayment::getAmountInBookingCurrency)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        VenueBookingResponse response = baseResponse(booking, venue, client, paid, extras);
+        BigDecimal paid = payments.stream().filter(p -> p.getKind() != VenuePaymentKind.REFUND)
+                .map(VenueBookingPayment::getAmountInBookingCurrency).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal refunded = payments.stream().filter(p -> p.getKind() == VenuePaymentKind.REFUND)
+                .map(VenueBookingPayment::getAmountInBookingCurrency).reduce(BigDecimal.ZERO, BigDecimal::add);
+        VenueBookingResponse response = baseResponse(booking, venue, client, paid, refunded, extras);
         response.setExtras(extras.stream().map(e -> VenueBookingExtraResponse.builder()
                 .id(e.getId()).label(e.getLabel()).quantity(e.getQuantity())
                 .unitPrice(e.getUnitPrice()).lineTotal(VenueMoney.scale(e.getLineTotal())).build()).toList());
@@ -589,11 +644,14 @@ public class VenueBookingService {
     }
 
     private VenueBookingResponse baseResponse(VenueBooking b, Venue venue, VenueClient client,
-                                              BigDecimal paid, List<VenueBookingExtra> extras) {
+                                              BigDecimal paid, BigDecimal refunded, List<VenueBookingExtra> extras) {
         BigDecimal extrasTotal = extras == null
                 ? b.getTotalAmount().subtract(b.getBasePrice()).add(b.getDiscount())
                 : extras.stream().map(VenueBookingExtra::getLineTotal).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal paidScaled = VenueMoney.scale(paid);
+        BigDecimal refundedScaled = VenueMoney.scale(refunded);
+        BigDecimal net = paidScaled.subtract(refundedScaled);
+        boolean cancelled = b.getStatus() == VenueBookingStatus.ANNULEE;
         return VenueBookingResponse.builder()
                 .id(b.getId())
                 .reference(reference(b))
@@ -615,7 +673,9 @@ public class VenueBookingService {
                 .discount(b.getDiscount())
                 .totalAmount(b.getTotalAmount())
                 .paidAmount(paidScaled)
-                .balance(VenueMoney.scale(b.getTotalAmount().subtract(paidScaled)))
+                .refundedAmount(refundedScaled)
+                .retainedAmount(cancelled ? net : null)
+                .balance(cancelled ? VenueMoney.scale(BigDecimal.ZERO) : VenueMoney.scale(b.getTotalAmount().subtract(net)))
                 .optionExpiresAt(b.getOptionExpiresAt())
                 .notes(b.getNotes())
                 .cancelReason(b.getCancelReason())
@@ -628,6 +688,7 @@ public class VenueBookingService {
         return VenuePaymentResponse.builder()
                 .id(p.getId())
                 .bookingId(p.getBookingId())
+                .kind(p.getKind())
                 .receiptNumber(receiptNumber(p))
                 .amount(p.getAmount())
                 .currency(p.getCurrency())

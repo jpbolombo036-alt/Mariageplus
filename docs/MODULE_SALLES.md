@@ -47,6 +47,16 @@ autorisée pour l'organisation (`eventCreationEnabled`).
   Une réservation a **une devise** (USD ou CDF). Un paiement dans l'autre devise
   exige `exchangeRate` = **CDF pour 1 USD** ; le montant converti sert au reste à
   payer. Un paiement qui dépasse le reste à payer est refusé (400).
+- **Taux de change** : le gérant fixe le taux du jour (`POST /api/venues/exchange-rate { cdfPerUsd }`,
+  historique conservé). Un paiement ou remboursement dans l'autre devise reprend ce taux, sauf si
+  `exchangeRate` est saisi sur le mouvement. Sans taux du jour ni taux saisi : 400.
+- **Remboursements** : seulement sur une réservation `ANNULEE`, total ou partiel, jamais plus que le net
+  encaissé. `POST /cancel { reason, refund: { amount, currency, method, reference } }` annule et rembourse
+  en une fois ; `POST /refunds` pour un remboursement ultérieur. Ce qui n'est pas remboursé est
+  `retainedAmount` (frais d'annulation). Reçus `RMB-xxxxx` ; le tableau de bord déduit les remboursements
+  de l'encaissé (`collected`) et les liste à part (`refunded`).
+- **Suppression d'une salle** : refusée (409) tant qu'elle a des réservations à venir ; restauration via
+  `GET /api/venues/deleted` et `POST /api/venues/{id}/restore`.
 - **Téléphones** : `0812 345 678` → `+243812345678` (`VENUE_DEFAULT_COUNTRY_CODE`).
 - Une réservation `ANNULEE` ou `REALISEE` n'est plus modifiable.
 - Tout est tracé dans `audit_logs` (création, modification, paiements, annulations).

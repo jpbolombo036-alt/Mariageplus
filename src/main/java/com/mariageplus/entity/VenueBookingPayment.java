@@ -8,7 +8,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * Paiement reçu pour une réservation, saisi par la salle. Il garde sa propre
+ * Mouvement d'argent d'une réservation (paiement reçu ou remboursement), saisi par la salle. Il garde sa propre
  * devise ; si elle diffère de celle de la réservation, le taux du jour
  * ({@code exchangeRate} = CDF pour 1 USD) sert à calculer
  * {@code amountInBookingCurrency}, utilisé pour le reste à payer.
@@ -26,6 +26,12 @@ public class VenueBookingPayment extends BaseEntity {
 
     @Column(name = "booking_id", nullable = false)
     private Long bookingId;
+
+    /** PAYMENT = encaissement, REFUND = remboursement (montants toujours positifs). */
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 10)
+    private VenuePaymentKind kind = VenuePaymentKind.PAYMENT;
 
     @Column(nullable = false, precision = 14, scale = 2)
     private BigDecimal amount;

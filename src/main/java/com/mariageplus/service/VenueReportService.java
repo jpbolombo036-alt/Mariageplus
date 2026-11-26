@@ -89,7 +89,14 @@ public class VenueReportService {
             }).toList();
         }
         Map<VenueCurrency, BigDecimal> collected = new EnumMap<>(VenueCurrency.class);
-        payments.forEach(p -> collected.merge(p.getCurrency(), p.getAmount(), BigDecimal::add));
+        Map<VenueCurrency, BigDecimal> refundedTotals = new EnumMap<>(VenueCurrency.class);
+        payments.forEach(p -> {
+            boolean refund = p.getKind() == VenuePaymentKind.REFUND;
+            collected.merge(p.getCurrency(), refund ? p.getAmount().negate() : p.getAmount(), BigDecimal::add);
+            if (refund) {
+                refundedTotals.merge(p.getCurrency(), p.getAmount(), BigDecimal::add);
+            }
+        });
 
         // Occupation : jours-salle couverts par des réservations fermes.
         long days = ChronoUnit.DAYS.between(start, end) + 1;
@@ -133,6 +140,7 @@ public class VenueReportService {
                 .venueCount(venues.size())
                 .bookingsByStatus(byStatus)
                 .collected(toList(collected))
+                .refunded(toList(refundedTotals))
                 .bookedValue(toList(booked))
                 .outstanding(toList(outstanding))
                 .occupancyRate(rate)
@@ -179,12 +187,14 @@ public class VenueReportService {
             List<List<Object>> paymentRows = payments.stream().map(p -> {
                 VenueBooking b = paymentBookings.get(p.getBookingId());
                 VenueClient c = b == null ? null : clients.get(b.getClientId());
-                return List.<Object>of(VenueBookingService.receiptNumber(p), DATE_TIME.format(p.getPaidAt()),
+                boolean refund = p.getKind() == VenuePaymentKind.REFUND;
+                return List.<Object>of(VenueBookingService.receiptNumber(p), refund ? "Remboursement" : "Paiement",
+                        DATE_TIME.format(p.getPaidAt()),
                         b == null ? "" : VenueBookingService.reference(b), c == null ? "" : c.getFullName(),
-                        p.getAmount(), p.getCurrency().name(),
+                        refund ? p.getAmount().negate() : p.getAmount(), p.getCurrency().name(),
                         p.getExchangeRate() == null ? "" : p.getExchangeRate(), p.getMethod().name(), nz(p.getReference()));
             }).toList();
-            sheet(wb, head, "Paiements", List.of("Reçu", "Date", "Réservation", "Client", "Montant", "Devise",
+            sheet(wb, head, "Paiements", List.of("Reçu", "Type", "Date", "Réservation", "Client", "Montant", "Devise",
                     "Taux (CDF/USD)", "Mode", "Référence"), paymentRows);
 
             wb.write(out);

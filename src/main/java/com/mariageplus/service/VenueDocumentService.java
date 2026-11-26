@@ -101,34 +101,42 @@ public class VenueDocumentService {
         // Reste à payer APRÈS ce paiement (paiements dans l'ordre chronologique).
         BigDecimal paidUpTo = BigDecimal.ZERO;
         for (VenueBookingPayment p : paymentRepository.findByBookingIdOrderByPaidAtAscIdAsc(booking.getId())) {
-            paidUpTo = paidUpTo.add(p.getAmountInBookingCurrency());
+            paidUpTo = p.getKind() == VenuePaymentKind.REFUND
+                    ? paidUpTo.subtract(p.getAmountInBookingCurrency())
+                    : paidUpTo.add(p.getAmountInBookingCurrency());
             if (p.getId().equals(payment.getId())) {
                 break;
             }
         }
         final BigDecimal paidToDate = paidUpTo;
+        final boolean refund = payment.getKind() == VenuePaymentKind.REFUND;
         BigDecimal remaining = booking.getTotalAmount().subtract(paidToDate);
 
         return render(doc -> {
-            header(doc, booking.getOrganizationId(), "REÇU N° " + VenueBookingService.receiptNumber(payment),
-                    "Date du paiement : " + DATE_TIME.format(payment.getPaidAt()));
+            header(doc, booking.getOrganizationId(),
+                    (refund ? "REÇU DE REMBOURSEMENT N° " : "REÇU N° ") + VenueBookingService.receiptNumber(payment),
+                    (refund ? "Date du remboursement : " : "Date du paiement : ") + DATE_TIME.format(payment.getPaidAt()));
             partyBlock(doc, booking, venue, client);
 
             PdfPTable t = new PdfPTable(new float[]{4, 6});
             t.setWidthPercentage(100);
             t.setSpacingBefore(12);
-            row(t, "Montant reçu", VenueMoney.format(payment.getAmount(), payment.getCurrency()), true);
+            row(t, refund ? "Montant remboursé" : "Montant reçu", VenueMoney.format(payment.getAmount(), payment.getCurrency()), true);
             if (payment.getCurrency() != cur) {
                 row(t, "Taux appliqué", "1 USD = " + payment.getExchangeRate().stripTrailingZeros().toPlainString() + " CDF", false);
                 row(t, "Équivalent", VenueMoney.format(payment.getAmountInBookingCurrency(), cur), false);
             }
-            row(t, "Mode de paiement", label(payment.getMethod()), false);
+            row(t, refund ? "Mode de remboursement" : "Mode de paiement", label(payment.getMethod()), false);
             if (payment.getReference() != null) {
                 row(t, "Référence", payment.getReference(), false);
             }
             row(t, "Total de la réservation", VenueMoney.format(booking.getTotalAmount(), cur), false);
-            row(t, "Total versé à ce jour", VenueMoney.format(paidToDate, cur), false);
-            row(t, "Reste à payer", VenueMoney.format(remaining, cur), true);
+            row(t, "Total versé à ce jour (net)", VenueMoney.format(paidToDate, cur), false);
+            if (booking.getStatus() == VenueBookingStatus.ANNULEE) {
+                row(t, "Réservation annulée — montant retenu", VenueMoney.format(paidToDate, cur), true);
+            } else {
+                row(t, "Reste à payer", VenueMoney.format(remaining, cur), true);
+            }
             doc.add(t);
             doc.add(new Paragraph(" "));
             doc.add(new Paragraph("Signature et cachet :", font(10, false)));

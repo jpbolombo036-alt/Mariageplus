@@ -36,7 +36,13 @@ public class VenueBookingResponse {
     private BigDecimal extrasTotal;
     private BigDecimal discount;
     private BigDecimal totalAmount;
+    /** Total des paiements reçus. */
     private BigDecimal paidAmount;
+    /** Total remboursé au client. */
+    private BigDecimal refundedAmount;
+    /** Réservation annulée : ce que la salle garde (payé − remboursé). Sinon null. */
+    private BigDecimal retainedAmount;
+    /** Reste à payer (0 pour une réservation annulée). */
     private BigDecimal balance;
     private LocalDateTime optionExpiresAt;
     private String notes;

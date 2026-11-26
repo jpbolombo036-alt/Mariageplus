@@ -74,10 +74,18 @@ public class VenueBookingController {
     }
 
     @PostMapping("/{bookingId}/cancel")
-    @Operation(summary = "Annuler (libère la date ; annule l'événement lié)")
+    @Operation(summary = "Annuler (libère la date ; annule l'événement lié ; remboursement facultatif)")
     public ResponseEntity<VenueBookingResponse> cancel(@PathVariable Long bookingId,
                                                        @Valid @RequestBody(required = false) CancelVenueBookingRequest request) {
-        return ResponseEntity.ok(bookingService.cancel(bookingId, request == null ? null : request.getReason()));
+        return ResponseEntity.ok(bookingService.cancel(bookingId,
+                request == null ? null : request.getReason(), request == null ? null : request.getRefund()));
+    }
+
+    @PostMapping("/{bookingId}/refunds")
+    @Operation(summary = "Rembourser le client d'une réservation annulée (total ou partiel)")
+    public ResponseEntity<VenuePaymentResponse> refund(@PathVariable Long bookingId,
+                                                       @Valid @RequestBody VenuePaymentRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(bookingService.recordRefund(bookingId, request));
     }
 
     @PostMapping("/{bookingId}/extras")
@@ -100,7 +108,7 @@ public class VenueBookingController {
     }
 
     @PostMapping("/{bookingId}/payments")
-    @Operation(summary = "Enregistrer un paiement (autre devise : exchangeRate = CDF pour 1 USD)")
+    @Operation(summary = "Enregistrer un paiement (autre devise : taux du jour de la salle, ou exchangeRate = CDF pour 1 USD)")
     public ResponseEntity<VenuePaymentResponse> recordPayment(@PathVariable Long bookingId,
                                                               @Valid @RequestBody VenuePaymentRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(bookingService.recordPayment(bookingId, request));
@@ -114,7 +122,7 @@ public class VenueBookingController {
     }
 
     @GetMapping("/{bookingId}/payments/{paymentId}/receipt.pdf")
-    @Operation(summary = "Reçu de paiement (PDF)")
+    @Operation(summary = "Reçu de paiement ou de remboursement (PDF)")
     public ResponseEntity<byte[]> receipt(@PathVariable Long bookingId, @PathVariable Long paymentId) {
         return pdf(documentService.receiptPdf(bookingId, paymentId), "recu-" + paymentId + ".pdf");
     }
