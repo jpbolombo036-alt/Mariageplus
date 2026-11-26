@@ -5,8 +5,11 @@ import com.mariageplus.dto.venue.VenueRateResponse;
 import com.mariageplus.dto.venue.VenueRequest;
 import com.mariageplus.dto.venue.VenueResponse;
 import com.mariageplus.entity.Venue;
+import com.mariageplus.entity.VenueBookingStatus;
 import com.mariageplus.entity.VenueRate;
+import com.mariageplus.exception.ConflictException;
 import com.mariageplus.exception.ResourceNotFoundException;
+import com.mariageplus.repository.VenueBookingRepository;
 import com.mariageplus.repository.VenueRateRepository;
 import com.mariageplus.repository.VenueRepository;
 import com.mariageplus.security.SecurityUtils;
@@ -14,6 +17,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.util.EnumSet;
 import java.util.List;
 
 /** Salles et tarifs d'une organisation (module « Salles »). */
@@ -25,6 +30,7 @@ public class VenueService {
 
     private final VenueRepository venueRepository;
     private final VenueRateRepository rateRepository;
+    private final VenueBookingRepository bookingRepository;
     private final VenueModuleGuard guard;
     private final SecurityUtils securityUtils;
     private final AuditService auditService;
@@ -63,14 +69,45 @@ public class VenueService {
         return toResponse(saved);
     }
 
-    /** Suppression logique ; les réservations passées restent consultables. */
+    /**
+     * Suppression logique ; les réservations passées restent consultables.
+     * Refusée tant que la salle a des réservations à venir (option ou confirmée) :
+     * elles perdraient leur salle sans que personne ne s'en rende compte.
+     */
     @Transactional
     public void delete(Long venueId) {
         securityUtils.assertPermission("VENUE_MANAGE");
         Venue venue = loadInScope(venueId);
+        long upcoming = bookingRepository.countByVenueIdAndStatusInAndEndAtAfter(venue.getId(),
+                EnumSet.of(VenueBookingStatus.DEMANDE, VenueBookingStatus.OPTION, VenueBookingStatus.CONFIRMEE),
+                LocalDateTime.now());
+        if (upcoming > 0) {
+            throw new ConflictException("Impossible de supprimer « " + venue.getName() + " » : " + upcoming
+                    + " réservation(s) à venir. Annulez-les ou déplacez-les d'abord, ou désactivez la salle.");
+        }
         venue.softDelete();
         venueRepository.save(venue);
         audit("VENUE_DELETE", venueId, venue.getOrganizationId(), "Suppression de la salle '" + venue.getName() + "'");
+    }
+
+    /** Salles supprimées de l'organisation, pour pouvoir les restaurer. */
+    @Transactional(readOnly = true)
+    public List<VenueResponse> listDeleted() {
+        Long orgId = guard.requireEnabledOrganization("VENUE_MANAGE");
+        return venueRepository.findDeletedByOrganizationId(orgId).stream().map(this::toResponse).toList();
+    }
+
+    /** Annule la suppression d'une salle de l'organisation. */
+    @Transactional
+    public VenueResponse restore(Long venueId) {
+        Long orgId = guard.requireEnabledOrganization("VENUE_MANAGE");
+        if (venueRepository.restore(venueId, orgId) == 0) {
+            throw new ResourceNotFoundException("Salle supprimée introuvable : " + venueId);
+        }
+        Venue venue = venueRepository.findById(venueId)
+                .orElseThrow(() -> new ResourceNotFoundException("Salle introuvable : " + venueId));
+        audit("VENUE_RESTORE", venueId, orgId, "Restauration de la salle '" + venue.getName() + "'");
+        return toResponse(venue);
     }
 
     // ---- Tarifs -----------------------------------------------------------
