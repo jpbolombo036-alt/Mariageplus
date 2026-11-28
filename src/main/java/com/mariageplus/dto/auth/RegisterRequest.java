@@ -33,4 +33,7 @@ public class RegisterRequest {
     private String organizationEmail;
     private String organizationPhone;
     private String organizationAddress;
+
+    /** L'inscrit gère une salle de fête : le SUPER_ADMIN est prévenu pour activer le module Salles. */
+    private Boolean venueOwner;
 }

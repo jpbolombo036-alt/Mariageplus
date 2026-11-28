@@ -93,6 +93,23 @@ class AdminNotificationIntegrationTest {
                 .findFirst().orElse(null);
     }
 
+    @Test
+    void aVenueOwnerRegistrationAsksTheSuperAdminToEnableTheVenueModule() throws Exception {
+        LoginResponse admin = login("admin@test.mariageplus.app", "Admin@12345");
+        RegisterRequest request = new RegisterRequest();
+        request.setFirstName("Gerant");
+        request.setLastName("Salle");
+        request.setEmail("venue-owner@example.com");
+        request.setPassword("MotDePasse123");
+        request.setOrganizationName("Salle Cloche");
+        request.setVenueOwner(true);
+        authService.register(request);
+
+        JsonNode registered = findByTitle(list(admin), "Nouvelle salle de fête à activer : Salle Cloche");
+        assertNotNull(registered, "a venue owner registration must be flagged in the bell");
+        assertTrue(registered.get("message").asText().contains("module Salles"));
+    }
+
     private LoginResponse register(String email, String organizationName) {
         RegisterRequest request = new RegisterRequest();
         request.setFirstName("Compte");

@@ -128,6 +128,8 @@ public class AuthService {
                 .active(true)
                 .build());
 
+        boolean venueOwner = Boolean.TRUE.equals(request.getVenueOwner());
+
         // Nouveau compte : envoi WhatsApp et création d'événements verrouillés.
         // Le SUPER_ADMIN les active dans la Console → Organisations.
         organizationSettingsService.initializeLockedDefaults(savedOrg.getId());
@@ -138,12 +140,13 @@ public class AuthService {
         auditService.record("ORGANIZATION_REGISTERED", savedOrg.getId(), "Organization",
                 saved.getId(), savedOrg.getId(),
                 "Nouvelle organisation inscrite : " + savedOrg.getName()
+                        + (venueOwner ? " (salle de fête, module Salles demandé)" : "")
                         + " (verrouillée jusqu'à activation par le SUPER_ADMIN)");
         superAdminNotificationService.notifyNewOrganization(savedOrg.getId(), savedOrg.getName(),
                 saved.getFirstName() + " " + saved.getLastName(), saved.getEmail());
         // Cloche in-app : visible par les SUPER_ADMIN même sans SMTP configuré.
         adminNotificationService.notifyOrganizationRegistered(savedOrg.getId(), savedOrg.getName(),
-                saved.getId(), saved.getFirstName() + " " + saved.getLastName(), saved.getEmail());
+                saved.getId(), saved.getFirstName() + " " + saved.getLastName(), saved.getEmail(), venueOwner);
 
         UserPrincipal principal = UserPrincipal.create(
                 saved.getId(), saved.getEmail(), saved.getPasswordHash(),

@@ -38,11 +38,24 @@ public class AdminNotificationService {
     @Transactional
     public void notifyOrganizationRegistered(Long organizationId, String organizationName,
                                              Long userId, String creatorName, String creatorEmail) {
+        notifyOrganizationRegistered(organizationId, organizationName, userId, creatorName, creatorEmail, false);
+    }
+
+    /** {@code venueOwner} : l'inscrit gère une salle de fête et attend le module Salles. */
+    @Transactional
+    public void notifyOrganizationRegistered(Long organizationId, String organizationName,
+                                             Long userId, String creatorName, String creatorEmail,
+                                             boolean venueOwner) {
+        String title = venueOwner
+                ? "Nouvelle salle de fête à activer : " + organizationName
+                : "Nouvelle organisation à activer : " + organizationName;
+        String todo = venueOwner
+                ? "Activez le module Salles, la création d'événements et WhatsApp dans Console → Organisations."
+                : "Activez la création d'événements et WhatsApp dans Console → Organisations.";
         repository.save(AdminNotification.builder()
                 .type(AdminNotification.TYPE_ORGANIZATION_REGISTERED)
-                .title(truncate("Nouvelle organisation à activer : " + organizationName, 255))
-                .message(truncate(creatorName + " (" + creatorEmail + ") vient de créer un compte. "
-                        + "Activez la création d'événements et WhatsApp dans Console → Organisations.", 2000))
+                .title(truncate(title, 255))
+                .message(truncate(creatorName + " (" + creatorEmail + ") vient de créer un compte. " + todo, 2000))
                 .organizationId(organizationId)
                 .userId(userId)
                 .senderEmail(creatorEmail)
