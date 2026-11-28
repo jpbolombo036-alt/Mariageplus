@@ -3,6 +3,7 @@ package com.mariageplus.controller;
 import com.mariageplus.dto.venue.*;
 import com.mariageplus.service.VenueBookingService;
 import com.mariageplus.service.VenueCashierService;
+import com.mariageplus.service.VenueDocumentSettingsService;
 import com.mariageplus.service.VenueExchangeRateService;
 import com.mariageplus.service.VenueModuleGuard;
 import com.mariageplus.service.VenueReportService;
@@ -36,6 +37,7 @@ public class VenueController {
     private final VenueModuleGuard guard;
     private final VenueExchangeRateService exchangeRateService;
     private final VenueCashierService cashierService;
+    private final VenueDocumentSettingsService documentSettingsService;
 
     @GetMapping("/module-status")
     @Operation(summary = "Le module Salles est-il activé pour mon organisation ?")
@@ -165,6 +167,40 @@ public class VenueController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required = false) Long venueId) {
         return ResponseEntity.ok(reportService.dashboard(from, to, venueId));
+    }
+
+    @GetMapping("/document-settings")
+    @Operation(summary = "En-tête des devis et reçus (raison sociale, RCCM, Id. Nat., NIF, coordonnées, pied de page)")
+    public ResponseEntity<VenueDocumentSettingsDto> documentSettings() {
+        return ResponseEntity.ok(documentSettingsService.get());
+    }
+
+    @PutMapping("/document-settings")
+    @Operation(summary = "Modifier l'en-tête des devis et reçus")
+    public ResponseEntity<VenueDocumentSettingsDto> updateDocumentSettings(@Valid @RequestBody VenueDocumentSettingsDto request) {
+        return ResponseEntity.ok(documentSettingsService.update(request));
+    }
+
+    @PutMapping(value = "/document-settings/logo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Logo des devis et reçus (JPEG ou PNG, 1 Mo max)")
+    public ResponseEntity<VenueDocumentSettingsDto> uploadDocumentLogo(@RequestParam("file") MultipartFile file) throws IOException {
+        return ResponseEntity.ok(documentSettingsService.setLogo(file.getBytes()));
+    }
+
+    @GetMapping("/document-settings/logo")
+    @Operation(summary = "Logo des devis et reçus")
+    public ResponseEntity<byte[]> documentLogo() {
+        byte[] logo = documentSettingsService.getLogo();
+        if (logo == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok().contentType(MediaType.parseMediaType(detectMediaType(logo))).body(logo);
+    }
+
+    @DeleteMapping("/document-settings/logo")
+    @Operation(summary = "Retirer le logo des devis et reçus")
+    public ResponseEntity<VenueDocumentSettingsDto> deleteDocumentLogo() {
+        return ResponseEntity.ok(documentSettingsService.deleteLogo());
     }
 
     @GetMapping("/my-cash")
