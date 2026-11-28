@@ -25,6 +25,13 @@ public class VenueDashboardResponse {
     /** Encaissé net pendant la période (paiements − remboursements), par devise du mouvement. */
     private List<CurrencyAmount> collected;
 
+    /** Dépensé pendant la période, par devise. */
+    private List<CurrencyAmount> spent;
+    /** Résultat de la période : encaissé net − dépensé, par devise. */
+    private List<CurrencyAmount> result;
+    /** Dépenses de la période par poste et par devise (les plus lourdes d'abord). */
+    private List<VenueExpenseListResponse.CategoryTotal> expensesByCategory;
+    private long expenseCount;
     /** Remboursé pendant la période, par devise du remboursement. */
     private List<CurrencyAmount> refunded;
 

@@ -35,7 +35,21 @@ public class VenueCashierSummary {
     private long paymentCount;
     private long refundCount;
 
-    /** Encaissé net par mode et par devise sur la période (espèces en caisse, Mobile Money…). */
+    /** Dépenses payées par l'utilisateur sur la période, par devise. */
+    private List<CurrencyAmount> spent;
+
+    /** Dépenses payées aujourd'hui, par devise. */
+    private List<CurrencyAmount> todaySpent;
+
+    /** Solde de la période : encaissé net − dépensé, par devise. */
+    private List<CurrencyAmount> balance;
+
+    private long expenseCount;
+
+    /** Dépenses de la période, les plus récentes d'abord. */
+    private List<VenueExpenseResponse> expenses;
+
+    /** Net par mode et par devise sur la période (encaissé − remboursé − dépensé) : espèces en caisse, Mobile Money… */
     private List<MethodTotal> byMethod;
 
     /** Mouvements de la période, les plus récents d'abord. */

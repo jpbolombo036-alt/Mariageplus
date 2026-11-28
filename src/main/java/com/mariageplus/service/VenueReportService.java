@@ -4,6 +4,7 @@ import com.mariageplus.dto.venue.CurrencyAmount;
 import com.mariageplus.dto.venue.VenueCashierTotal;
 import com.mariageplus.dto.venue.VenueBookingResponse;
 import com.mariageplus.dto.venue.VenueDashboardResponse;
+import com.mariageplus.dto.venue.VenueExpenseListResponse;
 import com.mariageplus.dto.venue.VenueRefundLine;
 import com.mariageplus.entity.*;
 import com.mariageplus.repository.VenueBookingPaymentRepository;
@@ -43,6 +44,7 @@ public class VenueReportService {
     private final VenueBookingService bookingService;
     private final VenueModuleGuard guard;
     private final UserRepository userRepository;
+    private final VenueExpenseService expenseService;
 
     /**
      * @param from premier jour inclus (défaut : 1er du mois courant)
@@ -102,6 +104,21 @@ public class VenueReportService {
             }
         });
 
+        // Dépenses de la période (filtrées par salle : les dépenses générales ne sont alors pas comptées).
+        List<VenueExpense> expenses = expenseService.between(orgId, periodStart, periodEnd).stream()
+                .filter(e -> venueId == null || venueId.equals(e.getVenueId()))
+                .toList();
+        List<CurrencyAmount> collectedList = toList(collected);
+        List<CurrencyAmount> spent = VenueExpenseService.totals(expenses);
+        Map<String, VenueExpenseListResponse.CategoryTotal> byCategory = new LinkedHashMap<>();
+        expenses.forEach(e -> {
+            VenueExpenseListResponse.CategoryTotal t = byCategory.computeIfAbsent(e.getCategory() + "|" + e.getCurrency(),
+                    k -> VenueExpenseListResponse.CategoryTotal.builder()
+                            .category(e.getCategory()).currency(e.getCurrency()).amount(BigDecimal.ZERO).build());
+            t.setAmount(t.getAmount().add(e.getAmount()));
+            t.setCount(t.getCount() + 1);
+        });
+
         // Occupation : jours-salle couverts par des réservations fermes.
         long days = ChronoUnit.DAYS.between(start, end) + 1;
         long available = days * venues.size();
@@ -143,10 +160,17 @@ public class VenueReportService {
                 .venueId(venueId)
                 .venueCount(venues.size())
                 .bookingsByStatus(byStatus)
-                .collected(toList(collected))
+                .collected(collectedList)
+                .spent(spent)
+                .result(VenueMoney.subtract(collectedList, spent))
+                .expensesByCategory(byCategory.values().stream()
+                        .peek(t -> t.setAmount(VenueMoney.scale(t.getAmount())))
+                        .sorted(Comparator.comparing(VenueExpenseListResponse.CategoryTotal::getAmount).reversed())
+                        .toList())
+                .expenseCount(expenses.size())
                 .refunded(toList(refundedTotals))
                 .refunds(refundLines(payments))
-                .byCashier(byCashier(orgId, venueId, payments))
+                .byCashier(byCashier(orgId, venueId, payments, expenses))
                 .bookedValue(toList(booked))
                 .outstanding(toList(outstanding))
                 .occupancyRate(rate)
@@ -203,6 +227,14 @@ public class VenueReportService {
             sheet(wb, head, "Paiements", List.of("Reçu", "Type", "Date", "Réservation", "Client", "Montant", "Devise",
                     "Taux (CDF/USD)", "Mode", "Référence"), paymentRows);
 
+            List<List<Object>> expenseRows = expenseService.toResponses(expenseService.between(orgId, periodStart, periodEnd))
+                    .stream().map(e -> List.<Object>of(DATE_TIME.format(e.getSpentAt()), e.getCategory().name(), e.getLabel(),
+                            nz(e.getVenueName()), e.getAmount(), e.getCurrency().name(), e.getMethod().name(),
+                            nz(e.getReference()), nz(e.getRecordedByName()), nz(e.getNote())))
+                    .toList();
+            sheet(wb, head, "Dépenses", List.of("Date", "Poste", "Libellé", "Salle", "Montant", "Devise", "Mode",
+                    "Référence", "Saisie par", "Note"), expenseRows);
+
             wb.write(out);
             return out.toByteArray();
         } catch (Exception ex) {
@@ -215,7 +247,8 @@ public class VenueReportService {
      * remboursements, avec la part espèces / Mobile Money / virement : le gérant
      * rapproche ainsi la caisse de chaque employé.
      */
-    private List<VenueCashierTotal> byCashier(Long orgId, Long venueId, List<VenueBookingPayment> periodPayments) {
+    private List<VenueCashierTotal> byCashier(Long orgId, Long venueId, List<VenueBookingPayment> periodPayments,
+                                              List<VenueExpense> periodExpenses) {
         LocalDate today = LocalDate.now();
         List<VenueBookingPayment> todays = paymentRepository.findByOrganizationPaidBetween(
                 orgId, today.atStartOfDay(), today.plusDays(1).atStartOfDay());
@@ -229,8 +262,11 @@ public class VenueReportService {
                 .collect(Collectors.groupingBy(VenueBookingPayment::getRecordedBy, LinkedHashMap::new, Collectors.toList()));
         Map<Long, List<VenueBookingPayment>> ofToday = todays.stream().filter(p -> p.getRecordedBy() != null)
                 .collect(Collectors.groupingBy(VenueBookingPayment::getRecordedBy));
+        Map<Long, List<VenueExpense>> spentBy = periodExpenses.stream().filter(e -> e.getRecordedBy() != null)
+                .collect(Collectors.groupingBy(VenueExpense::getRecordedBy));
         Set<Long> userIds = new LinkedHashSet<>(period.keySet());
         userIds.addAll(ofToday.keySet());
+        userIds.addAll(spentBy.keySet());
         if (userIds.isEmpty()) {
             return List.of();
         }
@@ -240,12 +276,17 @@ public class VenueReportService {
                 VenuePaymentMethod.AIRTEL_MONEY);
         return userIds.stream().map(id -> {
             List<VenueBookingPayment> mine = period.getOrDefault(id, List.of());
+            List<VenueExpense> myExpenses = spentBy.getOrDefault(id, List.of());
+            List<CurrencyAmount> cash = netTotals(mine.stream().filter(p -> p.getMethod() == VenuePaymentMethod.ESPECES).toList());
             return VenueCashierTotal.builder()
                     .userId(id)
                     .name(names.getOrDefault(id, "Utilisateur #" + id))
                     .today(netTotals(ofToday.getOrDefault(id, List.of())))
                     .collected(netTotals(mine))
-                    .cash(netTotals(mine.stream().filter(p -> p.getMethod() == VenuePaymentMethod.ESPECES).toList()))
+                    .cash(cash)
+                    .spent(VenueExpenseService.totals(myExpenses))
+                    .cashInHand(VenueMoney.subtract(cash, VenueExpenseService.totals(myExpenses.stream()
+                            .filter(e -> e.getMethod() == VenuePaymentMethod.ESPECES).toList())))
                     .mobileMoney(netTotals(mine.stream().filter(p -> mobile.contains(p.getMethod())).toList()))
                     .transfer(netTotals(mine.stream().filter(p -> p.getMethod() == VenuePaymentMethod.VIREMENT).toList()))
                     .paymentCount(mine.stream().filter(p -> p.getKind() != VenuePaymentKind.REFUND).count())

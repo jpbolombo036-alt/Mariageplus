@@ -34,4 +34,8 @@ public class VenueCashierTotal {
 
     private long paymentCount;
     private long refundCount;
+    /** Dépenses payées par la personne sur la période, par devise. */
+    private List<CurrencyAmount> spent;
+    /** Espèces encaissées − dépenses payées en espèces : ce que la caisse doit contenir. */
+    private List<CurrencyAmount> cashInHand;
 }

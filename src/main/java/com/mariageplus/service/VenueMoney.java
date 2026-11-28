@@ -21,6 +21,19 @@ public final class VenueMoney {
         return (amount == null ? BigDecimal.ZERO : amount).setScale(2, RoundingMode.HALF_UP);
     }
 
+    /** Différence par devise ({@code a} − {@code b}), sans conversion : USD et CDF restent séparés. */
+    public static java.util.List<com.mariageplus.dto.venue.CurrencyAmount> subtract(
+            java.util.List<com.mariageplus.dto.venue.CurrencyAmount> a,
+            java.util.List<com.mariageplus.dto.venue.CurrencyAmount> b) {
+        java.util.Map<VenueCurrency, BigDecimal> sums = new java.util.EnumMap<>(VenueCurrency.class);
+        a.forEach(x -> sums.merge(x.getCurrency(), x.getAmount(), BigDecimal::add));
+        b.forEach(x -> sums.merge(x.getCurrency(), x.getAmount().negate(), BigDecimal::add));
+        return sums.entrySet().stream()
+                .map(e -> com.mariageplus.dto.venue.CurrencyAmount.builder()
+                        .currency(e.getKey()).amount(scale(e.getValue())).build())
+                .toList();
+    }
+
     /**
      * Convertit {@code amount} de la devise {@code from} vers {@code to}.
      *

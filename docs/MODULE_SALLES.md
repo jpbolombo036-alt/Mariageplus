@@ -142,7 +142,26 @@ POST /api/bookings
    connexion. Le client gère invités, invitations et RSVP ; il ne voit ni le
    module Salles ni les autres clients, et ne peut pas modifier l'événement.
 
+## Dépenses (V59)
+
+Sorties d'argent de la salle (électricité, carburant du groupe, personnel,
+entretien, nettoyage, sécurité, loyer, fournitures, communication, taxes, autre),
+en USD ou en CDF, rattachées à une salle ou générales (`venue_id` nul).
+
+| Permission | Rôles | Droit |
+| --- | --- | --- |
+| `EXPENSE_RECORD` | ORGANISATEUR, AGENT_SALLE, SUPER_ADMIN | saisir ; le caissier ne voit que ses dépenses |
+| `EXPENSE_MANAGE` | ORGANISATEUR, SUPER_ADMIN | tout voir, modifier, annuler (suppression douce + audit) |
+
+- `GET/POST /api/venues/expenses`, `PUT/DELETE /api/venues/expenses/{id}` (motif en `?reason=`).
+- **Ma caisse** : dépensé, solde (encaissé − dépensé) par devise ; le détail par mode est net des dépenses.
+- **Tableau de bord** : dépensé, résultat (encaissé net − dépensé), principaux postes ;
+  par caissier, « espèces en caisse » = espèces encaissées − dépenses en espèces.
+  Filtré par salle, les dépenses générales ne sont pas comptées.
+- **Export Excel** : feuille « Dépenses ».
+- USD et CDF ne sont jamais additionnés : chaque total reste par devise.
+
 ## Reporté
 
-- V1.1 : rôle `AGENT_SALLE` (réservations et paiements sans les rapports).
+- V1.1 : rôle `AGENT_SALLE` (réservations et paiements sans les rapports). Fait (V57).
 - V2 : factures numérotées, page publique de demande (`DEMANDE`), paiement Mobile Money en ligne.
