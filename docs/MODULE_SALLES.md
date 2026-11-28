@@ -63,6 +63,11 @@ taux du jour, et ne crée ni l'événement MariagePlus ni l'accès client (`EVEN
   de l'encaissé (`collected`) et les liste à part (`refunded`).
 - **Suppression d'une salle** : refusée (409) tant qu'elle a des réservations à venir ; restauration via
   `GET /api/venues/deleted` et `POST /api/venues/{id}/restore`.
+- **En-tête des documents** (V58) : `GET/PUT /api/venues/document-settings` (raison sociale, RCCM, Id. Nat.,
+  NIF, adresse, téléphone, email, pied de page) et `PUT/GET/DELETE /api/venues/document-settings/logo`
+  (JPEG ou PNG, 1 Mo). Lecture : `VENUE_VIEW` ; modification : `VENUE_MANAGE`. Les devis et reçus PDF
+  affichent le logo et les mentions en en-tête, et le pied de page sur chaque page ; un champ vide retombe
+  sur la fiche de l'organisation.
 - **Téléphones** : `0812 345 678` → `+243812345678` (`VENUE_DEFAULT_COUNTRY_CODE`).
 - Une réservation `ANNULEE` ou `REALISEE` n'est plus modifiable.
 - Tout est tracé dans `audit_logs` (création, modification, paiements, annulations).

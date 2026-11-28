@@ -1,8 +1,10 @@
 package com.mariageplus.service;
 
 import com.lowagie.text.*;
+import com.lowagie.text.pdf.ColumnText;
 import com.lowagie.text.pdf.PdfPCell;
 import com.lowagie.text.pdf.PdfPTable;
+import com.lowagie.text.pdf.PdfPageEventHelper;
 import com.lowagie.text.pdf.PdfWriter;
 import com.mariageplus.entity.*;
 import com.mariageplus.exception.ResourceNotFoundException;
@@ -17,6 +19,7 @@ import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 
 /** Documents PDF du module « Salles » : devis et reçu de paiement. */
@@ -34,6 +37,7 @@ public class VenueDocumentService {
     private final VenueBookingExtraRepository extraRepository;
     private final VenueBookingPaymentRepository paymentRepository;
     private final OrganizationRepository organizationRepository;
+    private final VenueDocumentSettingsService documentSettingsService;
     private final SecurityUtils securityUtils;
 
     @Transactional(readOnly = true)
@@ -44,7 +48,7 @@ public class VenueDocumentService {
         VenueClient client = clientRepository.findById(booking.getClientId()).orElse(null);
         VenueCurrency cur = booking.getCurrency();
 
-        return render(doc -> {
+        return render(booking.getOrganizationId(), doc -> {
             header(doc, booking.getOrganizationId(), "DEVIS N° D-" + VenueBookingService.reference(booking).substring(4),
                     "Date : " + DATE.format(LocalDate.now()));
             partyBlock(doc, booking, venue, client);
@@ -112,7 +116,7 @@ public class VenueDocumentService {
         final boolean refund = payment.getKind() == VenuePaymentKind.REFUND;
         BigDecimal remaining = booking.getTotalAmount().subtract(paidToDate);
 
-        return render(doc -> {
+        return render(booking.getOrganizationId(), doc -> {
             header(doc, booking.getOrganizationId(),
                     (refund ? "REÇU DE REMBOURSEMENT N° " : "REÇU N° ") + VenueBookingService.receiptNumber(payment),
                     (refund ? "Date du remboursement : " : "Date du paiement : ") + DATE_TIME.format(payment.getPaidAt()));
@@ -149,11 +153,27 @@ public class VenueDocumentService {
         void write(Document doc) throws DocumentException;
     }
 
-    private byte[] render(Body body) {
+    private byte[] render(Long organizationId, Body body) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        Document doc = new Document(PageSize.A4, 50, 50, 50, 50);
+        // Marge basse élargie : le pied de page (mentions légales) y est écrit sur chaque page.
+        Document doc = new Document(PageSize.A4, 50, 50, 50, 70);
         try {
-            PdfWriter.getInstance(doc, out);
+            PdfWriter writer = PdfWriter.getInstance(doc, out);
+            List<String> footer = footerLines(organizationId);
+            if (!footer.isEmpty()) {
+                writer.setPageEvent(new PdfPageEventHelper() {
+                    @Override
+                    public void onEndPage(PdfWriter w, Document d) {
+                        float y = 28 + 11 * (footer.size() - 1);
+                        for (String line : footer) {
+                            ColumnText.showTextAligned(w.getDirectContent(), Element.ALIGN_CENTER,
+                                    new Phrase(line, FontFactory.getFont(FontFactory.HELVETICA, 8, new Color(110, 110, 110))),
+                                    (d.left() + d.right()) / 2, y, 0);
+                            y -= 11;
+                        }
+                    }
+                });
+            }
             doc.open();
             body.write(doc);
         } catch (DocumentException e) {
@@ -166,21 +186,99 @@ public class VenueDocumentService {
         return out.toByteArray();
     }
 
+    /**
+     * En-tête : logo (si fourni) à gauche, raison sociale, coordonnées et mentions
+     * légales à droite. Chaque champ vide de l'en-tête retombe sur la fiche de
+     * l'organisation (nom, adresse, téléphone, email).
+     */
     private void header(Document doc, Long organizationId, String title, String subtitle) throws DocumentException {
         Organization org = organizationRepository.findById(organizationId).orElse(null);
-        doc.add(new Paragraph(org == null ? "" : org.getName(), font(16, true)));
-        if (org != null) {
-            StringBuilder contact = new StringBuilder();
-            if (org.getAddress() != null) contact.append(org.getAddress()).append("  ");
-            if (org.getPhone() != null) contact.append("Tél. ").append(org.getPhone()).append("  ");
-            if (org.getEmail() != null) contact.append(org.getEmail());
-            if (!contact.isEmpty()) {
-                doc.add(new Paragraph(contact.toString().trim(), font(9, false)));
+        VenueDocumentSettings s = documentSettingsService.settingsFor(organizationId).orElse(null);
+        String name = firstNonBlank(s == null ? null : s.getLegalName(), org == null ? null : org.getName());
+        String address = firstNonBlank(s == null ? null : s.getAddress(), org == null ? null : org.getAddress());
+        String phone = firstNonBlank(s == null ? null : s.getPhone(), org == null ? null : org.getPhone());
+        String email = firstNonBlank(s == null ? null : s.getEmail(), org == null ? null : org.getEmail());
+
+        PdfPTable top = new PdfPTable(new float[]{2, 7});
+        top.setWidthPercentage(100);
+        PdfPCell logoCell = new PdfPCell();
+        logoCell.setBorder(Rectangle.NO_BORDER);
+        byte[] logo = documentSettingsService.logoBytes(organizationId);
+        if (logo != null) {
+            try {
+                Image image = Image.getInstance(logo);
+                image.scaleToFit(110, 70);
+                logoCell.addElement(image);
+            } catch (Exception ignored) {
+                // Logo illisible : le document reste valable sans lui.
             }
         }
+        PdfPCell identity = new PdfPCell();
+        identity.setBorder(Rectangle.NO_BORDER);
+        identity.setHorizontalAlignment(Element.ALIGN_RIGHT);
+        identity.addElement(aligned(name == null ? "" : name, font(15, true)));
+        List<String> contact = new ArrayList<>();
+        if (address != null) contact.add(address);
+        if (phone != null) contact.add("Tél. " + phone);
+        if (email != null) contact.add(email);
+        if (!contact.isEmpty()) {
+            identity.addElement(aligned(String.join("  ·  ", contact), font(9, false)));
+        }
+        String legal = legalMentions(s);
+        if (legal != null) {
+            identity.addElement(aligned(legal, font(8, false)));
+        }
+        if (logo != null) {
+            top.addCell(logoCell);
+            top.addCell(identity);
+        } else {
+            identity.setColspan(2);
+            top.addCell(identity);
+        }
+        doc.add(top);
         doc.add(new Paragraph(" "));
         doc.add(new Paragraph(title, font(14, true)));
         doc.add(new Paragraph(subtitle, font(10, false)));
+    }
+
+    private Paragraph aligned(String text, Font font) {
+        Paragraph p = new Paragraph(text, font);
+        p.setAlignment(Element.ALIGN_RIGHT);
+        return p;
+    }
+
+    /** « RCCM : … · Id. Nat. : … · NIF : … » (seulement les mentions renseignées). */
+    private static String legalMentions(VenueDocumentSettings s) {
+        if (s == null) {
+            return null;
+        }
+        List<String> parts = new ArrayList<>();
+        if (s.getRccm() != null) parts.add("RCCM : " + s.getRccm());
+        if (s.getIdNat() != null) parts.add("Id. Nat. : " + s.getIdNat());
+        if (s.getNif() != null) parts.add("NIF : " + s.getNif());
+        return parts.isEmpty() ? null : String.join("  ·  ", parts);
+    }
+
+    /** Pied de page : texte libre du gérant, puis raison sociale et mentions légales. */
+    private List<String> footerLines(Long organizationId) {
+        VenueDocumentSettings s = documentSettingsService.settingsFor(organizationId).orElse(null);
+        List<String> lines = new ArrayList<>();
+        if (s == null) {
+            return lines;
+        }
+        if (s.getFooterNote() != null) {
+            lines.add(s.getFooterNote());
+        }
+        String legal = legalMentions(s);
+        if (legal != null) {
+            lines.add(s.getLegalName() == null ? legal : s.getLegalName() + "  ·  " + legal);
+        }
+        return lines;
+    }
+
+    private static String firstNonBlank(String a, String b) {
+        if (a != null && !a.isBlank()) return a.trim();
+        return b == null || b.isBlank() ? null : b.trim();
     }
 
     private void partyBlock(Document doc, VenueBooking b, Venue venue, VenueClient client) throws DocumentException {

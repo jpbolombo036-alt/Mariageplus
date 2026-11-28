@@ -20,12 +20,6 @@ public interface VenueRepository extends JpaRepository<Venue, Long> {
     long countByOrganizationIdAndActiveTrue(Long organizationId);
 
     /**
-     * Charge la salle sous verrou d'écriture (SELECT ... FOR UPDATE). Toute
-     * création ou modification de réservation sur une salle passe par ce
-     * verrou : deux agents qui réservent la même salle en même temps sont
-     * sérialisés, et le contrôle de chevauchement voit l'autre réservation.
-     */
-    /**
      * Salles supprimées (logiquement) de l'organisation. Requête native : le
      * filtre @SQLRestriction("deleted_at IS NULL") de l'entité ne s'y applique pas.
      */
@@ -39,6 +33,12 @@ public interface VenueRepository extends JpaRepository<Venue, Long> {
             + "WHERE id = :id AND organization_id = :orgId AND deleted_at IS NOT NULL", nativeQuery = true)
     int restore(@Param("id") Long id, @Param("orgId") Long organizationId);
 
+    /**
+     * Charge la salle sous verrou d'écriture (SELECT ... FOR UPDATE). Toute
+     * création ou modification de réservation sur une salle passe par ce
+     * verrou : deux agents qui réservent la même salle en même temps sont
+     * sérialisés, et le contrôle de chevauchement voit l'autre réservation.
+     */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT v FROM Venue v WHERE v.id = :id")
     Optional<Venue> findByIdForUpdate(@Param("id") Long id);
