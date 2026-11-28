@@ -2,6 +2,7 @@ package com.mariageplus.service;
 
 import com.mariageplus.dto.venue.CurrencyAmount;
 import com.mariageplus.dto.venue.VenueCashierSummary;
+import com.mariageplus.dto.venue.VenueExpenseResponse;
 import com.mariageplus.entity.*;
 import com.mariageplus.repository.VenueBookingPaymentRepository;
 import com.mariageplus.repository.VenueBookingRepository;
@@ -35,6 +36,7 @@ public class VenueCashierService {
     private final VenueBookingService bookingService;
     private final VenueModuleGuard guard;
     private final SecurityUtils securityUtils;
+    private final VenueExpenseService expenseService;
 
     /**
      * @param from premier jour inclus (défaut : 1er du mois courant)
@@ -54,7 +56,10 @@ public class VenueCashierService {
         LocalDate today = LocalDate.now();
         List<VenueBookingPayment> todays = mineBetween(orgId, userId, today.atStartOfDay(), today.plusDays(1).atStartOfDay());
 
-        // Par mode et par devise (net : un remboursement fait sortir l'argent du même mode).
+        List<VenueExpense> myExpenses = myExpensesBetween(orgId, userId, start.atStartOfDay(), end.plusDays(1).atStartOfDay());
+        List<VenueExpense> todaysExpenses = myExpensesBetween(orgId, userId, today.atStartOfDay(), today.plusDays(1).atStartOfDay());
+
+        // Par mode et par devise (net : un remboursement ou une dépense fait sortir l'argent du même mode).
         Map<String, VenueCashierSummary.MethodTotal> byMethod = new LinkedHashMap<>();
         for (VenueBookingPayment p : mine) {
             String key = p.getMethod() + "|" + p.getCurrency();
@@ -63,7 +68,16 @@ public class VenueCashierService {
             t.setAmount(t.getAmount().add(signed(p)));
             t.setCount(t.getCount() + 1);
         }
+        for (VenueExpense e : myExpenses) {
+            String key = e.getMethod() + "|" + e.getCurrency();
+            VenueCashierSummary.MethodTotal t = byMethod.computeIfAbsent(key, k -> VenueCashierSummary.MethodTotal.builder()
+                    .method(e.getMethod()).currency(e.getCurrency()).amount(BigDecimal.ZERO).count(0).build());
+            t.setAmount(t.getAmount().subtract(e.getAmount()));
+            t.setCount(t.getCount() + 1);
+        }
         byMethod.values().forEach(t -> t.setAmount(VenueMoney.scale(t.getAmount())));
+        List<CurrencyAmount> collected = totals(mine);
+        List<CurrencyAmount> spent = VenueExpenseService.totals(myExpenses);
 
         LocalDateTime now = LocalDateTime.now();
         List<VenueBooking> upcoming = bookingRepository.findByOrganizationInPeriod(orgId, now, now.plusDays(7)).stream()
@@ -74,7 +88,12 @@ public class VenueCashierService {
                 .from(start)
                 .to(end)
                 .today(totals(todays))
-                .collected(totals(mine))
+                .collected(collected)
+                .spent(spent)
+                .todaySpent(VenueExpenseService.totals(todaysExpenses))
+                .balance(VenueMoney.subtract(collected, spent))
+                .expenseCount(myExpenses.size())
+                .expenses(expenseService.toResponses(myExpenses))
                 .paymentCount(mine.stream().filter(p -> p.getKind() != VenuePaymentKind.REFUND).count())
                 .refundCount(mine.stream().filter(p -> p.getKind() == VenuePaymentKind.REFUND).count())
                 .byMethod(new ArrayList<>(byMethod.values()))
@@ -86,6 +105,12 @@ public class VenueCashierService {
     private List<VenueBookingPayment> mineBetween(Long orgId, Long userId, LocalDateTime from, LocalDateTime to) {
         return paymentRepository.findByOrganizationPaidBetween(orgId, from, to).stream()
                 .filter(p -> userId != null && userId.equals(p.getRecordedBy()))
+                .toList();
+    }
+
+    private List<VenueExpense> myExpensesBetween(Long orgId, Long userId, LocalDateTime from, LocalDateTime to) {
+        return expenseService.between(orgId, from, to).stream()
+                .filter(e -> userId != null && userId.equals(e.getRecordedBy()))
                 .toList();
     }
 
